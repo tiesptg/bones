@@ -29,7 +29,7 @@ public abstract class ApplicationContext {
 	
 	/**
 	 * Register your managed components with this ApplicationContext
-	 * You can retrieve them, with its dependencies injected, through the get(Class<A> type) method
+	 * You can retrieve them, with its dependencies injected, through the get(Class&lt;A&gt; type) method
 	 * 
 	 * @param components: one or more components, without its managed dependencies.
 	 * 
@@ -46,8 +46,6 @@ public abstract class ApplicationContext {
 	 * @param name: the name this object will be retrievable
 	 * @param component: the component that will be retrievable by the given name
 	 * 
-	 * @throws IllegalArgumentException: when the name is already registered
-	 * 
 	 * @see ApplicationContext#get(String)
 	 */
 	protected void register(String name, Injectable component) {
@@ -62,8 +60,6 @@ public abstract class ApplicationContext {
 	 * @param <A> The type of the component you want
 	 * @param type The class of the component you want. It may be an interface or a class
 	 * @return an instance of the given type, or one of its subtypes or implementors
-	 * 
-	 * @throws IllegalArgumentException: when no component of this type is registered
 	 * 
 	 * @see ApplicationContext#register(Injectable...)
 	 */
@@ -90,8 +86,6 @@ public abstract class ApplicationContext {
 	 * @param <A> The type of result of this method.
 	 * @param name The name of the component that you want
 	 * @return The component registered under the given name
-	 * 
-	 * @throws IllegalArgumentException when no component with this name can be found
 	 * 
 	 * @see ApplicationContext#register(String, Injectable)
 	 */

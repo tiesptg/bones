@@ -6,12 +6,10 @@
 	<artifactId>bones</artifactId>
 	<version>0.9</version>
 	<name>Bare bones dependency injection</name>
-
 	<properties>
 		<maven.compiler.target>11</maven.compiler.target>
 		<maven.compiler.source>11</maven.compiler.source>
 	</properties>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -19,9 +17,26 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>3.2.1</version>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>3.6.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>3.3.0</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
-
 	<dependencies>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
@@ -30,5 +45,4 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-
 </project>
