@@ -79,8 +79,8 @@ This means you have to decide if you want to use constructor, field or setter in
 JSR330 is not possible without annotation processing and reflection. I want to avoid both in this library.
 
 # Migrate from Spring Context to Bones
-1. ***Change your managed components marked by spring annotation to Injectables:*** Remove the annotations,implement the Injectable interface and its injectFrom method.
-2. ***Transform your Configuration class to a subclass of ApplicationContext:*** In this class you should register all your components from step 1 and any beans you declared in you configuration
-3. ***Use an instance of your ApplicationContext class instead of the spring-context provided AppliationContext.*** Change the getBean methods to get.
+1. **Change your managed components marked by spring annotation to Injectables:** Remove the annotations,implement the Injectable interface and its injectFrom method.
+2. **Transform your Configuration class to a subclass of ApplicationContext:** In this class you should register all your components from step 1 and any beans you declared in you configuration
+3. **Use an instance of your ApplicationContext class instead of the spring-context provided AppliationContext.** Change the getBean methods to get.
 
 
