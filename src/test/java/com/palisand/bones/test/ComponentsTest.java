@@ -1,4 +1,4 @@
-package com.palisand.summer.test;
+package com.palisand.bones.test;
 
 
 
@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.palisand.bones.ApplicationContext;
-import com.palisand.bones.Injectable;
+import com.palisand.bones.di.ApplicationContext;
+import com.palisand.bones.di.Injectable;
 
 class ComponentsTest {
 	

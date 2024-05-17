@@ -1,4 +1,4 @@
-package com.palisand.bones;
+package com.palisand.bones.di;
 
 import java.util.ArrayList;
 import java.util.Arrays;

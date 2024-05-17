@@ -1,4 +1,4 @@
-package com.palisand.bones;
+package com.palisand.bones.di;
 
 /**
  * Implement this interface when you want the dependencies of your components injected
