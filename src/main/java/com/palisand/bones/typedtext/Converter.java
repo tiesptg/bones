@@ -1,4 +1,4 @@
-package com.palisand.bones.text;
+package com.palisand.bones.typedtext;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -6,12 +6,14 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 
-import com.palisand.bones.text.TypedMarkupText.Token;
+import com.palisand.bones.typedtext.Mapper.Token;
 
 public interface Converter<T> {
 	default <Y> Y fromYaml(String str, Class<Y> cls, String margin) throws IOException {
 		return fromYaml(new BufferedReader(new StringReader(str)),cls,margin);
 	}
+	
+	Class<?> getType();
 	
 	<Y> Y fromYaml(BufferedReader in, Class<Y> cls, String margin) throws IOException;
 
@@ -25,7 +27,7 @@ public interface Converter<T> {
 	
 	void writeYaml(Object obj, PrintWriter out, String margin) throws IOException;
 	
-	void setContainer(TypedMarkupText text);
+	void setMapper(Mapper text);
 	
 	default Object newInstance(Class<?> cls) {
 		try {

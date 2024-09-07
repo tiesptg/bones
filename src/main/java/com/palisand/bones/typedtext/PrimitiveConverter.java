@@ -1,30 +1,28 @@
-package com.palisand.bones.text;
+package com.palisand.bones.typedtext;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.function.Function;
 
-import com.palisand.bones.text.TypedMarkupText.Token;
+import lombok.Getter;
+import lombok.Setter;
 
 public class PrimitiveConverter implements Converter<Number> {
 	
 	private final Function<String,Object> parser;
-	private TypedMarkupText container = null;
+	@Getter private final Class<?> type;
+	@Setter private Mapper mapper = null;
 	
-	public void setContainer(TypedMarkupText text) {
-		container = text;
-	}
-
-	
-	public PrimitiveConverter(Function<String,Object> parser) {
+	public PrimitiveConverter(Class<?> type, Function<String,Object> parser) {
+		this.type = type;
 		this.parser = parser;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public <Y> Y fromYaml(BufferedReader in, Class<Y> cls, String margin) throws IOException {
-		String str = container.readUntilLineEnd(in);
+		String str = mapper.readUntilLineEnd(in);
 		if (str.isBlank()) {
 			return null;
 		}
