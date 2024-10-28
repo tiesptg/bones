@@ -8,10 +8,6 @@
 	<name>Bare bones application library</name>
 	<packaging>pom</packaging>
 
-	<properties>
-		<maven.compiler.release>17</maven.compiler.release>
-	</properties>
-
 	<modules>
 		<module>core</module>
 		<module>editor</module>
