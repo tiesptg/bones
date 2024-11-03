@@ -186,16 +186,14 @@ public class Repository {
 	public File write(String absolutePath, Object root) throws IOException {
 		File file = new File(absolutePath);
 		if (root instanceof Node<?> node) {
-			if (file.exists()) {
-				if (!file.isDirectory()) {
-					throw new IOException(absolutePath + " should be the directory where the file is created, but it exists and is not a directory");
-				}
-			} else if (!file.mkdirs()) {
+			if (!file.exists() && !file.mkdirs()) {
 				throw new IOException("Could not create directory " + file.getAbsolutePath());
 			}
-			file = new File(file,node.getId() + ".tt");
+			if (file.isDirectory()) {
+				file = new File(file,node.getId() + ".tt");
+			}
 		} else {
-			if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
+			if (!file.getAbsoluteFile().getParentFile().exists() && !file.getParentFile().mkdirs()) {
 				throw new IOException("Could not create parent directory of file " + file.getAbsolutePath());
 			}
 		}
@@ -261,7 +259,7 @@ public class Repository {
 				return getFromPath(context.getRootContainer(),path,++offset);
 			}
 			ObjectConverter converter = (ObjectConverter)getConverter(getClass());
-			Property property = converter.getProperties().get(path[offset]);
+			Property property = converter.getProperty(path[offset]);
 			Object value = null;
 			try {
 				value = property.getGetter().invoke(this);

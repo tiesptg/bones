@@ -12,7 +12,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Entity extends Item<Model> {
 	
-	private Entity superClass = null;
+	private Entity superEntity = null;
+	private boolean abstractEntity = false;
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
 	

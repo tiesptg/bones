@@ -33,7 +33,8 @@ public interface Converter<Y> {
 		try {
 			return cls.getConstructor().newInstance();
 		} catch (Exception ex) {
-			throw new UnsupportedOperationException(cls + " does not have a public default constructor",ex);
+			System.err.println("cannot create instance of " + cls.getName());
+			return null;
 		}
 	}
 	

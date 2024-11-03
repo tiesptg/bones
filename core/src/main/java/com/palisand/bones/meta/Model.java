@@ -18,7 +18,7 @@ public class Model extends Document {
 	private String name = "<NoName>";
 
 	private List<Entity> entities = new ArrayList<>();
-	private List<Type<?>> types = new ArrayList<>();
+	private List<EnumType> enumTypes = new ArrayList<>();
 	
 	public String getId() {
 		return name;
@@ -29,8 +29,8 @@ public class Model extends Document {
 		entity.setContainer(this, "entities");
 	}
 	
-	public void addType(Type<?> type) {
-		types.add(type);
+	public void addEnumType(EnumType type) {
+		enumTypes.add(type);
 		type.setContainer(this, "types");
 	}
 

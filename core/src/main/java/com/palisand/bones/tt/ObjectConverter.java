@@ -4,14 +4,16 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 
+import com.palisand.bones.di.Classes;
 import com.palisand.bones.tt.Repository.Token;
 
 import lombok.Data;
@@ -19,7 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 public class ObjectConverter implements Converter<Object> {
-	@Getter private Map<String,Property> properties = new TreeMap<>();
+	@Getter private List<Property> properties = new ArrayList<>();
 	@Getter private Method containerSetter = null;
 	private Repository mapper = null;
 	@Getter private Class<?> type;
@@ -28,24 +30,41 @@ public class ObjectConverter implements Converter<Object> {
 		this.mapper = mapper;
 	}
 	
+	public Property getProperty(String name) {
+		for (Property property: properties) {
+			if (property.getName().equals(name)) {
+				return property;
+			}
+		}
+		return null;
+	}
+	
 	@Data
 	@NoArgsConstructor
 	public static class Property {
+		private String name;
 		private Method getter;
 		private Method setter;
 		private Class<?> componentType;
 		private Object defaultValue;
-		private boolean link;
 		
 		public Class<?> getType() {
-			if (componentType != null) {
-				return componentType;
-			}
 			return getter.getReturnType();
 		}
 		
+		public Class<?> getComponentType() {
+			if (componentType != null) {
+				return componentType;
+			}
+			return getType();
+		}
+		
 		public boolean isList() {
-			return componentType != null;
+			return List.class.isAssignableFrom(getter.getReturnType());
+		}
+		
+		public boolean isLink() {
+			return Link.class.isAssignableFrom(getter.getReturnType());
 		}
 		
 		public String getName() {
@@ -58,92 +77,40 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
-	private String getPropertyName(String name) {
-		if (name.startsWith("is")) {
-			return Character.toLowerCase(name.charAt(2)) + name.substring(3);
-		}
-		return Character.toLowerCase(name.charAt(3)) + name.substring(4);
-	}
-	
-	private String isGetter(Method method) {
-		if (method.getParameterCount() == 0 && (method.getName().startsWith("get")
-				|| (method.getName().startsWith("is") && (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)))) {
-			return getPropertyName(method.getName());
-		}
-		return null;
-	}
-	
-	private String isSetter(Method method) {
-		if (method.getParameterCount() == 1 && method.getName().startsWith("set")) {
-			return getPropertyName(method.getName());
-		}
-		return null;
-	}
-	
-	private Property getProperty(String name) {
-		Property property = properties.get(name);
-		if (property == null) {
-			property = new Property();
-			properties.put(name, property);
-		}
-		return property;
-	}
-	
-	private Class<?> getListType(Type type) {
-		ParameterizedType pType = (ParameterizedType)type;
-        Type rType = pType.getActualTypeArguments()[0];
-        if (rType instanceof Class<?> cls) {
-        	return cls;
-        }
-        if (rType instanceof ParameterizedType prtype) {
-        	return (Class<?>)prtype.getRawType();
-        }
-        return null;
-	}
-	
 	public ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
 		while (cls != Node.class && cls != Object.class) {
-			for (Method method: cls.getDeclaredMethods()) {
-				String name = isGetter(method);
-				if (name != null) {
-					Property property = getProperty(name);
-					property.setGetter(method);
+			for (Field field: cls.getDeclaredFields()) {
+				if (!Modifier.isVolatile(field.getModifiers())) {
+					Property property = new Property();
+					property.setName(field.getName());
+					String label = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
+					String getterName = (field.getType() == boolean.class || field.getType() == Boolean.class ? "is" : "get") + label;
 					try {
-						Field field = cls.getDeclaredField(name);
-						property.setLink(Link.class.isAssignableFrom(field.getType()));
-					} catch (NoSuchFieldException ex) {
-						// ignore
-					}
-					try {
-						if (!property.isLink() && !property.isList()) {
-							property.setDefaultValue(method.invoke(object));
+						property.setGetter(cls.getMethod(getterName));
+						property.setSetter(cls.getMethod("set" + label, field.getType()));
+						if (object != null) {
+							try {
+								property.setDefaultValue(property.getGetter().invoke(object));
+							} catch (Exception ex) {
+								// ignore
+							}
 						}
-						if (List.class.isAssignableFrom(property.getType())) {
-							property.setComponentType(getListType(property.getGetter().getGenericReturnType()));
+						if (property.isList()) {
+							property.setComponentType(Classes.getGenericType(field.getGenericType(), 0));
 						} else if (property.isLink()) {
-							property.setComponentType(Link.class);
+							property.setComponentType(Classes.getGenericType(field.getGenericType(), 1));
 						}
-					} catch (Exception ex) {
-						ex.printStackTrace();
-						throw new UnsupportedOperationException(cls + " does not have a public default constructor");
-					}
-				} else {
-					name = isSetter(method);
-					if (name != null) {
-						Property property = getProperty(name);
-						property.setSetter(method);
+						properties.add(property);
+					} catch (NoSuchMethodException ex) {
+						// ignore
 					}
 				}
 			}
 			cls = cls.getSuperclass();
 		}
 		// remove incomplete properties
-		List<String> toRemove = properties.entrySet().stream()
-				.filter(e -> !e.getValue().isLink() && (e.getValue().getSetter() == null || e.getValue().getGetter() == null))
-				.map(e -> e.getKey()).toList();
-		toRemove.forEach(name -> properties.remove(name));
 	}
 	
 	@Override
@@ -160,27 +127,29 @@ public class ObjectConverter implements Converter<Object> {
 		String newMargin = margin + Repository.MARGIN_STEP;
 		Property property = null;
 		for (token = mapper.nextToken(in); !isEnd(token,margin); token = mapper.nextToken(in)) {
-			property = converter.getProperties().get(token.label());
+			property = converter.getProperty(token.label());
 			mapper.consumeLastToken();
-			Converter<?> propertyConverter = mapper.getConverter(property.isList() ? List.class : property.getType());
-			Object value = propertyConverter.fromYaml(in, property.getType(), newMargin);
-			try {
-				if (property.isLink()) {
-					Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
-					link.setPath((String)value);
-					link.setMapper(mapper);
-				} else {
-					property.setter.invoke(result, value);
+			if (property != null) {
+				Converter<?> propertyConverter = mapper.getConverter(property.getType());
+				Object value = propertyConverter.fromYaml(in, property.getComponentType(), newMargin);
+				try {
+					if (property.isLink()) {
+						Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
+						link.setPath((String)value);
+						link.setMapper(mapper);
+					} else {
+						property.setter.invoke(result, value);
+					}
+				} catch (Exception ex) {
+					throw new IOException(ex);
 				}
-			} catch (Exception ex) {
-				throw new IOException(ex);
-			}
-			if (value instanceof Node<?> node) {
-				node.setContainer((Node<?>)result,token.label());
-			} else if (value instanceof List list) {
-				for (Object item: list) {
-					if (item instanceof Node<?> node) {
-						node.setContainer((Node<?>)result,token.label());
+				if (value instanceof Node<?> node) {
+					node.setContainer((Node<?>)result,token.label());
+				} else if (value instanceof List list) {
+					for (Object item: list) {
+						if (item instanceof Node<?> node) {
+							node.setContainer((Node<?>)result,token.label());
+						}
 					}
 				}
 			}
@@ -207,39 +176,41 @@ public class ObjectConverter implements Converter<Object> {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void toYaml(Object obj, PrintWriter out, String margin) throws IOException {
+		Class<?> oldContext = mapper.getContext();
 		if (obj == null) {
 			out.println("null");
 		} else if (obj instanceof Node node) {
-			Class<?> oldContext = mapper.getContext();
 			if (node.getContainer() != null) {
 				mapper.setContext(node.getContainer().getClass());
 			}
-			out.print(getClassLabel(obj.getClass()));
-			out.println('>');
-			for (Entry<String,Property> entry: properties.entrySet()) {
-				Object value = null;
-				try {
-					value = entry.getValue().getGetter().invoke(obj);
-					if (entry.getValue().isLink()) {
-						Link<?,?> link = (Link<?,?>)value;
-						value = link.getPath();
-						link.setMapper(mapper);
-					}
-				} catch (Exception ex) {
-					throw new IOException(ex);
+		}
+		out.print(getClassLabel(obj.getClass()));
+		out.println('>');
+		for (Property property: properties) {
+			Object value = null;
+			try {
+				value = property.getGetter().invoke(obj);
+				if (property.isLink()) {
+					Link<?,?> link = (Link<?,?>)value;
+					value = link.getPath();
+					link.setMapper(mapper);
 				}
-				Converter<Object> converter = (Converter<Object>)mapper.getConverter(entry.getValue().isList() ? List.class : entry.getValue().getType());
-				if (!equalsValue(value,entry.getValue().getDefaultValue())) {
-					out.print(margin);
-					out.print(entry.getKey());
-					out.print(":\t");
+			} catch (Exception ex) {
+				throw new IOException(ex);
+			}
+			Converter<Object> converter = value == null ? null : (Converter<Object>)mapper.getConverter(property.isList() ? List.class : property.getType());
+			if (!equalsValue(value,property.getDefaultValue())) {
+				out.print(margin);
+				out.print(property.getName());
+				out.print(":\t");
+				if (converter != null) {
 					converter.toYaml(value, out, margin);
+				} else {
+					out.println("null");
 				}
 			}
-			mapper.setContext(oldContext);
-		} else {
-			throw new UnsupportedOperationException("This Converter only supports objects derived from Node");
 		}
+		mapper.setContext(oldContext);
 	}
 
 }

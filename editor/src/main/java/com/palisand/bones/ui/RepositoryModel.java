@@ -8,16 +8,14 @@ import javax.swing.JLabel;
 import javax.swing.JTree;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
+import com.palisand.bones.tt.Document;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
-import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 
 import lombok.Getter;
@@ -29,7 +27,7 @@ import lombok.Setter;
 @RequiredArgsConstructor
 public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	private final Repository repository;
-	private final List<Node<?>> roots = new ArrayList<>();
+	private final List<Document> roots = new ArrayList<>();
 	private final DefaultTreeCellRenderer cellRenderer = new DefaultTreeCellRenderer();
 	private final List<TreeModelListener> listeners = new ArrayList<>();
 	
@@ -38,26 +36,26 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		return this;
 	}
 	
-	public void addRoot(Node<?> root) {
+	public TreePath addRoot(Document root) {
 		roots.add(root);
-		fireChildAdded(root);
+		return fireChildAdded(root);
 	}
 	
 	@SuppressWarnings("unchecked")
 	private List<Node<?>> getChildren(Object parent) {
 		if (parent == this) {
-			return roots;
+			return (List<Node<?>>)(Object)roots;
 		}
 		List<Node<?>> result = new ArrayList<>();
 		ObjectConverter converter = (ObjectConverter)repository.getConverter(parent.getClass());
-		converter.getProperties().values().forEach(property -> {
+		converter.getProperties().forEach(property -> {
 			if (Node.class.isAssignableFrom(property.getType()) ||
 					(property.isList() && Node.class.isAssignableFrom(property.getComponentType()))) {
 				try {
 					if (property.isList()) {
 						List<Node<?>> list = (List<Node<?>>)property.getGetter().invoke(parent);
 						result.addAll(list);
-					} else {
+					} else if (!property.isLink()) {
 						Node<?> node = (Node<?>)property.getGetter().invoke(parent);
 						if (node != null) {
 							result.add(node);
@@ -87,7 +85,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 
 	@Override
 	public boolean isLeaf(Object node) {
-		return getChildCount(node) == 0;
+		return getChildren(node).isEmpty();
 	}
 
 	@Override
@@ -110,23 +108,25 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		listeners.remove(l);
 	}
 	
-	private void getPathFor(List<Node<?>> list, Node<?> n) {
+	private void getPathFor(List<Object> list, Node<?> n) {
 		if (n.getContainer() != null) {
 			getPathFor(list,n.getContainer());
 		}
 		list.add(n);
 	}
 	
-	public void fireChildAdded(Node<?> n) {
+	public TreePath fireChildAdded(Node<?> n) {
 		if (n.getContainer() == null) {
 			TreeModelEvent event = new TreeModelEvent(this,new TreePath(this),new int[]{getIndexOfChild(this, n)},new Object[]{n});
 			listeners.forEach(l -> l.treeStructureChanged(event));
-		} else {
-			List<Node<?>> list = new ArrayList<>();
-			getPathFor(list,n.getContainer());
-			TreeModelEvent event = new TreeModelEvent(this,new TreePath(list),new int[]{getIndexOfChild(n.getContainer(), n)},new Object[]{n});
-			listeners.forEach(l -> l.treeStructureChanged(event));
+			return event.getTreePath().pathByAddingChild(n);
 		}
+		List<Object> list = new ArrayList<>();
+		list.add(this);
+		getPathFor(list,n.getContainer());
+		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n.getContainer(), n)},new Object[]{n});
+		listeners.forEach(l -> l.treeStructureChanged(event));
+		return event.getTreePath().pathByAddingChild(n);
 	}
 	
 	public void fireNodeChanged(TreePath path) {

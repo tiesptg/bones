@@ -15,7 +15,7 @@ import com.palisand.bones.tt.Document;
 
 public class Classes {
 	
-	private static Class<?> getGenericType(Type type, int position) {
+	public static Class<?> getGenericType(Type type, int position) {
 		try {
 			ParameterizedType pType = (ParameterizedType)type;
 	        return(Class<?>)pType.getActualTypeArguments()[position];

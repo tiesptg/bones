@@ -7,6 +7,6 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class Attribute extends Member {
 
-	private AttributeType type;
+	private AttributeType type = null;
 	private String defaultValue = null;
 }
