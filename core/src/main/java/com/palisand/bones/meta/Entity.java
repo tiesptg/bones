@@ -3,6 +3,8 @@ package com.palisand.bones.meta;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.palisand.bones.tt.ExternalLink;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,7 +14,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Entity extends Item<Model> {
 	
-	private Entity superEntity = null;
+	private ExternalLink<Entity,Entity> superEntity = new ExternalLink<>(this,".*#/entities/.*");
 	private boolean abstractEntity = false;
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();

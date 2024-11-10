@@ -2,11 +2,18 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.Node;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
+@NoArgsConstructor
 public abstract class Type<M extends Member> extends Node<M> {
+	
+	@Override
+	public String toString() {
+		return getClass().getSimpleName();
+	}
 	
 }

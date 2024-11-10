@@ -15,7 +15,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 	private final String pathPattern;
 	private final Function<X,Link<X,C>> oppositeGetter;
 	protected String path = null;
-	private Repository mapper = null;
+	private Repository repository = null;
 	
 	public Link(String pathPattern, C container) {
 		this(container,pathPattern,null);
@@ -27,11 +27,11 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 	
 	public void set(X x) throws IOException {
 		X link = get();
-		if (link != null) {
+		if (oppositeGetter != null && link != null) {
 			oppositeGetter.apply(link).internalSet(null);
 		}
 		internalSet(x);
-		if (x != null) {
+		if (oppositeGetter != null && x != null) {
 			oppositeGetter.apply(x).internalSet(container);
 		}
 	}

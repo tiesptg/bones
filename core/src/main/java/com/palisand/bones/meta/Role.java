@@ -2,11 +2,13 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.InternalLink;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
+@NoArgsConstructor
 public class Role extends Member {
 
 	private final InternalLink<Role,Role> opposite = new InternalLink<Role,Role>(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());

@@ -7,11 +7,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map.Entry;
 
 import com.palisand.bones.di.Classes;
 import com.palisand.bones.tt.Repository.Token;
@@ -23,11 +21,11 @@ import lombok.NoArgsConstructor;
 public class ObjectConverter implements Converter<Object> {
 	@Getter private List<Property> properties = new ArrayList<>();
 	@Getter private Method containerSetter = null;
-	private Repository mapper = null;
+	private Repository repository = null;
 	@Getter private Class<?> type;
 	
-	public void setMapper(Repository mapper) {
-		this.mapper = mapper;
+	public void setRepository(Repository mapper) {
+		this.repository = mapper;
 	}
 	
 	public Property getProperty(String name) {
@@ -75,22 +73,53 @@ public class ObjectConverter implements Converter<Object> {
 		public String getLabel() {
 			return setter.getName().substring(3);
 		}
+		
+		public Object getValue(Object object) {
+			try {
+				return getter.invoke(object);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			return null;
+		}
+		
+		public boolean isDefault(Object value) {
+			if (value == null && defaultValue == null) {
+				return true;
+			} 
+			if (value instanceof List list) {
+				return list.isEmpty();
+			}
+			if (value == null || defaultValue == null) {
+				return false;
+			}
+			if (value.equals(defaultValue)) {
+				return true;
+			}
+			return false;
+		}
 	}
 	
 	public ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
+		List<Class<?>> classes = new ArrayList<>();
 		while (cls != Node.class && cls != Object.class) {
-			for (Field field: cls.getDeclaredFields()) {
+			classes.add(0, cls);
+			cls = cls.getSuperclass();
+		}
+		for (Class<?> clazz: classes) {
+			for (Field field: clazz.getDeclaredFields()) {
 				if (!Modifier.isVolatile(field.getModifiers())) {
 					Property property = new Property();
 					property.setName(field.getName());
 					String label = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
 					String getterName = (field.getType() == boolean.class || field.getType() == Boolean.class ? "is" : "get") + label;
 					try {
-						property.setGetter(cls.getMethod(getterName));
-						property.setSetter(cls.getMethod("set" + label, field.getType()));
-						if (object != null) {
+						property.setGetter(clazz.getMethod(getterName));
+						property.setSetter(clazz.getMethod("set" + label, field.getType()));
+						if (!Node.class.isAssignableFrom(property.getType()) && !Link.class.isAssignableFrom(property.getType())
+								&& !List.class.isAssignableFrom(property.getType())) {
 							try {
 								property.setDefaultValue(property.getGetter().invoke(object));
 							} catch (Exception ex) {
@@ -108,35 +137,33 @@ public class ObjectConverter implements Converter<Object> {
 					}
 				}
 			}
-			cls = cls.getSuperclass();
 		}
-		// remove incomplete properties
 	}
 	
 	@Override
-	public Object fromYaml(BufferedReader in, Class<?> cls, String margin) throws IOException {
-		Token token = mapper.nextToken(in);
+	public Object fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
+		Token token = repository.nextToken(in);
 		assert token.delimiter() == '>';
-		Class<?> oldContext = mapper.getContext();
-		mapper.setContext(type);
-		ObjectConverter converter = (ObjectConverter)mapper.getConverter(cls,token.label());
-		mapper.consumeLastToken();
-		mapper.readUntilLineEnd(in);
+		Class<?> oldContext = repository.getContext();
+		repository.setContext(type);
+		ObjectConverter converter = (ObjectConverter)repository.getConverter(cls,token.label());
+		repository.consumeLastToken();
+		repository.readUntilLineEnd(in);
 		
 		Object result = newInstance(converter.type);
 		String newMargin = margin + Repository.MARGIN_STEP;
 		Property property = null;
-		for (token = mapper.nextToken(in); !isEnd(token,margin); token = mapper.nextToken(in)) {
+		for (token = repository.nextToken(in); !isEnd(token,margin); token = repository.nextToken(in)) {
 			property = converter.getProperty(token.label());
-			mapper.consumeLastToken();
+			repository.consumeLastToken();
 			if (property != null) {
-				Converter<?> propertyConverter = mapper.getConverter(property.getType());
-				Object value = propertyConverter.fromYaml(in, property.getComponentType(), newMargin);
+				Converter<?> propertyConverter = repository.getConverter(property.getType());
+				Object value = propertyConverter.fromTypedText(in, property.getComponentType(), newMargin);
 				try {
 					if (property.isLink()) {
 						Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
 						link.setPath((String)value);
-						link.setMapper(mapper);
+						link.setRepository(repository);
 					} else {
 						property.setter.invoke(result, value);
 					}
@@ -154,18 +181,12 @@ public class ObjectConverter implements Converter<Object> {
 				}
 			}
 		}
-		mapper.setContext(oldContext);
+		repository.setContext(oldContext);
 		return result;
 	}
 	
-	private boolean equalsValue(Object value, Object defaultValue) {
-		if (value == null && defaultValue == null) return true;
-		if (value == null || defaultValue == null) return false;
-		return value.equals(defaultValue);
-	}
-	
 	private String getClassLabel(Class<?> cls) {
-		String context = mapper.getContext().getName().substring(0,mapper.getContext().getName().length() - mapper.getContext().getSimpleName().length());
+		String context = repository.getContext().getName().substring(0,repository.getContext().getName().length() - repository.getContext().getSimpleName().length());
 		String check = cls.getName().substring(0,cls.getName().length()-cls.getSimpleName().length());
 		if (context.equals(check)) {
 			return cls.getSimpleName();
@@ -175,13 +196,13 @@ public class ObjectConverter implements Converter<Object> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public void toYaml(Object obj, PrintWriter out, String margin) throws IOException {
-		Class<?> oldContext = mapper.getContext();
+	public void toTypedText(Object obj, PrintWriter out, String margin) throws IOException {
+		Class<?> oldContext = repository.getContext();
 		if (obj == null) {
 			out.println("null");
 		} else if (obj instanceof Node node) {
 			if (node.getContainer() != null) {
-				mapper.setContext(node.getContainer().getClass());
+				repository.setContext(node.getContainer().getClass());
 			}
 		}
 		out.print(getClassLabel(obj.getClass()));
@@ -193,24 +214,25 @@ public class ObjectConverter implements Converter<Object> {
 				if (property.isLink()) {
 					Link<?,?> link = (Link<?,?>)value;
 					value = link.getPath();
-					link.setMapper(mapper);
+					link.setRepository(repository);
 				}
 			} catch (Exception ex) {
 				throw new IOException(ex);
 			}
-			Converter<Object> converter = value == null ? null : (Converter<Object>)mapper.getConverter(property.isList() ? List.class : property.getType());
-			if (!equalsValue(value,property.getDefaultValue())) {
+			String newMargin = margin + Repository.MARGIN_STEP;
+			Converter<Object> converter = value == null ? (Converter<Object>)repository.getConverter(property.getType()) : (Converter<Object>)repository.getConverter(value.getClass());
+			if (!property.isDefault(value)) {
 				out.print(margin);
 				out.print(property.getName());
 				out.print(":\t");
 				if (converter != null) {
-					converter.toYaml(value, out, margin);
+					converter.toTypedText(value, out, newMargin);
 				} else {
 					out.println("null");
 				}
 			}
 		}
-		mapper.setContext(oldContext);
+		repository.setContext(oldContext);
 	}
 
 }

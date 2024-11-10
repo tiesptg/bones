@@ -12,7 +12,7 @@ public class PrimitiveConverter<Y> implements Converter<Y> {
 	
 	private final Function<String,Object> parser;
 	@Getter private final Class<?> type;
-	@Setter private Repository mapper = null;
+	@Setter private Repository repository = null;
 	
 	public PrimitiveConverter(Class<?> type, Function<String,Object> parser) {
 		this.type = type;
@@ -21,8 +21,8 @@ public class PrimitiveConverter<Y> implements Converter<Y> {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public Y fromYaml(BufferedReader in, Class<?> cls, String margin) throws IOException {
-		String str = mapper.readUntilLineEnd(in);
+	public Y fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
+		String str = repository.readUntilLineEnd(in);
 		if (str.isBlank()) {
 			return null;
 		}
@@ -30,7 +30,7 @@ public class PrimitiveConverter<Y> implements Converter<Y> {
 	}
 
 	@Override
-	public void toYaml(Y obj, PrintWriter out, String margin) throws IOException {
+	public void toTypedText(Y obj, PrintWriter out, String margin) throws IOException {
 		if (obj == null) {
 			out.println("null");
 		} else {

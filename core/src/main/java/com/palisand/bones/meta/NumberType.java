@@ -1,10 +1,12 @@
 package com.palisand.bones.meta;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
+@NoArgsConstructor
 public class NumberType extends AttributeType {
 	
 	private int precision = 10;

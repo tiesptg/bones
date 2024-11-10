@@ -9,7 +9,7 @@ import lombok.Setter;
 
 public class EnumConverter implements Converter<Enum<?>> {
 	@Getter private final Class<?> type;
-	@Getter @Setter private Repository mapper;
+	@Getter @Setter private Repository repository;
 	
 	public EnumConverter(Class<Enum<?>> type) {
 		this.type = type;
@@ -20,8 +20,8 @@ public class EnumConverter implements Converter<Enum<?>> {
 	}
 
 	@Override
-	public Enum<?> fromYaml(BufferedReader in, Class<?> cls, String margin) throws IOException {
-		String str = mapper.readUntilLineEnd(in);
+	public Enum<?> fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
+		String str = repository.readUntilLineEnd(in);
 		if (str.isBlank()) {
 			return null;
 		}
@@ -34,7 +34,7 @@ public class EnumConverter implements Converter<Enum<?>> {
 	}
 
 	@Override
-	public void toYaml(Enum<?> obj, PrintWriter out, String margin) throws IOException {
+	public void toTypedText(Enum<?> obj, PrintWriter out, String margin) throws IOException {
 		if (obj == null) {
 			out.println("null");
 		} else {

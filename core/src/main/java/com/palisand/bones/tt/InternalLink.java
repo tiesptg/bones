@@ -23,7 +23,7 @@ public class InternalLink<C extends Node<?>,X extends Node<?>> extends Link<C,X>
 	@Override
 	public X get() throws IOException {
 		if (link == null && path != null) {
-			link = getMapper().getFromPath(getContainer(), path);
+			link = getRepository().getFromPath(getContainer(), path);
 		}
 		return link;
 	}

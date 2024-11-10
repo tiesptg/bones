@@ -7,10 +7,14 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +23,7 @@ import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -32,6 +37,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -39,18 +45,22 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import com.palisand.bones.di.Classes;
+import com.palisand.bones.log.Logger;
 import com.palisand.bones.tt.Document;
+import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 public class Editor extends JFrame implements TreeSelectionListener {
 	private static final long serialVersionUID = 4886239584255305072L;
+	private static final Logger LOG = Logger.getLogger(Editor.class);
 	private JTree tree = new JTree();
 	private JPanel properties = new JPanel();
 	private JPanel info = new JPanel();
@@ -59,20 +69,24 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private JPanel top = new JPanel();
 	private Map<Class<?>,List<Class<?>>> concreteClasses = new HashMap<>();
 	private final Repository repository = new Repository();
+	private File lastDirectory = new File(".").getAbsoluteFile();
 	
-	@Data
-	@AllArgsConstructor
+	@Getter
+	@Setter
 	@NoArgsConstructor
+	@AllArgsConstructor
 	public static class Config {
 		private int left;
 		private int top;
 		private int width;
 		private int height;
+		private String lastDirectory;
 	}
 	
 	private void saveConfig() {
 		Rectangle rect = getBounds();
-		Config config = new Config(rect.x,rect.y,rect.width,rect.height);
+		Config config = new Config(rect.x,rect.y,rect.width,rect.height
+				,lastDirectory.getAbsolutePath());
 		try {
 			repository.write("config.tt", config);
 		} catch (Exception ex) {
@@ -84,6 +98,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		try {
 			Config config = (Config)repository.read("config.tt");
 			setBounds(config.getLeft(),config.getTop(),config.getWidth(),config.getHeight());
+			lastDirectory = new File(config.getLastDirectory());
 		} catch (Exception ex) {
 			handleException(ex);
 			setBounds(100,100,800,600);
@@ -122,11 +137,14 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	
 	private void openFile() {
 		JFileChooser fc = new JFileChooser();
+		fc.setCurrentDirectory(lastDirectory);
 		fc.addChoosableFileFilter(new FileNameExtensionFilter("TypedText Files", ".tt"));
 		if (JFileChooser.APPROVE_OPTION == fc.showOpenDialog(this)) {
 			try {
 				Document root = (Document)repository.read(fc.getSelectedFile().getAbsolutePath());
 				addRoot(root);
+				lastDirectory = fc.getSelectedFile().getParentFile();
+				saveConfig();
 			} catch (Exception ex) {
 				handleException(ex);
 			}
@@ -139,9 +157,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				String file = root.getFilename();
 				if (root.getFilename() == null) {
 					JFileChooser fc = new JFileChooser();
+					fc.setCurrentDirectory(lastDirectory);
 					fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 					if (JFileChooser.APPROVE_OPTION == fc.showOpenDialog(this)) {
 						file = fc.getSelectedFile().getAbsolutePath();
+						lastDirectory = fc.getSelectedFile();
+						saveConfig();
 					}
 				}
 				repository.write(file, root);
@@ -166,7 +187,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	}
 	
 	private void handleException(Exception ex) {
-		ex.printStackTrace();
+		LOG.log("Unexpected Exception").with(ex).error();
 	}
 	
 	private List<Class<?>> getConcreteAssignableClasses(Class<?> cls) {
@@ -251,7 +272,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private void setValue(Node<?> node, Method setter, Object value) {
 		try {
 			setter.invoke(node,value);
-			repositoryModel.fireNodeChanged(tree.getSelectionPath());
+			if (value instanceof Node<?> child) {
+				repositoryModel.fireChildChanged(node,child);
+			} else {
+				repositoryModel.fireNodeChanged(tree.getSelectionPath());
+			}
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -286,6 +311,91 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		return new Counts(buttons,propCount);
 	}
 	
+	private void makeStringComponent(Node<?> node, String value, Property property) {
+		JTextField field = new JTextField(value);
+		field.addFocusListener(new FocusAdapter() {
+			@Override
+			public void focusGained(FocusEvent e) {
+				field.selectAll();
+			}
+			
+		});
+		properties.add(field);
+		field.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				setValue(node,property.getSetter(),field.getText());
+			}
+			
+		});
+	}
+	
+	private void makeNodeComponent(Node<?> node, Node<?> selected, Property property) {
+		List<Node<?>> nodes = new ArrayList<>();
+		nodes.add(null);
+		try {
+			List<Class<?>> classes = Classes.findClasses(node.getClass().getPackageName(), 
+					cls -> !Modifier.isAbstract(cls.getModifiers()) && property.getType().isAssignableFrom(cls));
+			classes.forEach(cls -> nodes.add(newInstance(cls)));
+		} catch (Exception ex) {
+			handleException(ex);
+		}
+		int selectedItem = 0;
+		if (selected != null) {
+			for (int i = 0; i < nodes.size(); ++i) {
+				if (nodes.get(i) != null && nodes.get(i).getClass() == selected.getClass()) {
+					nodes.set(i, selected);
+					selectedItem = i;
+					break;
+				}
+			}
+		}
+		JComboBox<Node<?>> box = new JComboBox<>(nodes.toArray(len -> new Node[len]));
+		properties.add(box);
+		box.setSelectedIndex(selectedItem);
+		box.addActionListener(e -> setValue(node,property.getSetter(),box.getSelectedItem()));
+
+	}
+	
+	private void makeNumberComponent(Node<?> node, Object value, Property property) {
+		JSpinner spinner = new JSpinner();
+		spinner.setModel(new SpinnerNumberModel((Number)value, Integer.MIN_VALUE, Integer.MAX_VALUE, 1));
+		JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor)spinner.getEditor();
+		spinner.addFocusListener(new FocusListener() {
+			@Override public void focusGained(FocusEvent e) {
+				SwingUtilities.invokeLater(() -> editor.getTextField().selectAll());
+			}
+			@Override public void focusLost(FocusEvent e) {
+				setValue(node,property.getSetter(),spinner.getValue());
+			}
+		});
+		properties.add(spinner);
+		spinner.addChangeListener(e -> setValue(node,property.getSetter(),spinner.getValue()));
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void makeLinkComponent(Node<?> node, Link<?,?> link, Property property) {
+		Node<?> container = link.getContainer();
+		try {
+ 			List<Node<?>> candidates = repository.find(container, link.getPathPattern());
+			candidates.add(0,null);
+			JComboBox<Node<?>> box = new JComboBox<>(candidates.toArray(len -> new Node[len]));
+			final Link<Node<?>,Node<?>> value = (Link<Node<?>,Node<?>>)getValue(node,property.getGetter());
+			box.setSelectedItem(value.get());
+			properties.add(box);
+			box.addActionListener(e -> {
+				try {
+					value.set((Node<?>)box.getSelectedItem());
+				} catch (Exception e1) {
+					handleException(e1);
+				}
+			});
+		} catch (Exception ex) {
+			handleException(ex);
+		}
+	}
+	
 	private void select(Node<?> node) {
 		properties.removeAll();
 		buttons.removeAll();
@@ -297,33 +407,18 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			Object value = getValue(node,property.getGetter());
 			if (!property.isList()) {
 				properties.add(new JLabel(property.getLabel()));
-
 				if (property.getType() == String.class) {
-					JTextField field = new JTextField((String)value);
-					field.addFocusListener(new FocusAdapter() {
-						@Override
-						public void focusGained(FocusEvent e) {
-							field.setSelectionStart(0);
-							field.setSelectionEnd(field.getText().length());
-						}
-						
-					});
-					properties.add(field);
-					field.addKeyListener(new KeyAdapter() {
-
-						@Override
-						public void keyReleased(KeyEvent e) {
-							setValue(node,property.getSetter(),field.getText());
-						}
-						
-					});
+					makeStringComponent(node,(String)value,property);
+				} else if (Link.class.isAssignableFrom(property.getType())) {
+					makeLinkComponent(node,(Link<?,?>)value,property);
 				} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
 					properties.add(new JCheckBox("",(Boolean)getValue(node,property.getGetter())));
-				} else if (Number.class.isAssignableFrom(property.getType())) {
-					JSpinner spinner = new JSpinner();
-					spinner.setModel(new SpinnerNumberModel((Number)value, Integer.MIN_VALUE, Integer.MAX_VALUE, 1));
-					properties.add(spinner);
-					spinner.addChangeListener(e -> setValue(node,property.getSetter(),spinner.getValue()));
+				} else if (property.getType() == int.class || property.getType() == Integer.class
+						|| property.getType() == long.class || property.getType() == Long.class
+						|| property.getType() == BigInteger.class) {
+					makeNumberComponent(node, value, property);
+				} else if (Node.class.isAssignableFrom(property.getType())) {
+					makeNodeComponent(node,(Node<?>)value,property);
 				}
 			} else {
 				List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
