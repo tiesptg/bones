@@ -17,10 +17,15 @@ public class Role extends Member {
 	
 	private EntityType type = new EntityType();
 	
-	public Type<Member> getType() throws IOException {
+	public Type<Member> getType() {
 		if (type == null && opposite != null) {
 			type = new EntityType();
-			type.getType().set((Entity)opposite.getContainer().getContainer());
+			try {
+				type.getType().set((Entity)opposite.getContainer().getContainer());
+			} catch (Exception ex) {
+				// ignore
+			}
+			return type;
 		}
 		return type;
 	}
