@@ -8,16 +8,16 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.reflect.Modifier;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.palisand.bones.log.Logger;
 import com.palisand.bones.tt.ObjectConverter.Property;
 
 import lombok.Getter;
@@ -25,7 +25,8 @@ import lombok.Setter;
 
 public class Repository {
 
-	private static final Logger LOG = LogManager.getLogger(Repository.class);
+	private static final Logger LOG = Logger.getLogger(Repository.class);
+	private static final String EXTENSION = ".tt";
 	public static final String MARGIN_STEP = "\t";
 	private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
 	private final Map<String,Node<?>> documents = new TreeMap<>();
@@ -62,7 +63,7 @@ public class Repository {
 
 	Repository addConverter(Class<?> cls, Converter<?> converter) {
 		converters.put(cls, converter);
-		converter.setMapper(this);
+		converter.setRepository(this);
 		return this;
 	}
 	
@@ -84,22 +85,26 @@ public class Repository {
 
 	@SuppressWarnings("unchecked")
 	public Converter<?> getConverter(Class<?> cls) {
-		Converter<?> result = converters.get(cls);
-		Class<?> convclass = cls.getSuperclass();
-		while (result == null) {
-			result = converters.get(convclass);
-			convclass = convclass.getSuperclass();
-		}
-		if (result.getType() != cls && result.getType() != List.class) {
-			if (result instanceof ObjectConverter) {
-				result = new ObjectConverter(cls);
-				addConverter(cls, result);
-			} else if (result instanceof EnumConverter) {
-				result = new EnumConverter((Class<Enum<?>>) cls);
-				addConverter(cls, result);
+		if (!List.class.isAssignableFrom(cls)) {
+			Converter<?> result = converters.get(cls);
+			Class<?> convclass = cls.getSuperclass();
+			while (result == null) {
+				result = converters.get(convclass);
+				convclass = convclass.getSuperclass();
 			}
+			if (result.getType() != cls && !Modifier.isAbstract(cls.getModifiers()) 
+					&& result.getType() != List.class) {
+				if (result instanceof ObjectConverter) {
+					result = new ObjectConverter(cls);
+					addConverter(cls, result);
+				} else if (result instanceof EnumConverter) {
+					result = new EnumConverter((Class<Enum<?>>) cls);
+					addConverter(cls, result);
+				}
+			}
+			return result;
 		}
-		return result;
+		return converters.get(List.class);
 	}
 
 	void consumeLastToken() {
@@ -159,28 +164,28 @@ public class Repository {
 	}
 
 	@SuppressWarnings("unchecked")
-	public <Y> Y fromText(String str) throws IOException {
-		return (Y) fromText(new BufferedReader(new StringReader(str)));
+	public <Y> Y fromTypedText(String str) throws IOException {
+		return (Y) fromTypedText(new BufferedReader(new StringReader(str)));
 	}
 
 	@SuppressWarnings("unchecked")
-	public void toText(Object obj, PrintWriter out) throws IOException {
+	public void toTypedText(Object obj, PrintWriter out) throws IOException {
 		Converter<Object> converter = (Converter<Object>)getConverter(obj.getClass());
-		converter.toYaml(obj, out, "");
+		converter.toTypedText(obj, out, "");
 	}
 
-	public String toText(Object obj) throws IOException {
+	public String toTypedText(Object obj) throws IOException {
 		try (StringWriter sw = new StringWriter(); PrintWriter out = new PrintWriter(sw)) {
-			toText(obj, out);
+			toTypedText(obj, out);
 			out.flush();
 			return sw.toString();
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	protected <Y> Y fromText(BufferedReader in) throws IOException {
+	protected <Y> Y fromTypedText(BufferedReader in) throws IOException {
 		Converter<?> converter = getConverter(Object.class);
-		return (Y) converter.fromYaml(in, Object.class, "");
+		return (Y) converter.fromTypedText(in, Object.class, "");
 	}
 	
 	public File write(String absolutePath, Object root) throws IOException {
@@ -190,7 +195,9 @@ public class Repository {
 				throw new IOException("Could not create directory " + file.getAbsolutePath());
 			}
 			if (file.isDirectory()) {
-				file = new File(file,node.getId() + ".tt");
+				file = new File(file,node.getId() + EXTENSION);
+			} else if (file.isFile() && !file.getName().equals(node.getId() + EXTENSION)) {
+				file = new File(file.getParentFile(),node.getId() + EXTENSION);
 			}
 		} else {
 			if (!file.getAbsoluteFile().getParentFile().exists() && !file.getParentFile().mkdirs()) {
@@ -203,7 +210,7 @@ public class Repository {
 
 		try (FileWriter fw = new FileWriter(file);
 			PrintWriter out = new PrintWriter(fw)) {
-			toText(root,out);
+			toTypedText(root,out);
 			if (root instanceof Node<?> node) {
 				node.setContainingAttribute(file.getAbsolutePath());
 				documents.put(file.getAbsolutePath(), node);
@@ -217,7 +224,7 @@ public class Repository {
 		if (root == null) {
 			try (FileReader fr = new FileReader(absolutePath);
 				BufferedReader in = new BufferedReader(fr)) {
-				root = fromText(in);
+				root = fromTypedText(in);
 				if (root instanceof Node<?> node) {
 					node.setContainingAttribute(absolutePath);
 					documents.put(absolutePath, node);
@@ -243,7 +250,7 @@ public class Repository {
 			String absolutePath = getAbsolutePath(parts[0], context.getRootContainer().getContainingAttribute());
 			Node<?> root = (Node<?>)read(absolutePath);
 			String[] pathParts = parts[1].split("/");
-			return getFromPath(root,pathParts,0);
+			return getFromPath(root,pathParts,1);
 		}
 		String[] pathParts = path.split("/");
 		return getFromPath(context,pathParts,0);
@@ -258,11 +265,11 @@ public class Repository {
 			if (path[offset].equals("#")) {
 				return getFromPath(context.getRootContainer(),path,++offset);
 			}
-			ObjectConverter converter = (ObjectConverter)getConverter(getClass());
+			ObjectConverter converter = (ObjectConverter)getConverter(context.getClass());
 			Property property = converter.getProperty(path[offset]);
 			Object value = null;
 			try {
-				value = property.getGetter().invoke(this);
+				value = property.getGetter().invoke(context);
 				final int childOffset = offset + 1;
 				if (offset == path.length) {
 					return (N)value;
@@ -272,24 +279,78 @@ public class Repository {
 						List<Node<?>> list = (List<Node<?>>)value;
 						Optional<Node<?>> node = list.stream().filter(item -> path[childOffset].equals(item.getId())).findAny();
 						if (node.isPresent()) {
+							if (path.length > childOffset+1) {
+								Node<?> result = getFromPath(node.get(),path,childOffset+1);
+								if (result != null) {
+									return (N)result;
+								}
+							}
 							return (N)node.get();
 						}
 						return null;
 					}
 					Node<?> node = (Node<?>)value;
 					if (path[childOffset].equals(node.getId())) {
+						if (path.length > childOffset+1) {
+							Node<?> result = getFromPath(node,path,childOffset+1);
+							if (result != null) {
+								return (N)result;
+							}
+						}
 						return (N)node;
 					}
 					return null;
 				}
 				throw new UnsupportedOperationException("path in none node list is unsupported");
 			} catch (Exception ex) {
-				LOG.info("could not get value of " + path[offset] + " in " + this,ex);
+				LOG.log("could not get value of " + path[offset] + " in " + this).with(ex).warn();
 			}
 		}
 		return null;
 	}
 	
+	public List<Node<?>> find(Node<?> context, String pattern) throws IOException {
+		String[] parts = pattern.split("#");
+		if (parts.length == 1) {
+			return find(context,pattern.split("/"),0);
+		}
+		if (parts[0].isEmpty()) {
+			return find(context.getRootContainer(),parts[1].split("/"),0);
+		}
+		return find(parts[0],parts[1].split("/"),0);
+	}
+	
+	private List<Node<?>> find(String filename, String[] pattern, int index) {
+		List<Node<?>> result = new ArrayList<>();
+		documents.values().forEach(document -> {
+			result.addAll(find(document,pattern,index));
+		});
+		return result;
+	}
+	
+	private List<Node<?>> find(Node<?> context, String[] pattern, int index) {
+		List<Node<?>> result = new ArrayList<>();
+		if (pattern[index].equals("..")) {
+			return find(context.getContainer(),pattern, index+1);
+		}
+		if (pattern[index].isEmpty() || context.getId().matches(pattern[index])) {
+			final int newIndex = index + 1;
+			if (newIndex == pattern.length) {
+				result.add(context);
+			} else {
+				ObjectConverter converter = (ObjectConverter)getConverter(context.getClass());
+				Property property = converter.getProperty(pattern[newIndex]);
+				Object value = property.getValue(context);
+				if (value instanceof Node<?> node) {
+					return find(node,pattern, newIndex+1);
+				}
+				if (value instanceof List<?> list) {
+					list.forEach(node -> result.addAll(find((Node<?>)node,pattern,newIndex+1)));
+				}
+			}
+		}
+		return result;
+	}
 
 
 }

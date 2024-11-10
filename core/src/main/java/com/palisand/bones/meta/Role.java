@@ -1,22 +1,26 @@
 package com.palisand.bones.meta;
 
-import com.palisand.bones.tt.InternalLink;
+import java.io.IOException;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import com.palisand.bones.tt.ExternalLink;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
 public class Role extends Member {
 
-	private final InternalLink<Role,Role> opposite = new InternalLink<Role,Role>(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());
+	private final ExternalLink<Role,Role> opposite = new ExternalLink<Role,Role>(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());
 	
-	private transient EntityType type = null;
+	private EntityType type = new EntityType();
 	
-	public Type<Member> getType() {
+	public Type<Member> getType() throws IOException {
 		if (type == null && opposite != null) {
 			type = new EntityType();
-			type.setType((Entity)opposite.getContainer().getContainer());
+			type.getType().set((Entity)opposite.getContainer().getContainer());
 		}
 		return type;
 	}

@@ -109,14 +109,14 @@ class TypedTextTest {
 		bottom1.getOther().set(bottom2);
 		
 		Repository mapper = new Repository();
-		String tmt = mapper.toText(root);
+		String tmt = mapper.toTypedText(root);
 		System.out.print(tmt);
-		Root check = mapper.fromText(tmt);
-		assertEquals(mapper.toText(check),tmt);
+		Root check = mapper.fromTypedText(tmt);
+		assertEquals(mapper.toTypedText(check),tmt);
 		
 		File f = mapper.write("target/repository", root);
 		Root root2 = (Root)mapper.read(f.getAbsolutePath());
-		assertEquals(tmt,mapper.toText(root2));
+		assertEquals(tmt,mapper.toTypedText(root2));
 		assertEquals("b2",root2.getChildren().get(0).getBottoms().get(0).getOther().get().getId());
 	}
 

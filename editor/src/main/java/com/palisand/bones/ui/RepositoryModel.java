@@ -129,6 +129,15 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		return event.getTreePath().pathByAddingChild(n);
 	}
 	
+	public TreePath fireChildChanged(Node<?> n,Node<?> child) {
+		List<Object> list = new ArrayList<>();
+		list.add(this);
+		getPathFor(list,n);
+		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n, child)},new Object[]{child});
+		listeners.forEach(l -> l.treeStructureChanged(event));
+		return event.getTreePath().pathByAddingChild(n);
+	}
+	
 	public void fireNodeChanged(TreePath path) {
 		TreeModelEvent event = new TreeModelEvent(this,path);
 		listeners.forEach(l -> l.treeNodesChanged(event));

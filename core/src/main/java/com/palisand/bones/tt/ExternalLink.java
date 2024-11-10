@@ -24,7 +24,7 @@ public class ExternalLink<C extends Node<?>,X extends Node<?>> extends Link<C,X>
 	@Override
 	public X get() throws IOException {
 		if ((link == null || link.get() == null) && path != null) {
-			internalSet(getMapper().getFromPath(getContainer(), path));
+			internalSet(getRepository().getFromPath(getContainer(), path));
 		}
 		return link != null ? link.get() : null;
 	}

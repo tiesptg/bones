@@ -1,17 +1,26 @@
 package com.palisand.bones.meta;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import com.palisand.bones.tt.ExternalLink;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
 public class EntityType extends Type<Member> {
 
-	public Entity type;
+	public ExternalLink<EntityType,Entity> type = new ExternalLink<>(this,".*#/entities/.*");
 
 	@Override
 	public String getId() {
-		return type.getId();
+		try {
+			return type.get().getId();
+		} catch (Exception ex) {
+			// ignore
+		}
+		return "<noname>";
 	}
 	
 }

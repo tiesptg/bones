@@ -7,16 +7,16 @@ import java.io.PrintWriter;
 import lombok.Setter;
 
 public class StringConverter implements Converter<String> {
-	@Setter private Repository mapper = null;
+	@Setter private Repository repository = null;
 	
 	@Override
-	public String fromYaml(BufferedReader in, Class<?> cls, String margin) throws IOException {
-		String result = mapper.readUntilLineEnd(in);
+	public String fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
+		String result = repository.readUntilLineEnd(in);
 		if (result.charAt(result.length()-1) == '\\') {
 			StringBuilder sb = new StringBuilder(result);
 			do {
 				sb.replace(sb.length()-1,sb.length(),"\n");
-				result = mapper.readUntilLineEnd(in);
+				result = repository.readUntilLineEnd(in);
 				sb.append(result.substring(margin.length()));
 			} while (result.charAt(result.length()-1) == '\\');
 			result = sb.toString();
@@ -25,7 +25,7 @@ public class StringConverter implements Converter<String> {
 	}
 
 	@Override
-	public void toYaml(String str, PrintWriter out, String margin) throws IOException {
+	public void toTypedText(String str, PrintWriter out, String margin) throws IOException {
 		out.println(str.replace("\n", "\\\n" + margin + Repository.MARGIN_STEP));
 	}
 

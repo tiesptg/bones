@@ -9,22 +9,22 @@ import java.util.List;
 import com.palisand.bones.tt.Repository.Token;
 
 public class ListConverter implements Converter<List<?>> {
-	private Repository mapper = null;
+	private Repository repository = null;
 	
-	public void setMapper(Repository text) {
-		mapper = text;
+	public void setRepository(Repository text) {
+		repository = text;
 	}
 
 	@Override
-	public List<?> fromYaml(BufferedReader in, Class<?> cls, String margin) throws IOException {
-		mapper.readUntilLineEnd(in);
+	public List<?> fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
+		repository.readUntilLineEnd(in);
 		List<Object> result = new ArrayList<Object>();
 		String newMargin = margin + Repository.MARGIN_STEP;
-		Converter<?> converter = mapper.getConverter(cls);
-		for (Token token = mapper.nextToken(in); !isEnd(token,margin); token = mapper.nextToken(in)) {
+		Converter<?> converter = repository.getConverter(cls);
+		for (Token token = repository.nextToken(in); !isEnd(token,margin); token = repository.nextToken(in)) {
 			assert token.delimiter() == '-';
-			mapper.consumeLastToken();
-			Object value = converter.fromYaml(in, cls, newMargin);
+			repository.consumeLastToken();
+			Object value = converter.fromTypedText(in, cls, newMargin);
 			result.add(value);
 		}
 		return (List<?>)result;
@@ -32,22 +32,21 @@ public class ListConverter implements Converter<List<?>> {
 	
 	@SuppressWarnings("unchecked")
 	@Override
-	public void toYaml(List<?> obj, PrintWriter out, String margin) throws IOException {
+	public void toTypedText(List<?> obj, PrintWriter out, String margin) throws IOException {
 		out.println();
 		List<Object> list = (List<Object>)obj;
 		Class<Object> type = null;
 		Converter<Object> converter = null;
-		String newMargin = margin + Repository.MARGIN_STEP;
-		String nextMargin = newMargin + Repository.MARGIN_STEP;
+		String nextMargin = margin + Repository.MARGIN_STEP;
 		for (Object value: list) {
-			out.print(newMargin);
+			out.print(margin);
 			out.print("-");
 			out.print(Repository.MARGIN_STEP);
 			if (type == null || type != value.getClass()) {
 				type = (Class<Object>)value.getClass();
-				converter = (Converter<Object>)mapper.getConverter(value.getClass());
+				converter = (Converter<Object>)repository.getConverter(value.getClass());
 			}
-			converter.toYaml(value, out, nextMargin);
+			converter.toTypedText(value, out, nextMargin);
 		}
 	}
 

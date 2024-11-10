@@ -5,14 +5,12 @@ import java.util.List;
 
 import com.palisand.bones.tt.Document;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Setter
 @Getter
-@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 public class Model extends Document {
 	private String name = "<NoName>";

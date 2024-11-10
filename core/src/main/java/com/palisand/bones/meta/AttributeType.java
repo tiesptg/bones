@@ -1,11 +1,13 @@
 package com.palisand.bones.meta;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
-public class AttributeType extends Type<Attribute> {
+@Getter
+@Setter
+@NoArgsConstructor
+public abstract class AttributeType extends Type<Attribute> {
 	
 	@Override
 	public String getId() {
