@@ -113,11 +113,11 @@ public class Repository {
 
 	String readUntilLineEnd(BufferedReader in) throws IOException {
 		StringBuilder sb = new StringBuilder();
-		char c = (char) in.read();
+		int c = (char) in.read();
 		// collect chars until end of line
 		while (c != -1 && c != '\n' && c != '\r') {
-			sb.append(c);
-			c = (char) in.read();
+			sb.append((char)c);
+			c = in.read();
 		}
 		// ignore eol
 		if (c == '\r') {
@@ -150,11 +150,13 @@ public class Repository {
 				break loop;
 			}
 			case ':' -> {
-				in.read(); // skip tab
+				int x = in.read(); // skip tab
+				assert x == '\t';
 				break loop;
 			}
 			case '-' -> {
-				in.read(); // skip tab
+				int x = in.read(); // skip tab
+				assert x == '\t';
 				break loop;
 			}
 			default -> sb.append(c);

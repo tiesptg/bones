@@ -112,6 +112,7 @@ class TypedTextTest {
 		String tmt = mapper.toTypedText(root);
 		System.out.print(tmt);
 		Root check = mapper.fromTypedText(tmt);
+		System.out.print(mapper.toTypedText(check));
 		assertEquals(mapper.toTypedText(check),tmt);
 		
 		File f = mapper.write("target/repository", root);
@@ -189,5 +190,43 @@ class TypedTextTest {
 		Root rootX = (Root)mapper.read(f2.getAbsolutePath());
 		assertEquals("sd6f7s",rootX.getChildren().get(0).getOther().get().getId());
 	}
+	
+	@Getter
+	@Setter
+	@NoArgsConstructor
+	public static class SimpleObject {
+		private String name;
+		private int age;
+		private boolean done;
+		List<SimpleObject> list = new ArrayList<>();
+	}
+	
+	private static final String TESTT = 
+			"com.palisand.bones.test.TypedTextTest$SimpleObject>\n" +
+			"unknownString:	something\n" +
+			"name:	Object\n" +
+			"justALabel:	\n" +
+			"age:	23\n" +
+			"list:	\n" +
+			"	-	SimpleObject>\n" +
+			"		name:	Another\n" +
+			"		unknownObject:	\n" +
+			"			label:	\n" +
+			"			list:	\n" +
+			"				-	X>\n" +
+			"					any:	false\n" +
+			"		age:	40\n" +
+			"		done:	true";
 
+	
+	@Test
+	void testUnknownField() throws IOException {
+		Repository rep = new Repository();
+		SimpleObject object = rep.fromTypedText(TESTT);
+		System.out.println(rep.toTypedText(object));
+		assertEquals(40,object.getList().get(0).getAge());
+		assertEquals(true,object.getList().get(0).isDone());
+	}
+
+	
 }

@@ -171,13 +171,4 @@ public class Logger {
 		initialise(logConfig);
 	}
 	
-	
-	public static void main(String...args) {
-		Logger.getRootLogger().setLevel(Level.WARN);
-		Logger logger = Logger.getLogger(Logger.class);
-		logger.log("Test message").info();
-		logger.log("exception").with(new RuntimeException()).warn();
-	}
-
-
 }

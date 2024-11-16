@@ -179,6 +179,14 @@ public class ObjectConverter implements Converter<Object> {
 						}
 					}
 				}
+			} else {
+				String testMargin = token.margin();
+				Converter<?> strConv = repository.getConverter(String.class);
+				strConv.fromTypedText(in, String.class, newMargin);
+				for (token = repository.nextToken(in); token.margin().length() > testMargin.length(); token = repository.nextToken(in)) {
+					repository.consumeLastToken();
+					strConv.fromTypedText(in, String.class, newMargin);
+				}
 			}
 		}
 		repository.setContext(oldContext);
@@ -186,9 +194,8 @@ public class ObjectConverter implements Converter<Object> {
 	}
 	
 	private String getClassLabel(Class<?> cls) {
-		String context = repository.getContext().getName().substring(0,repository.getContext().getName().length() - repository.getContext().getSimpleName().length());
-		String check = cls.getName().substring(0,cls.getName().length()-cls.getSimpleName().length());
-		if (context.equals(check)) {
+		Package pack = repository.getContext().getPackage();
+		if (pack.equals(cls.getPackage())) {
 			return cls.getSimpleName();
 		}
 		return cls.getName();
@@ -200,39 +207,37 @@ public class ObjectConverter implements Converter<Object> {
 		Class<?> oldContext = repository.getContext();
 		if (obj == null) {
 			out.println("null");
-		} else if (obj instanceof Node node) {
-			if (node.getContainer() != null) {
-				repository.setContext(node.getContainer().getClass());
-			}
-		}
-		out.print(getClassLabel(obj.getClass()));
-		out.println('>');
-		for (Property property: properties) {
-			Object value = null;
-			try {
-				value = property.getGetter().invoke(obj);
-				if (property.isLink()) {
-					Link<?,?> link = (Link<?,?>)value;
-					value = link.getPath();
-					link.setRepository(repository);
+		} else {
+			out.print(getClassLabel(obj.getClass()));
+			out.println('>');
+			repository.setContext(obj.getClass());
+			for (Property property: properties) {
+				Object value = null;
+				try {
+					value = property.getGetter().invoke(obj);
+					if (property.isLink()) {
+						Link<?,?> link = (Link<?,?>)value;
+						value = link.getPath();
+						link.setRepository(repository);
+					}
+				} catch (Exception ex) {
+					throw new IOException(ex);
 				}
-			} catch (Exception ex) {
-				throw new IOException(ex);
-			}
-			String newMargin = margin + Repository.MARGIN_STEP;
-			Converter<Object> converter = value == null ? (Converter<Object>)repository.getConverter(property.getType()) : (Converter<Object>)repository.getConverter(value.getClass());
-			if (!property.isDefault(value)) {
-				out.print(margin);
-				out.print(property.getName());
-				out.print(":\t");
-				if (converter != null) {
-					converter.toTypedText(value, out, newMargin);
-				} else {
-					out.println("null");
+				String newMargin = margin + Repository.MARGIN_STEP;
+				Converter<Object> converter = value == null ? (Converter<Object>)repository.getConverter(property.getType()) : (Converter<Object>)repository.getConverter(value.getClass());
+				if (!property.isDefault(value)) {
+					out.print(margin);
+					out.print(property.getName());
+					out.print(":\t");
+					if (converter != null) {
+						converter.toTypedText(value, out, newMargin);
+					} else {
+						out.println("null");
+					}
 				}
 			}
+			repository.setContext(oldContext);
 		}
-		repository.setContext(oldContext);
 	}
 
 }
