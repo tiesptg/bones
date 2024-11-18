@@ -11,6 +11,6 @@ public abstract class Member extends Item<Entity> {
 	
 	private boolean multiple;
 	
-	public abstract Type<?> getType();
+	public abstract Type getType();
 
 }

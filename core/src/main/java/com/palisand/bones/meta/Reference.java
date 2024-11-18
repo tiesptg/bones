@@ -10,6 +10,10 @@ import lombok.Setter;
 public class Reference extends Member {
 
 	private String pointerPattern;
-	private EntityType type = new EntityType();
 	private boolean external = false;
+	
+	@Override
+	public Type getType() {
+		return Type.OBJECT;
+	}
 }

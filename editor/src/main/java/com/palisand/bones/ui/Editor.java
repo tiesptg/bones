@@ -1,6 +1,7 @@
 package com.palisand.bones.ui;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
@@ -10,17 +11,21 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -38,6 +43,8 @@ import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
+import javax.swing.UIDefaults;
+import javax.swing.UIManager;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -100,7 +107,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			setBounds(config.getLeft(),config.getTop(),config.getWidth(),config.getHeight());
 			lastDirectory = new File(config.getLastDirectory());
 		} catch (Exception ex) {
-			handleException(ex);
+			if (!(ex instanceof FileNotFoundException)) {
+				handleException(ex);
+			}
 			setBounds(100,100,800,600);
 			saveConfig();
 		}
@@ -296,22 +305,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	private record Counts(int buttons, int properties) {}
-	
-	private Counts getCounts(Collection<Property> properties) {
-		int buttons = 1;
-		int propCount = 0;
-		for (Property property: properties) {
-			if (property.isList()) {
-				buttons += getConcreteAssignableClasses(property.getComponentType()).size();
-			} else {
-				++propCount;
-			}
-		}
-		return new Counts(buttons,propCount);
-	}
-	
-	private void makeStringComponent(Node<?> node, String value, Property property) {
+	private void makeStringComponent(JPanel panel,Node<?> node, String value, Property property) {
 		JTextField field = new JTextField(value);
 		field.addFocusListener(new FocusAdapter() {
 			@Override
@@ -320,7 +314,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 			
 		});
-		properties.add(field);
+		panel.add(field);
 		field.addKeyListener(new KeyAdapter() {
 
 			@Override
@@ -331,7 +325,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		});
 	}
 	
-	private void makeNodeComponent(Node<?> node, Node<?> selected, Property property) {
+	private void makeNodeComponent(JPanel panel,Node<?> node, Node<?> selected, Property property) {
 		List<Node<?>> nodes = new ArrayList<>();
 		nodes.add(null);
 		try {
@@ -352,13 +346,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 		}
 		JComboBox<Node<?>> box = new JComboBox<>(nodes.toArray(len -> new Node[len]));
-		properties.add(box);
+		panel.add(box);
 		box.setSelectedIndex(selectedItem);
 		box.addActionListener(e -> setValue(node,property.getSetter(),box.getSelectedItem()));
 
 	}
 	
-	private void makeNumberComponent(Node<?> node, Object value, Property property) {
+	private void makeNumberComponent(JPanel panel,Node<?> node, Object value, Property property) {
 		JSpinner spinner = new JSpinner();
 		spinner.setModel(new SpinnerNumberModel((Number)value, Integer.MIN_VALUE, Integer.MAX_VALUE, 1));
 		JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor)spinner.getEditor();
@@ -370,12 +364,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				setValue(node,property.getSetter(),spinner.getValue());
 			}
 		});
-		properties.add(spinner);
+		panel.add(spinner);
 		spinner.addChangeListener(e -> setValue(node,property.getSetter(),spinner.getValue()));
 	}
 	
 	@SuppressWarnings("unchecked")
-	private void makeLinkComponent(Node<?> node, Link<?,?> link, Property property) {
+	private void makeLinkComponent(JPanel panel,Node<?> node, Link<?,?> link, Property property) {
 		Node<?> container = link.getContainer();
 		try {
  			List<Node<?>> candidates = repository.find(container, link.getPathPattern());
@@ -383,7 +377,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			JComboBox<Node<?>> box = new JComboBox<>(candidates.toArray(len -> new Node[len]));
 			final Link<Node<?>,Node<?>> value = (Link<Node<?>,Node<?>>)getValue(node,property.getGetter());
 			box.setSelectedItem(value.get());
-			properties.add(box);
+			panel.add(box);
 			box.addActionListener(e -> {
 				try {
 					value.set((Node<?>)box.getSelectedItem());
@@ -396,37 +390,86 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
+	private <D> void makeListComponent(JPanel panel,Node<?> node, List<D> value, Property property) {
+		JLabel label = new JLabel("<html>"+ value.stream().map(obj -> obj.toString()).collect(Collectors.joining("<br>")));
+		label.setOpaque(true);
+		UIDefaults defaults = UIManager.getDefaults();
+		label.setBackground(defaults.getColor("List.background"));
+		label.setForeground(defaults.getColor("List.foreground"));
+		label.setFocusable(true);
+		label.addFocusListener(new FocusListener() {
+
+			@Override
+			public void focusGained(FocusEvent e) {
+				label.setBackground(defaults.getColor("List.selectionBackground"));
+				label.setForeground(defaults.getColor("List.selectionForeground"));
+			}
+
+			@Override
+			public void focusLost(FocusEvent e) {
+				label.setBackground(defaults.getColor("List.background"));
+				label.setForeground(defaults.getColor("List.foreground"));
+			}
+			
+		});
+		label.addMouseListener(new MouseAdapter() {
+
+			@SuppressWarnings("unchecked")
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() >= 2) {
+					ListEditor<D> editor = (ListEditor<D>)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
+					if (editor != null && editor.editData(value)) {
+						setValue(node, property.getSetter(), editor.getData());
+					}
+				}
+			}
+		});
+		JScrollPane pane = new JScrollPane(label);
+		pane.setPreferredSize(new Dimension(100,85));
+		panel.add(pane);
+	}
+	
 	private void select(Node<?> node) {
 		properties.removeAll();
 		buttons.removeAll();
 		ObjectConverter converter = (ObjectConverter)repositoryModel.getRepository().getConverter(node.getClass());
-		Counts counts = getCounts(converter.getProperties());
-		buttons.setLayout(new GridLayout(1,counts.buttons()));
-		properties.setLayout(new GridLayout(counts.properties,2));
+		buttons.setLayout(new GridLayout(1,1));
+		BoxLayout box = new BoxLayout(properties,BoxLayout.PAGE_AXIS);
+		properties.setLayout(box);
 		for (Property property: converter.getProperties()) {
 			Object value = getValue(node,property.getGetter());
 			if (!property.isList()) {
-				properties.add(new JLabel(property.getLabel()));
+				JPanel row = new JPanel();
+				row.setLayout(new GridLayout(1,2));
+				properties.add(row);
+				row.add(new JLabel(property.getLabel()));
 				if (property.getType() == String.class) {
-					makeStringComponent(node,(String)value,property);
+					makeStringComponent(row,node,(String)value,property);
 				} else if (Link.class.isAssignableFrom(property.getType())) {
-					makeLinkComponent(node,(Link<?,?>)value,property);
+					makeLinkComponent(row,node,(Link<?,?>)value,property);
 				} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
-					properties.add(new JCheckBox("",(Boolean)getValue(node,property.getGetter())));
+					row.add(new JCheckBox("",(Boolean)getValue(node,property.getGetter())));
 				} else if (property.getType() == int.class || property.getType() == Integer.class
 						|| property.getType() == long.class || property.getType() == Long.class
 						|| property.getType() == BigInteger.class) {
-					makeNumberComponent(node, value, property);
+					makeNumberComponent(row,node, value, property);
 				} else if (Node.class.isAssignableFrom(property.getType())) {
-					makeNodeComponent(node,(Node<?>)value,property);
+					makeNodeComponent(row,node,(Node<?>)value,property);
 				}
-			} else {
+			} else if (Node.class.isAssignableFrom(property.getComponentType())) {
 				List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
 				for (Class<?> c: classes) {
 					JButton button = new JButton("New " + c.getSimpleName());
 					button.addActionListener(e -> newChildToList(property,node,c));
 					buttons.add(button);
 				}
+			} else {
+				JPanel row = new JPanel();
+				row.setLayout(new GridLayout(1,2));
+				properties.add(row);
+				row.add(new JLabel(property.getLabel()));
+				makeListComponent(row,node,(List<?>)value,property);
 			}
 		}
 		JButton remove = new JButton("Delete");

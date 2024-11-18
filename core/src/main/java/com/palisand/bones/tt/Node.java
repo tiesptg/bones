@@ -4,7 +4,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
+
+import com.palisand.bones.tt.ObjectConverter.Property;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -13,6 +17,16 @@ import lombok.Setter;
 public abstract class Node<N extends Node<?>> {
 	private N container;
 	@Setter private String containingAttribute;
+	private static final Map<String,ObjectConverter> CONVERTERS = new TreeMap<>();
+	
+	public static ObjectConverter getConverter(Class<?> c) {
+		ObjectConverter result = CONVERTERS.get(c.getName());
+		if (result == null) {
+			result = new ObjectConverter(c);
+			CONVERTERS.put(c.getName(), result);
+		}
+		return result;
+	}
 	
 	@SuppressWarnings("unchecked")
 	public void setContainer(Node<?> node, String attribute) {
@@ -21,6 +35,39 @@ public abstract class Node<N extends Node<?>> {
 	}
 	
 	public abstract String getId();
+	
+	public <M extends Node<?>> PropertyConstraint<M> getConstraint(String fieldName) {
+		return null;
+	}
+	
+	@SuppressWarnings("unchecked")
+	public boolean validate(Validator validator) {
+		validator.setNode(this);
+		ObjectConverter converter = getConverter(getClass());
+		for (Property property: converter.getProperties()) {
+			PropertyConstraint<N> constr = (PropertyConstraint<N>)getConstraint(property.getName());
+			Object value = property.getValue(this);
+			if (constr != null && constr.isEnabled((N)this)) {
+				constr.doValidate(validator, property.getName(),value);
+			}
+			if (value != null && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
+				if (property.isList()) {
+					List<Node<?>> list = (List<Node<?>>)value;
+					list.forEach(node -> node.validate(validator));
+				} else {
+					Node<?> node = (Node<?>)value;
+					node.validate(validator);
+				}
+				validator.setNode(this);
+			}
+		}
+		doValidate(validator);
+		return validator.getViolations().isEmpty();
+	}
+	
+	public void doValidate(Validator validator) {
+		// overrideable method to implement custom validations
+	}
 	
 	List<String> getPathList() {
 		if (container != null) {

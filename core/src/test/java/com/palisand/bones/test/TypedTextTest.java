@@ -30,6 +30,7 @@ class TypedTextTest {
 	@EqualsAndHashCode(callSuper = true)
 	public static class Child extends Node<Root> {
 		private String id = null;
+		private List<String> strings = new ArrayList<>();
 		private long order = 10l;
 		
 		private final ExternalLink<Child,Child> other = new ExternalLink<>(this,".*#/children/.*",child -> child.getOther());
@@ -67,6 +68,7 @@ class TypedTextTest {
 		private boolean flag = false;
 		private int number = 0;
 		private String name = null;
+		private List<Double> doubles = new ArrayList<>();
 		private double fraction = 0.0;
 		private List<Child> children = new ArrayList<>();
 		private Choice choice = null;
@@ -87,10 +89,15 @@ class TypedTextTest {
 		Root root = new Root();
 		root.setFlag(true);
 		root.setNumber(8);
+		root.getDoubles().add(6345.768);
+		root.getDoubles().add((double)1);
+		root.getDoubles().add(Double.MAX_VALUE);
 		root.setName("Root");
 		root.setFraction(20.20);
 		Child child = new Child();
 		child.setId("sd6f7s");
+		child.getStrings().add("one string");
+		child.getStrings().add("and another");
 		Child2 child2 = new Child2();
 		child2.setId("some very long comment \n    with a new line and spaces       ");
 		child2.setOrder(25l);
