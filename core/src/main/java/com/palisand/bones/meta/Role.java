@@ -11,6 +11,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Role extends Member {
 
+	private String pointerPattern;
+	private boolean external = false;
 	private final ExternalLink<Role,Role> opposite = new ExternalLink<Role,Role>(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());
 	
 	public Type getType() {
