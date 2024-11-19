@@ -4,12 +4,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import com.palisand.bones.di.Classes;
 import com.palisand.bones.tt.Repository.Token;
@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 public class ObjectConverter implements Converter<Object> {
+	private static final Map<String,ObjectConverter> CONVERTERS = new TreeMap<>();
 	@Getter private List<Property> properties = new ArrayList<>();
 	@Getter private Method containerSetter = null;
 	private Repository repository = null;
@@ -35,6 +36,15 @@ public class ObjectConverter implements Converter<Object> {
 			}
 		}
 		return null;
+	}
+	
+	public static ObjectConverter getConverter(Class<?> c) {
+		ObjectConverter result = CONVERTERS.get(c.getName());
+		if (result == null) {
+			result = new ObjectConverter(c);
+			CONVERTERS.put(c.getName(), result);
+		}
+		return result;
 	}
 	
 	@Data
@@ -100,7 +110,7 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
-	public ObjectConverter(Class<?> cls) {
+	private ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
 		List<Class<?>> classes = new ArrayList<>();

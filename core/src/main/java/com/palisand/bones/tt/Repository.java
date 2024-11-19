@@ -55,7 +55,7 @@ public class Repository {
 		addConverter(boolean.class, new PrimitiveConverter<Boolean>(boolean.class, str -> Boolean.valueOf(str)));
 		addConverter(Boolean.class, new PrimitiveConverter<Boolean>(Boolean.class, str -> Boolean.valueOf(str)));
 		addConverter(String.class, new StringConverter());
-		addConverter(Object.class, new ObjectConverter(Object.class));
+		addConverter(Object.class, ObjectConverter.getConverter(Object.class));
 		addConverter(List.class, new ListConverter());
 		addConverter(Enum.class, new EnumConverter());
 		addConverter(Link.class, new StringConverter());
@@ -95,7 +95,7 @@ public class Repository {
 			if (result.getType() != cls && !Modifier.isAbstract(cls.getModifiers()) 
 					&& result.getType() != List.class) {
 				if (result instanceof ObjectConverter) {
-					result = new ObjectConverter(cls);
+					result = ObjectConverter.getConverter(cls);
 					addConverter(cls, result);
 				} else if (result instanceof EnumConverter) {
 					result = new EnumConverter((Class<Enum<?>>) cls);

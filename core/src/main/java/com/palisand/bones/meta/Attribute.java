@@ -1,11 +1,9 @@
 package com.palisand.bones.meta;
 
-import java.util.Map;
-import java.util.TreeMap;
-
-import com.palisand.bones.tt.ListConstraint;
-import com.palisand.bones.tt.NumberConstraint;
-import com.palisand.bones.tt.PropertyConstraint;
+import com.palisand.bones.tt.Rules;
+import com.palisand.bones.tt.Rules.ListRules;
+import com.palisand.bones.tt.Rules.NumberRules;
+import com.palisand.bones.tt.Rules.RulesMap;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,17 +13,13 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Attribute extends Member {
-	private static final Map<String,PropertyConstraint<Attribute>> CONSTRAINTS = new TreeMap<>();
-	
-	static {
-		CONSTRAINTS.put("type",ListConstraint.<Attribute>builder().notEmpty(true).build());
-		CONSTRAINTS.put("maxLength", NumberConstraint.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING).build());
-	}
+	private static final RulesMap<Attribute> RULES = Rules.<Attribute>map().and("type",ListRules.<Attribute>builder().notEmpty(true).build())
+						.and("maxLength", NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING).build());
 	
 	@SuppressWarnings("unchecked")
 	@Override
-	public PropertyConstraint<Attribute> getConstraint(String field) {
-		return CONSTRAINTS.get(field);
+	public Rules<Attribute> getConstraint(String field) {
+		return RULES.of(field);
 	}
 
 	private Type type = null;

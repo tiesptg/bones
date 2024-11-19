@@ -2,7 +2,7 @@ package com.palisand.bones.tt;
 
 import java.util.List;
 
-import com.palisand.bones.tt.PropertyConstraint.ConstraintViolation;
+import com.palisand.bones.tt.Rules.ConstraintViolation;
 
 import lombok.Getter;
 import lombok.Setter;

@@ -17,16 +17,6 @@ import lombok.Setter;
 public abstract class Node<N extends Node<?>> {
 	private N container;
 	@Setter private String containingAttribute;
-	private static final Map<String,ObjectConverter> CONVERTERS = new TreeMap<>();
-	
-	public static ObjectConverter getConverter(Class<?> c) {
-		ObjectConverter result = CONVERTERS.get(c.getName());
-		if (result == null) {
-			result = new ObjectConverter(c);
-			CONVERTERS.put(c.getName(), result);
-		}
-		return result;
-	}
 	
 	@SuppressWarnings("unchecked")
 	public void setContainer(Node<?> node, String attribute) {
@@ -36,16 +26,16 @@ public abstract class Node<N extends Node<?>> {
 	
 	public abstract String getId();
 	
-	public <M extends Node<?>> PropertyConstraint<M> getConstraint(String fieldName) {
+	public <M extends Node<?>> Rules<M> getConstraint(String fieldName) {
 		return null;
 	}
 	
 	@SuppressWarnings("unchecked")
 	public boolean validate(Validator validator) {
 		validator.setNode(this);
-		ObjectConverter converter = getConverter(getClass());
+		ObjectConverter converter = ObjectConverter.getConverter(getClass());
 		for (Property property: converter.getProperties()) {
-			PropertyConstraint<N> constr = (PropertyConstraint<N>)getConstraint(property.getName());
+			Rules<N> constr = (Rules<N>)getConstraint(property.getName());
 			Object value = property.getValue(this);
 			if (constr != null && constr.isEnabled((N)this)) {
 				constr.doValidate(validator, property.getName(),value);
