@@ -116,6 +116,7 @@ public abstract class ListEditor<X> extends JDialog {
 				fireIntervalAdded(this, list.size()-1, list.size()-1);
 				setValue(null);
 				selectItem(list.size()-1);
+				getEditor().requestFocus();
 			}
 		}
 
@@ -156,6 +157,9 @@ public abstract class ListEditor<X> extends JDialog {
 	
 	public ListEditor(JFrame parent, String title) {
 		super(parent,title);
+	}
+	
+	private void init() {
 		setLayout(new BoxLayout(getContentPane(),BoxLayout.Y_AXIS));
 		JPanel top = new JPanel();
 		top.setLayout(new BorderLayout(4,4));
@@ -199,7 +203,7 @@ public abstract class ListEditor<X> extends JDialog {
 			setVisible(false);
 		});
 		setSize(300,260);
-		Rectangle rect = parent.getBounds();
+		Rectangle rect = getParent().getBounds();
 		setLocation((rect.width - getWidth())/2+rect.x,(rect.height-getHeight())/2+rect.y);
 	}
 	
@@ -212,6 +216,7 @@ public abstract class ListEditor<X> extends JDialog {
 	}
 	
 	public boolean editData(List<X> data) {
+		init();
 		listModel = new ListListModel<>(data);
 		list.setModel(listModel);
 		list.setSelectedIndex(0);
