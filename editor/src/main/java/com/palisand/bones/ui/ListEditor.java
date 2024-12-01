@@ -4,20 +4,11 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.util.List;
 
-import javax.swing.AbstractListModel;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JFrame;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
-import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.*;
 
 import lombok.Getter;
 
@@ -28,10 +19,16 @@ public abstract class ListEditor<X> extends JDialog {
 	public static class StringListEditor extends ListEditor<String> {
 		
 		private static final long serialVersionUID = 1319883864175847127L;
-		private JTextField field = new JTextField();
+		private final JTextField field = new JTextField();
 		
 		public StringListEditor(JFrame frame,String title) {
 			super(frame,title);
+			field.addFocusListener(new FocusAdapter() {
+				@Override
+				public void focusGained(FocusEvent e) {
+					field.selectAll();
+				}
+			});
 		}
 
 		@Override
@@ -156,37 +153,36 @@ public abstract class ListEditor<X> extends JDialog {
 	}
 	
 	public ListEditor(JFrame parent, String title) {
-		super(parent,title);
+		super(parent,title,true);
 	}
 	
 	private void init() {
 		setLayout(new BoxLayout(getContentPane(),BoxLayout.Y_AXIS));
+		getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 		JPanel top = new JPanel();
 		top.setLayout(new BorderLayout(4,4));
 		add(top);
 		top.add(new JScrollPane(list),BorderLayout.CENTER);
 		list.addListSelectionListener(e -> selectItem());
 		JPanel buttons = new JPanel();
-		buttons.setLayout(new BoxLayout(buttons,BoxLayout.Y_AXIS));
-		top.add(buttons,BorderLayout.EAST);
+		JPanel panel = new JPanel();
+		panel.setLayout(new BorderLayout());
+		panel.add(buttons, BorderLayout.NORTH);
+		buttons.setLayout(new GridLayout(5,1));
+		top.add(panel,BorderLayout.EAST);
 		JButton add = new JButton("+");
-		add.setPreferredSize(new Dimension(28,28));
 		buttons.add(add);
 		add.addActionListener(e -> listModel.doAdd(getValue()));
 		JButton remove = new JButton("-");
-		remove.setPreferredSize(new Dimension(28,28));
 		buttons.add(remove);
 		remove.addActionListener(e -> listModel.doRemove(list.getSelectedIndex()));
 		JButton update = new JButton("=");
-		update.setPreferredSize(new Dimension(28,28));
 		buttons.add(update);
 		update.addActionListener(e -> listModel.update(getValue(),list.getSelectedIndex()));
 		JButton up = new JButton("^");
-		up.setPreferredSize(new Dimension(28,28));
 		buttons.add(up);
 		up.addActionListener(e -> listModel.doUp(list.getSelectedIndex()));
 		JButton down = new JButton("v");
-		down.setPreferredSize(new Dimension(28,28));
 		buttons.add(down);
 		down.addActionListener(e -> listModel.doDown(list.getSelectedIndex()));
 		top.add(getEditor(),BorderLayout.SOUTH);

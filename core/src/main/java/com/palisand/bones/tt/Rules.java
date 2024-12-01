@@ -1,5 +1,6 @@
 package com.palisand.bones.tt;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -8,6 +9,7 @@ import java.util.function.Function;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Singular;
 import lombok.experimental.SuperBuilder;
 
 @Getter
@@ -66,7 +68,23 @@ public class Rules<N extends Node<?>> {
 		
 		@Override
 		protected void doValidate(Validator validator, String field, Object value) {
+			super.doValidate(validator, field, value);
 			Number number = (Number)value;
+			if (max != null && number.doubleValue() > max) {
+				validator.addViolation(field, "Value should not be higher than " + max);
+			}
+			if (min != null && number.doubleValue() < min) {
+				validator.addViolation(field, "Value should not be lower than " + min);
+			}
+			if (notZero && number.longValue() == 0) {
+				validator.addViolation(field, "Value should not be 0");
+			}
+			if (number.toString().length() > size + 1) {
+				validator.addViolation(field, "Value should not have more digits than " + size);
+			}
+			if (new BigDecimal(number.toString()).precision() > precision) {
+				validator.addViolation(field, "Value should not have more than " + precision + " digits after the decimal point");
+			}
 		}
 	}
 
@@ -108,13 +126,15 @@ public class Rules<N extends Node<?>> {
 	@Setter
 	@SuperBuilder
 	public static class EnumRules<N extends Node<?>> extends Rules<N> {
-		@Builder.Default
-		private boolean notNull = true;
+		
+		@Singular("notAllowed")
+		private List<Object> notAllowed;
 		
 		@Override
 		protected void doValidate(Validator validator, String field, Object value) {
-			if (notNull && value == null) {
-				validator.addViolation(field, "Field " + field + " should not be null");
+			super.doValidate(validator, field, value);
+			if (value != null && notAllowed.contains(value)) {
+				validator.addViolation(field, "Value " + value + " is not allowed for field " + field);
 			}
 		}
 
@@ -124,17 +144,14 @@ public class Rules<N extends Node<?>> {
 	@Setter
 	@SuperBuilder
 	public static class ListRules<N extends Node<?>> extends Rules<N> {
-		@Builder.Default
-		private boolean notNull = true;
 		@Builder.Default()
 		private boolean notEmpty = false;
 		
 		@Override
 		protected void doValidate(Validator validator, String field, Object value) {
+			super.doValidate(validator, field, value);
 			List<?> list = (List<?>)value;
-			if (notNull && list == null) {
-				validator.addViolation(field, "Field " + field + " should not be null");
-			} else if (notEmpty && list.isEmpty()) {
+			if (notEmpty && list.isEmpty()) {
 				validator.addViolation(field, "Field " + field + " should not be empty");
 			}
 		}
