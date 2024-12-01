@@ -55,6 +55,7 @@ public class ObjectConverter implements Converter<Object> {
 		private Method setter;
 		private Class<?> componentType;
 		private Object defaultValue;
+		private Rules<?> rules;
 		
 		public Class<?> getType() {
 			return getter.getReturnType();
@@ -128,6 +129,9 @@ public class ObjectConverter implements Converter<Object> {
 					try {
 						property.setGetter(clazz.getMethod(getterName));
 						property.setSetter(clazz.getMethod("set" + label, field.getType()));
+						if (object instanceof Node<?> node) {
+							property.setRules(node.getConstraint(field.getName()));
+						}
 						if (!Node.class.isAssignableFrom(property.getType()) && !Link.class.isAssignableFrom(property.getType())
 								&& !List.class.isAssignableFrom(property.getType())) {
 							try {
