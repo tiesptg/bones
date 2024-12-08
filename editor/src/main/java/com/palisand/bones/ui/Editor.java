@@ -2,6 +2,8 @@ package com.palisand.bones.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.ContainerOrderFocusTraversalPolicy;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
@@ -12,6 +14,7 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -49,6 +52,7 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
@@ -230,6 +234,22 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	
 	private Editor() throws Exception {
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+		setFocusCycleRoot(true);
+		setFocusTraversalPolicy(new ContainerOrderFocusTraversalPolicy() {
+			
+			private static final long serialVersionUID = -2780244947286348700L;
+			
+			@Override
+			public boolean accept(Component component) {
+				if (super.accept(component)) {
+					System.out.println("Checking " + component);
+					return component instanceof JTree || component instanceof JTextField || component instanceof JCheckBox
+							|| component instanceof JComboBox || component instanceof JButton || (component instanceof JLabel && component.getName() != null);
+				}
+				return false;
+			}
+
+		});
 		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 		getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 		addComponentListener(new ComponentAdapter() {
@@ -291,6 +311,23 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			@Override
 			public void focusLost(FocusEvent arg0) {
 				tree.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+			}
+			
+		});
+		tree.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+					TreePath selection = tree.getSelectionPath();
+					if (selection != null) {
+						if (tree.isExpanded(tree.getSelectionRows()[0])) {
+							tree.collapsePath(selection);
+						} else {
+							tree.expandPath(selection);
+						}
+					}
+				}
 			}
 			
 		});
@@ -415,11 +452,58 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	}
 	
 	private void makeBooleanComponent(JPanel row,Node<?> node, Boolean selected, Property property) {
-		JCheckBox box = new JCheckBox("",selected);
-		propertyEditors.add(box);
-		box.addFocusListener(new PropertyFocusListener());
-		box.addChangeListener(e -> setValue(node,property.getSetter(),box.isSelected()));
-		row.add(box);
+		JLabel label = new JLabel(selected.toString());
+		label.setName(property.getName());
+		label.putClientProperty(RULE, property.getRules());
+		propertyEditors.add(label);
+		label.addFocusListener(new PropertyFocusListener());
+
+		label.setOpaque(true);
+		label.setHorizontalAlignment(SwingConstants.CENTER);
+		UIDefaults defaults = UIManager.getDefaults();
+		label.setBackground(defaults.getColor("List.background"));
+		label.setForeground(defaults.getColor("List.foreground"));
+		label.setFocusable(true);
+		label.addFocusListener(new FocusListener() {
+
+			@Override
+			public void focusGained(FocusEvent e) {
+				label.setBackground(defaults.getColor("List.selectionBackground"));
+				label.setForeground(defaults.getColor("List.selectionForeground"));
+			}
+
+			@Override
+			public void focusLost(FocusEvent e) {
+				label.setBackground(defaults.getColor("List.background"));
+				label.setForeground(defaults.getColor("List.foreground"));
+			}
+			
+		});
+		label.addMouseListener(new MouseAdapter() {
+
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				if (e.getButton() == MouseEvent.BUTTON1) {
+					Boolean value = !Boolean.valueOf(label.getText());
+					label.setText(value.toString());
+					setValue(node,property.getSetter(),value);
+				}
+			}
+		});
+		label.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+					Boolean value = !Boolean.valueOf(label.getText());
+					label.setText(value.toString());
+					setValue(node,property.getSetter(),value);
+				}
+			}
+			
+		});
+
+		row.add(label);
 	}
 
 	private void makeNodeComponent(JPanel panel,Node<?> node, Node<?> selected, Property property) {
@@ -506,6 +590,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	
 	private <D> void makeListComponent(JPanel panel,Node<?> node, List<D> value, Property property) {
 		JLabel label = new JLabel();
+		label.setName(property.getName());
 		label.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(label);
 		label.addFocusListener(new PropertyFocusListener());
@@ -534,21 +619,36 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		});
 		label.addMouseListener(new MouseAdapter() {
 
-			@SuppressWarnings("unchecked")
 			@Override
 			public void mouseClicked(MouseEvent e) {
 				if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() >= 2) {
-					ListEditor<D> editor = (ListEditor<D>)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
-					if (editor != null && editor.editData(value)) {
-						setValue(node, property.getSetter(), editor.getData());
-						showValue(label,editor.getData());
-					}
+					showListEditor(label, node, value, property);
 				}
 			}
 		});
+		label.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+					showListEditor(label,node,value,property);
+				}
+			}
+			
+		});
+
 		JScrollPane pane = new JScrollPane(label);
 		pane.setPreferredSize(new Dimension(100,85));
 		panel.add(pane);
+	}
+	
+	@SuppressWarnings("unchecked")
+	private <D> void showListEditor(JLabel label, Node<?> node, List<D> value, Property property) {
+		ListEditor<D> editor = (ListEditor<D>)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
+		if (editor != null && editor.editData(value)) {
+			setValue(node, property.getSetter(), editor.getData());
+			showValue(label,editor.getData());
+		}
 	}
 
 	private void showValue(JLabel label, List<?> data) {
