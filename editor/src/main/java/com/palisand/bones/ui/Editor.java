@@ -1,7 +1,6 @@
 package com.palisand.bones.ui;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.ContainerOrderFocusTraversalPolicy;
 import java.awt.Dimension;
@@ -16,6 +15,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.lang.reflect.Array;
@@ -50,6 +50,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JTree;
+import javax.swing.KeyStroke;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -70,6 +71,7 @@ import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 import com.palisand.bones.tt.Rules;
+import com.palisand.bones.tt.Rules.ConstraintViolation;
 import com.palisand.bones.tt.Validator;
 
 import lombok.AllArgsConstructor;
@@ -83,7 +85,19 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private static final Logger LOG = Logger.getLogger(Editor.class);
 	private JTree tree = new JTree();
 	private JPanel properties = new JPanel();
-	private JTable violations = new JTable();
+	private JTable violations = new JTable() {
+		
+		@Override
+    protected boolean processKeyBinding(KeyStroke ks, KeyEvent e,
+        int condition, boolean pressed) {
+			if (e.getKeyCode() == KeyEvent.VK_TAB) {
+				Editor.this.dispatchEvent(e);
+				return true;
+			}
+			return super.processKeyBinding(ks, e, condition, pressed);
+		}
+
+	};
 	private RepositoryModel repositoryModel = new RepositoryModel(new Repository());
 	private JPanel buttons = new JPanel();
 	private JPanel top = new JPanel();
@@ -93,6 +107,43 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private Node<?> selectedNode = null;
 	private List<JComponent> propertyEditors = new ArrayList<>();
 	private ProblemsModel problemsModel = new ProblemsModel();
+	private KeyAdapter escListener = new KeyAdapter() {
+
+		@Override
+		public void keyReleased(KeyEvent e) {
+			if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+				tree.requestFocus();
+			}
+		}
+		
+	};
+	private ComponentAdapter componentAdapter = new ComponentAdapter() {
+
+		@Override
+		public void componentResized(ComponentEvent e) {
+			saveConfig();
+		}
+
+		@Override
+		public void componentMoved(ComponentEvent e) {
+			saveConfig();
+		}
+
+	};
+	private ContainerOrderFocusTraversalPolicy editorPolicy = new ContainerOrderFocusTraversalPolicy() {
+		
+		private static final long serialVersionUID = -2780244947286348700L;
+		
+		@Override
+		public boolean accept(Component component) {
+			if (super.accept(component)) {
+				return component instanceof JTree || component instanceof JTable || component instanceof JTextField || component instanceof JCheckBox
+						|| component instanceof JComboBox || component instanceof JButton;
+			}
+			return false;
+		}
+
+	};
 	
 	@Getter
 	@Setter
@@ -234,66 +285,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		return result;
 	}
 	
-	private Editor() throws Exception {
-		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-		setFocusCycleRoot(true);
-		setFocusTraversalPolicy(new ContainerOrderFocusTraversalPolicy() {
-			
-			private static final long serialVersionUID = -2780244947286348700L;
-			
-			@Override
-			public boolean accept(Component component) {
-				if (super.accept(component)) {
-					return component instanceof JTree || component instanceof JTextField || component instanceof JCheckBox
-							|| component instanceof JComboBox || component instanceof JButton || (component instanceof JLabel && component.getName() != null);
-				}
-				return false;
-			}
-
-		});
-		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-		addComponentListener(new ComponentAdapter() {
-
-			@Override
-			public void componentResized(ComponentEvent e) {
-				saveConfig();
-			}
-
-			@Override
-			public void componentMoved(ComponentEvent e) {
-				saveConfig();
-			}
-
-		});
-		JMenuBar menuBar = new JMenuBar();
-		initMenu(menuBar);
-		setJMenuBar(menuBar);
-		setLayout(new GridLayout(1,1));
-		JScrollPane sp = new JScrollPane(tree);
-		JPanel below = new JPanel();
-		below.setLayout(new BorderLayout());
-		below.add(properties,BorderLayout.NORTH);
-		JScrollPane sp2 = new JScrollPane(below);
-		sp.setBorder(BorderFactory.createEmptyBorder());
-		sp2.setBorder(BorderFactory.createEmptyBorder());
-		JSplitPane pane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT
-				,sp, sp2);
-		pane.setBorder(BorderFactory.createEmptyBorder());
-		init(pane);
-		top.setLayout(new BorderLayout());
-		top.add(pane,BorderLayout.CENTER);
-		top.add(buttons,BorderLayout.SOUTH);
-
-		JTabbedPane tabs = new JTabbedPane();
-		tabs.addTab("Problems", violations);
-		
-		JSplitPane all = new JSplitPane(JSplitPane.VERTICAL_SPLIT
-				,top,tabs);
-		init(all);
-		all.setResizeWeight(0.5);
-		add(all);
-		
+	private JTree initTree() {
 		tree.setRootVisible(false);
 		tree.setExpandsSelectedPaths(true);
 		tree.setModel(repositoryModel);
@@ -332,6 +324,88 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 			
 		});
+		return tree;
+	}
+	
+	private JTable initViolations() {
+		violations.setModel(problemsModel);
+		violations.addKeyListener(escListener);
+		violations.setRowSelectionAllowed(true);
+		violations.setColumnSelectionAllowed(false);
+		violations.setFocusable(true);
+		violations.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyPressed(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+					selectViolation(violations.getSelectedRow());
+					e.consume();
+				}
+			}
+		});
+		violations.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseReleased(MouseEvent e) {
+				if (e.getClickCount() >= 2) {
+					selectViolation(violations.getSelectedRow());
+				}
+			}
+		});
+		return violations;
+
+	}
+	
+	private void selectViolation(int row) {
+		ConstraintViolation violation = problemsModel.getProblems().get(row);
+		TreePath path = repositoryModel.getTreePath(violation.node());
+		tree.setSelectionPath(path);
+		for (JComponent comp: propertyEditors) {
+			if (comp.getName().equals(violation.field())) {
+				if (comp instanceof JSpinner spinner) {
+					JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor)spinner.getEditor();
+					comp = editor.getTextField();
+				}
+					
+				comp.requestFocus();
+				return;
+			}
+		}
+	}
+	
+	private Editor() throws Exception {
+		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+		setFocusCycleRoot(true);
+		setFocusTraversalPolicy(editorPolicy);
+		UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+		getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+		addComponentListener(componentAdapter);
+		JMenuBar menuBar = new JMenuBar();
+		initMenu(menuBar);
+		setJMenuBar(menuBar);
+		setLayout(new GridLayout(1,1));
+		JScrollPane sp = new JScrollPane(initTree());
+		JPanel below = new JPanel();
+		below.setLayout(new BorderLayout());
+		below.add(properties,BorderLayout.NORTH);
+		JScrollPane sp2 = new JScrollPane(below);
+		sp.setBorder(BorderFactory.createEmptyBorder());
+		sp2.setBorder(BorderFactory.createEmptyBorder());
+		JSplitPane pane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT
+				,sp, sp2);
+		pane.setBorder(BorderFactory.createEmptyBorder());
+		init(pane);
+		top.setLayout(new BorderLayout());
+		top.add(pane,BorderLayout.CENTER);
+		top.add(buttons,BorderLayout.SOUTH);
+
+		JTabbedPane tabs = new JTabbedPane();
+		tabs.addTab("Problems", new JScrollPane(initViolations()));
+		
+		JSplitPane all = new JSplitPane(JSplitPane.VERTICAL_SPLIT
+				,top,tabs);
+		init(all);
+		all.setResizeWeight(0.5);
+		add(all);
 		
 		restoreConfig();
 	}
@@ -389,35 +463,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	static class PropertyFocusListener implements FocusListener {
-		private Color oldColor = null;
-		private Color oldTextColor = null;
-		
-		@Override
-		public void focusGained(FocusEvent e) {
-			JComponent component = (JComponent)e.getSource();
-			UIDefaults defaults = UIManager.getDefaults();
-			oldColor = component.getParent().getBackground();
-			oldTextColor = component.getParent().getComponents()[0].getForeground();
-			component.getParent().setBackground(defaults.getColor("mid"));
-			component.getParent().getComponents()[0].setForeground(defaults.getColor("textText"));
-		}
-
-		@Override
-		public void focusLost(FocusEvent e) {
-			JComponent component = (JComponent)e.getSource();
-			component.getParent().setBackground(oldColor);
-			component.getParent().getComponents()[0].setForeground(oldTextColor);
-		}
-		
-	}
-
-	
 	private <N extends Node<?>> void makeStringComponent(JPanel panel,N node, String value, Property property) {
 		JTextField field = new JTextField(value);
+		field.setName(property.getName());
 		field.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(field);
-		field.addFocusListener(new PropertyFocusListener());
 		field.addFocusListener(new FocusAdapter() {
 			@Override
 			public void focusGained(FocusEvent e) {
@@ -434,6 +484,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 			
 		});
+		field.addKeyListener(escListener);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -446,10 +497,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			values = Stream.concat(Arrays.asList(ne).stream(),Arrays.stream(values)).toArray(len -> (E[])Array.newInstance(property.getType(),len));
 		}
 		JComboBox<Enum<E>> box = new JComboBox<>(values);
+		box.setName(property.getName());
 		box.putClientProperty(RULE, rules);
 		propertyEditors.add(box);
-		box.addFocusListener(new PropertyFocusListener());
 		box.addActionListener(e -> setValue(node,property.getSetter(),box.getSelectedItem()));
+		box.addKeyListener(escListener);
 		row.add(box);
 	}
 	
@@ -459,13 +511,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.putClientProperty(RULE, property.getRules());
 		label.setEditable(false);
 		propertyEditors.add(label);
-		label.addFocusListener(new PropertyFocusListener());
 
 		label.setOpaque(true);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
-		UIDefaults defaults = UIManager.getDefaults();
-		label.setBackground(defaults.getColor("List.background"));
-		label.setForeground(defaults.getColor("List.foreground"));
 		label.setFocusable(true);
 		label.addMouseListener(new MouseAdapter() {
 
@@ -475,6 +523,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					Boolean value = !Boolean.valueOf(label.getText());
 					label.setText(value.toString());
 					setValue(node,property.getSetter(),value);
+					label.selectAll();
 				}
 			}
 		});
@@ -486,10 +535,19 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					Boolean value = !Boolean.valueOf(label.getText());
 					label.setText(value.toString());
 					setValue(node,property.getSetter(),value);
+					label.selectAll();
 				}
 			}
 			
 		});
+		label.addFocusListener(new FocusAdapter() {
+
+			@Override
+			public void focusGained(FocusEvent e) {
+				label.selectAll();
+			}
+		});
+		label.addKeyListener(escListener);
 
 		row.add(label);
 	}
@@ -515,20 +573,21 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 		}
 		JComboBox<Node<?>> box = new JComboBox<>(nodes.toArray(len -> new Node[len]));
+		box.setName(property.getName());
 		box.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(box);
-		box.addFocusListener(new PropertyFocusListener());
 		panel.add(box);
 		box.setSelectedIndex(selectedItem);
 		box.addActionListener(e -> setValue(node,property.getSetter(),box.getSelectedItem()));
+		box.addKeyListener(escListener);
 
 	}
 	
 	private void makeNumberComponent(JPanel panel,Node<?> node, Object value, Property property) {
 		final JSpinner spinner = new JSpinner();
+		spinner.setName(property.getName());
 		spinner.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(spinner);
-		spinner.addFocusListener(new PropertyFocusListener());
 
 		if (value == null) {
 			value = 0;
@@ -549,6 +608,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		});
 		panel.add(spinner);
 		spinner.addChangeListener(e -> setValue(node,property.getSetter(),spinner.getValue()));
+		editor.getTextField().addKeyListener(escListener);
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -558,11 +618,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
  			List<Node<?>> candidates = repository.find(container, link.getPathPattern());
 			candidates.add(0,null);
 			JComboBox<Node<?>> box = new JComboBox<>(candidates.toArray(len -> new Node[len]));
+			box.setName(property.getName());
 			box.putClientProperty(RULE, property.getRules());
 			propertyEditors.add(box);
 			final Link<Node<?>,Node<?>> value = (Link<Node<?>,Node<?>>)getValue(node,property.getGetter());
 			box.setSelectedItem(value.get());
-			box.addFocusListener(new PropertyFocusListener());
 			panel.add(box);
 			box.addActionListener(e -> {
 				try {
@@ -571,6 +631,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					handleException(e1);
 				}
 			});
+			box.addKeyListener(escListener);
 		} catch (Exception ex) {
 			handleException(ex);
 		}
@@ -581,7 +642,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.setName(property.getName());
 		label.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(label);
-		label.addFocusListener(new PropertyFocusListener());
 
 		label.setVerticalAlignment(JLabel.TOP);
 		showValue(label,value);
@@ -624,7 +684,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 			
 		});
-
+		label.addKeyListener(escListener);
 		JScrollPane pane = new JScrollPane(label);
 		pane.setPreferredSize(new Dimension(100,85));
 		panel.add(pane);
@@ -679,6 +739,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				for (Class<?> c: classes) {
 					JButton button = new JButton("New " + c.getSimpleName());
 					button.addActionListener(e -> newChildToList(property,node,c));
+					button.addKeyListener(escListener);
 					buttons.add(button);
 				}
 			} else {
@@ -691,6 +752,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 		validateProperties();
 		JButton remove = new JButton("Delete");
+		remove.addKeyListener(escListener);
 		buttons.add(remove);
 		properties.validate();
 		top.validate();

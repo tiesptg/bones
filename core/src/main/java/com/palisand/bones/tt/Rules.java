@@ -110,7 +110,7 @@ public class Rules<N extends Node<?>> {
 		protected void doValidate(Validator validator, String field, Object value) {
 			super.doValidate(validator, field, value);
 			String str = (String)value;
-			if (notEmpty && str == null || str.isBlank()) {
+			if (notEmpty && (str == null || str.isBlank())) {
 				validator.addViolation(field, "Field " + field + " should contain text");
 			}
 			if (str != null) {

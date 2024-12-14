@@ -1,5 +1,6 @@
 package com.palisand.bones.tt;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.palisand.bones.tt.Rules.ConstraintViolation;
@@ -12,7 +13,7 @@ import lombok.Setter;
 @Setter
 public class Validator {
 	private Node<?> node;
-	private List<ConstraintViolation> violations;
+	private List<ConstraintViolation> violations = new ArrayList<>();
 	
 	public void assertNotNull(String field, Object value) {
 		if (value == null) {

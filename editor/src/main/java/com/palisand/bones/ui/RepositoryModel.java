@@ -154,5 +154,17 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		}
 		return c;
 	}
+	
+	public TreePath getTreePath(Node<?> node) {
+		List<Object> list = new ArrayList<>();
+		list.add(this);
+		while (node != null) {
+			list.add(1,node);
+			node = node.getContainer();
+		}
+		return new TreePath(list.toArray());
+	}
+	
+
 
 }
