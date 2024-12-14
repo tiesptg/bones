@@ -14,7 +14,6 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -71,6 +70,7 @@ import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 import com.palisand.bones.tt.Rules;
+import com.palisand.bones.tt.Validator;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -92,6 +92,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private File lastDirectory = new File(".").getAbsoluteFile();
 	private Node<?> selectedNode = null;
 	private List<JComponent> propertyEditors = new ArrayList<>();
+	private ProblemsModel problemsModel = new ProblemsModel();
 	
 	@Getter
 	@Setter
@@ -169,6 +170,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				addRoot(root);
 				lastDirectory = fc.getSelectedFile().getParentFile();
 				saveConfig();
+				validateDocuments();
 			} catch (Exception ex) {
 				handleException(ex);
 			}
@@ -242,7 +244,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			@Override
 			public boolean accept(Component component) {
 				if (super.accept(component)) {
-					System.out.println("Checking " + component);
 					return component instanceof JTree || component instanceof JTextField || component instanceof JCheckBox
 							|| component instanceof JComboBox || component instanceof JButton || (component instanceof JLabel && component.getName() != null);
 				}
@@ -305,12 +306,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			@Override
 			public void focusGained(FocusEvent arg0) {
 				UIDefaults defaults = UIManager.getDefaults();
-				tree.setBorder(BorderFactory.createLineBorder(defaults.getColor("textHighlight"),1));
+				tree.setBorder(BorderFactory.createLineBorder(defaults.getColor("textHighlight"),2));
 			}
 
 			@Override
 			public void focusLost(FocusEvent arg0) {
-				tree.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+				tree.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 			}
 			
 		});
@@ -358,6 +359,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				repositoryModel.fireNodeChanged(tree.getSelectionPath());
 			}
 			validateProperties();
+			validateDocuments();
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -452,9 +454,10 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	}
 	
 	private void makeBooleanComponent(JPanel row,Node<?> node, Boolean selected, Property property) {
-		JLabel label = new JLabel(selected.toString());
+		JTextField label = new JTextField(selected.toString());
 		label.setName(property.getName());
 		label.putClientProperty(RULE, property.getRules());
+		label.setEditable(false);
 		propertyEditors.add(label);
 		label.addFocusListener(new PropertyFocusListener());
 
@@ -464,21 +467,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.setBackground(defaults.getColor("List.background"));
 		label.setForeground(defaults.getColor("List.foreground"));
 		label.setFocusable(true);
-		label.addFocusListener(new FocusListener() {
-
-			@Override
-			public void focusGained(FocusEvent e) {
-				label.setBackground(defaults.getColor("List.selectionBackground"));
-				label.setForeground(defaults.getColor("List.selectionForeground"));
-			}
-
-			@Override
-			public void focusLost(FocusEvent e) {
-				label.setBackground(defaults.getColor("List.background"));
-				label.setForeground(defaults.getColor("List.foreground"));
-			}
-			
-		});
 		label.addMouseListener(new MouseAdapter() {
 
 			@Override
@@ -706,6 +694,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		buttons.add(remove);
 		properties.validate();
 		top.validate();
+	}
+	
+	private void validateDocuments() {
+		Validator validator = new Validator();
+		repositoryModel.getRoots().forEach(doc -> doc.validate(validator));
+		problemsModel.setProblems(validator.getViolations());
+		problemsModel.fireTableDataChanged();
 	}
 
 	public static void main(String...args) throws Exception {

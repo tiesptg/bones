@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.palisand.bones.tt.ObjectConverter.Property;
@@ -52,10 +50,10 @@ public abstract class Node<N extends Node<?>> {
 			}
 		}
 		doValidate(validator);
-		return validator.getViolations().isEmpty();
+		return validator.containsErrors();
 	}
 	
-	public void doValidate(Validator validator) {
+	protected void doValidate(Validator validator) {
 		// overrideable method to implement custom validations
 	}
 	

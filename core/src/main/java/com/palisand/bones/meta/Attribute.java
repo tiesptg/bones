@@ -2,7 +2,6 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.EnumRules;
-import com.palisand.bones.tt.Rules.ListRules;
 import com.palisand.bones.tt.Rules.NumberRules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
@@ -15,8 +14,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class Attribute extends Member {
-	private static final RulesMap<Attribute> RULES = Rules.<Attribute>map().and("type",ListRules.<Attribute>builder().notEmpty(true).build())
-		.and("type", EnumRules.<Attribute>builder().notAllowed(Type.OBJECT).build())
+	private static final RulesMap<Attribute> RULES = Rules.<Attribute>map()
+		.and("type", EnumRules.<Attribute>builder().notNull(true).notAllowed(Type.OBJECT).build())
 		.and("maxLength", NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING).build())
 		.and("minLength", NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING).build())
 		.and("pattern", StringRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING).build())

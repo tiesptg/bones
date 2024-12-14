@@ -21,7 +21,11 @@ public class Rules<N extends Node<?>> {
 	@Builder.Default
 	private boolean notNull = false;
 	
-	public record ConstraintViolation(Node<?> node, String field, String message) {}
+	public enum Severity {
+		ERROR, WARNING
+	}
+	
+	public record ConstraintViolation(Severity severity, Node<?> node, String field, String message) {}
 	
 	protected void doValidate(Validator validator,String field, Object value) {
 		validator.assertNotNull(field, value);
@@ -104,6 +108,7 @@ public class Rules<N extends Node<?>> {
 		
 		@Override
 		protected void doValidate(Validator validator, String field, Object value) {
+			super.doValidate(validator, field, value);
 			String str = (String)value;
 			if (notEmpty && str == null || str.isBlank()) {
 				validator.addViolation(field, "Field " + field + " should contain text");
