@@ -1,6 +1,6 @@
 package com.palisand.bones.meta;
 
-import com.palisand.bones.tt.ExternalLink;
+import com.palisand.bones.tt.Link;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +13,7 @@ public class Role extends Member {
 
 	private String pointerPattern;
 	private boolean external = false;
-	private final ExternalLink<Role,Role> opposite = new ExternalLink<Role,Role>(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());
+	private final Link<Role,Role> opposite = Link.newLink(this,".*#/entities/.*/roles/.*",role -> role.getOpposite());
 	
 	public Type getType() {
 		return Type.OBJECT;

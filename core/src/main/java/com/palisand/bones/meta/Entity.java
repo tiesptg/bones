@@ -3,8 +3,8 @@ package com.palisand.bones.meta;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.palisand.bones.tt.ExternalLink;
-import com.palisand.bones.tt.ExternalLinkList;
+import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
 import com.palisand.bones.tt.Rules.RulesMap;
@@ -26,9 +26,9 @@ public class Entity extends Item<Model> {
 		return RULES.of(field);
 	}
 	
-	private ExternalLink<Entity,Entity> superEntity = new ExternalLink<>(this,".*#/entities/.*");
+	private Link<Entity,Entity> superEntity = Link.newLink(this,".*#/entities/.*");
 	private boolean abstractEntity = false;
-	private ExternalLinkList<Entity,Entity> subEntities = new ExternalLinkList<>(this,".*#/entities/.*");
+	private LinkList<Entity,Entity> subEntities = new LinkList<>(this,".*#/entities/.*");
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
 	

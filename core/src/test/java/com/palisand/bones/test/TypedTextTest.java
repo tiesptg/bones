@@ -9,10 +9,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.palisand.bones.tt.ExternalLink;
-import com.palisand.bones.tt.InternalLink;
-import com.palisand.bones.tt.Repository;
+import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Node;
+import com.palisand.bones.tt.Repository;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -33,7 +32,7 @@ class TypedTextTest {
 		private List<String> strings = new ArrayList<>();
 		private long order = 10l;
 		
-		private final ExternalLink<Child,Child> other = new ExternalLink<>(this,".*#/children/.*",child -> child.getOther());
+		private final Link<Child,Child> other = Link.newLink(this,".*#/children/.*",child -> child.getOther());
 		
 		private List<Bottom> bottoms = new ArrayList<Bottom>();
 		
@@ -50,7 +49,7 @@ class TypedTextTest {
 	public static class Bottom extends Node<Child> {
 		private String id = null;
 		
-		private final InternalLink<Bottom,Bottom> other = new InternalLink<>(this,"../bottoms/.*",bottom -> bottom.getOther());
+		private final Link<Bottom,Bottom> other = Link.newLink(this,"../bottoms/.*",bottom -> bottom.getOther());
 		
 	}
 	
