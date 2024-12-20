@@ -59,6 +59,7 @@ public class Repository {
 		addConverter(List.class, new ListConverter());
 		addConverter(Enum.class, new EnumConverter());
 		addConverter(Link.class, new StringConverter());
+		addConverter(LinkList.class, new LinkListConverter());
 	}
 
 	Repository addConverter(Class<?> cls, Converter<?> converter) {

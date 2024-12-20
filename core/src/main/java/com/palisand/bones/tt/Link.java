@@ -138,4 +138,12 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 		}
 		return path;
 	}
+	
+	public String toString() {
+		try {
+			return getPath();
+		} catch (IOException ex) {
+			return "<Error in path>";
+		}
+	}
 }

@@ -154,6 +154,19 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
+	@SuppressWarnings("unchecked")
+	private void linkFromTypedText(Object result, Property property, Object value) throws Exception {
+		if (property.isList()) {
+			List<String> list = (List<String>)value;
+			LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(result);
+			list.forEach(path -> linkList.addPath((String)path));
+		} else {
+			Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
+			link.setPath((String)value);
+			link.setRepository(repository);
+		}
+	}
+	
 	@Override
 	public Object fromTypedText(BufferedReader in, Class<?> cls, String margin) throws IOException {
 		Token token = repository.nextToken(in);
@@ -175,9 +188,7 @@ public class ObjectConverter implements Converter<Object> {
 				Object value = propertyConverter.fromTypedText(in, property.getComponentType(), newMargin);
 				try {
 					if (property.isLink()) {
-						Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
-						link.setPath((String)value);
-						link.setRepository(repository);
+						linkFromTypedText(result,property,value);
 					} else {
 						property.setter.invoke(result, value);
 					}
@@ -214,6 +225,20 @@ public class ObjectConverter implements Converter<Object> {
 		}
 		return cls.getName();
 	}
+	
+	private Object linkToTypedText(Object object, Property property, Object value) throws IOException {
+		Object result = null;
+		if (property.isList()) {
+			LinkList<?,?> linkList = (LinkList<?,?>)value;
+			result = linkList.getList();
+			linkList.setRepository(repository);
+		} else {
+			Link<?,?> link = (Link<?,?>)value;
+			result = link.getPath();
+			link.setRepository(repository);
+		}
+		return result;
+	}
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -230,9 +255,7 @@ public class ObjectConverter implements Converter<Object> {
 				try {
 					value = property.getGetter().invoke(obj);
 					if (property.isLink()) {
-						Link<?,?> link = (Link<?,?>)value;
-						value = link.getPath();
-						link.setRepository(repository);
+						value = linkToTypedText(obj,property,value);
 					}
 				} catch (Exception ex) {
 					throw new IOException(ex);

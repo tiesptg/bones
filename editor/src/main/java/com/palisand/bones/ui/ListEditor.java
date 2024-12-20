@@ -1,14 +1,29 @@
 package com.palisand.bones.ui;
 
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.util.List;
 
-import javax.swing.*;
+import javax.swing.AbstractListModel;
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
+
+import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.Node;
 
 import lombok.Getter;
 
@@ -73,6 +88,35 @@ public abstract class ListEditor<X> extends JDialog {
 		}
 	}
 	
+	public static class LinkListEditor extends ListEditor<String> {
+		private static final long serialVersionUID = 3599575707371870934L;
+		private JComboBox<String> field = new JComboBox<>();
+		
+		public LinkListEditor(JFrame frame, String title) {
+			super(frame,title);
+		}
+		
+		@Override
+		public String getValue() {
+			return (String)field.getSelectedItem();
+		}
+
+		@Override
+		public void setValue(String node) {
+			field.setSelectedItem(node);
+		}
+
+		@Override
+		public JComponent getEditor() {
+			return field;
+		}
+		
+		public void setOptions(List<String> links) {
+			links.forEach(str -> field.addItem(str));
+		}
+
+	}
+	
 	private JList<X> list = new JList<>();
 	private ListListModel<X> listModel;
 	private boolean accepted = false;
@@ -84,6 +128,9 @@ public abstract class ListEditor<X> extends JDialog {
 		}
 		if (Number.class.isAssignableFrom(cls)) {
 			return (ListEditor<X>)new NumberListEditor(frame,title);
+		}
+		if (Link.class.isAssignableFrom(cls)) {
+			return (ListEditor<X>)new LinkListEditor(frame,title);
 		}
 		return null;
 	}

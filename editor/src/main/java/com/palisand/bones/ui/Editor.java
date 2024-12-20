@@ -15,9 +15,9 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -48,6 +48,7 @@ import javax.swing.JSpinner;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
@@ -59,6 +60,7 @@ import javax.swing.UIManager;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.text.JTextComponent;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
@@ -66,6 +68,7 @@ import com.palisand.bones.di.Classes;
 import com.palisand.bones.log.Logger;
 import com.palisand.bones.tt.Document;
 import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.ObjectConverter.Property;
@@ -73,6 +76,7 @@ import com.palisand.bones.tt.Repository;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ConstraintViolation;
 import com.palisand.bones.tt.Validator;
+import com.palisand.bones.ui.ListEditor.LinkListEditor;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -137,8 +141,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		@Override
 		public boolean accept(Component component) {
 			if (super.accept(component)) {
-				return component instanceof JTree || component instanceof JTable || component instanceof JTextField || component instanceof JCheckBox
-						|| component instanceof JComboBox || component instanceof JButton;
+				return component instanceof JTree || component instanceof JTable || component instanceof JCheckBox
+					|| component instanceof JTextComponent || component instanceof JComboBox || component instanceof JButton;
 			}
 			return false;
 		}
@@ -404,7 +408,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		JSplitPane all = new JSplitPane(JSplitPane.VERTICAL_SPLIT
 				,top,tabs);
 		init(all);
-		all.setResizeWeight(0.5);
+		pane.setResizeWeight(0.5);
 		add(all);
 		
 		restoreConfig();
@@ -422,6 +426,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			ex.printStackTrace();
 		}
 		return null;
+	}
+	
+	private void setLinkListValue(Node<?> node, LinkList<?,?> linkList, List<String> paths) {
+		linkList.getList().clear();
+		paths.forEach(path -> linkList.addPath(path));
+		validateProperties();
+		validateDocuments();
 	}
 	
 	private void setValue(Node<?> node, Method setter, Object value) {
@@ -637,33 +648,65 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	private <D> void makeListComponent(JPanel panel,Node<?> node, List<D> value, Property property) {
-		JLabel label = new JLabel();
+	private void makeLinkListComponent(JPanel panel, Node<?> container, LinkList<?,?> value, Property property) {
+		JTextArea label = new JTextArea();
 		label.setName(property.getName());
 		label.putClientProperty(RULE, property.getRules());
 		propertyEditors.add(label);
+		label.setEditable(false);
 
-		label.setVerticalAlignment(JLabel.TOP);
-		showValue(label,value);
+		showValue(label,value.getList());
 		label.setOpaque(true);
-		UIDefaults defaults = UIManager.getDefaults();
-		label.setBackground(defaults.getColor("List.background"));
-		label.setForeground(defaults.getColor("List.foreground"));
 		label.setFocusable(true);
-		label.addFocusListener(new FocusListener() {
+		label.addFocusListener(new FocusAdapter() {
 
 			@Override
 			public void focusGained(FocusEvent e) {
-				label.setBackground(defaults.getColor("List.selectionBackground"));
-				label.setForeground(defaults.getColor("List.selectionForeground"));
+				label.selectAll();
 			}
+		});
+		label.addMouseListener(new MouseAdapter() {
 
 			@Override
-			public void focusLost(FocusEvent e) {
-				label.setBackground(defaults.getColor("List.background"));
-				label.setForeground(defaults.getColor("List.foreground"));
+			public void mouseClicked(MouseEvent e) {
+				if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() >= 2) {
+					showLinkListEditor(label, container, value, property);
+				}
+			}
+		});
+		label.addKeyListener(new KeyAdapter() {
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+					showLinkListEditor(label,container,value,property);
+				}
 			}
 			
+		});
+		label.addKeyListener(escListener);
+		JScrollPane pane = new JScrollPane(label);
+		pane.setPreferredSize(new Dimension(100,85));
+		panel.add(pane);
+		
+	}
+	
+	private <D> void makeListComponent(JPanel panel,Node<?> node, List<D> value, Property property) {
+		JTextArea label = new JTextArea();
+		label.setName(property.getName());
+		label.putClientProperty(RULE, property.getRules());
+		propertyEditors.add(label);
+		label.setEditable(false);
+
+		showValue(label,value);
+		label.setOpaque(true);
+		label.setFocusable(true);
+		label.addFocusListener(new FocusAdapter() {
+
+			@Override
+			public void focusGained(FocusEvent e) {
+				label.selectAll();
+			}
 		});
 		label.addMouseListener(new MouseAdapter() {
 
@@ -691,16 +734,46 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	}
 	
 	@SuppressWarnings("unchecked")
-	private <D> void showListEditor(JLabel label, Node<?> node, List<D> value, Property property) {
+	private <D> void showListEditor(JTextArea label, Node<?> node, List<D> value, Property property) {
 		ListEditor<D> editor = (ListEditor<D>)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
 		if (editor != null && editor.editData(value)) {
 			setValue(node, property.getSetter(), editor.getData());
 			showValue(label,editor.getData());
 		}
 	}
+	
+	@FunctionalInterface
+	private interface ThrowsSupplier<X> {
+		X get() throws Exception;
+	}
+	
+	private <X> X getCatch(ThrowsSupplier<X> supplier,X whenThrows) {
+		try {
+			return supplier.get();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		return whenThrows;
+	}
+	
 
-	private void showValue(JLabel label, List<?> data) {
-		label.setText("<html>"+ data.stream().map(obj -> obj.toString()).collect(Collectors.joining("<br>")));
+	private void showLinkListEditor(JTextArea label, Node<?> node, LinkList<?,?> value, Property property) {
+		LinkListEditor editor = (LinkListEditor)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
+		try {
+			List<Node<?>> candidates = repository.find(node, value.getPattern());
+			// check whether this is an absolute or relative path
+			editor.setOptions(candidates.stream().map(x -> x.getAbsolutePath()).toList());
+			if (editor != null && editor.editData(value.getList().stream().map(link -> getCatch(() ->link.getPath(),null)).toList())) {
+				setLinkListValue(node, value, editor.getData());
+				showValue(label,editor.getData());
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void showValue(JTextArea label, List<?> data) {
+		label.setText(data.stream().map(obj -> obj.toString()).collect(Collectors.joining("\n")));
 	}
 	
 	private void select(Node<?> node) {
@@ -723,6 +796,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					makeStringComponent(row,node,(String)value,property);
 				} else if (Link.class.isAssignableFrom(property.getType())) {
 					makeLinkComponent(row,node,(Link<?,?>)value,property);
+				} else if (LinkList.class.isAssignableFrom(property.getType())) {
+					makeLinkListComponent(row,node,(LinkList<?,?>)value,property);
 				} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
 					makeBooleanComponent(row,node,(Boolean)value,property);
 				} else if (property.getType() == int.class || property.getType() == Integer.class
