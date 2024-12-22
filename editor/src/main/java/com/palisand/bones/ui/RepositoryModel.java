@@ -14,6 +14,8 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 import com.palisand.bones.tt.Document;
+import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.Repository;
@@ -53,8 +55,20 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 					(property.isList() && Node.class.isAssignableFrom(property.getComponentType()))) {
 				try {
 					if (property.isList()) {
-						List<Node<?>> list = (List<Node<?>>)property.getGetter().invoke(parent);
-						result.addAll(list);
+						if (property.isLink()) {
+							LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(parent);
+							List<Link<Node<?>,Node<?>>> list = (List<Link<Node<?>,Node<?>>>)(Object)linkList.getList();
+							for (Link<Node<?>,Node<?>> link: list) {
+								try {
+									result.add(link.get());
+								} catch (Exception ex) {
+									handleException(ex);
+								}
+							}
+						} else {
+							List<Node<?>> list = (List<Node<?>>)property.getGetter().invoke(parent);
+							result.addAll(list);
+						}
 					} else if (!property.isLink()) {
 						Node<?> node = (Node<?>)property.getGetter().invoke(parent);
 						if (node != null) {

@@ -69,11 +69,13 @@ public class ObjectConverter implements Converter<Object> {
 		}
 		
 		public boolean isList() {
-			return List.class.isAssignableFrom(getter.getReturnType());
+			return List.class.isAssignableFrom(getter.getReturnType()) ||
+					LinkList.class.isAssignableFrom(getter.getReturnType());
 		}
 		
 		public boolean isLink() {
-			return Link.class.isAssignableFrom(getter.getReturnType());
+			return Link.class.isAssignableFrom(getter.getReturnType()) ||
+					LinkList.class.isAssignableFrom(getter.getReturnType());
 		}
 		
 		public String getName() {
@@ -140,10 +142,10 @@ public class ObjectConverter implements Converter<Object> {
 								// ignore
 							}
 						}
-						if (property.isList()) {
-							property.setComponentType(Classes.getGenericType(field.getGenericType(), 0));
-						} else if (property.isLink()) {
+						if (property.isLink()) {
 							property.setComponentType(Classes.getGenericType(field.getGenericType(), 1));
+						} else if (property.isList()) {
+							property.setComponentType(Classes.getGenericType(field.getGenericType(), 0));
 						}
 						properties.add(property);
 					} catch (NoSuchMethodException ex) {
@@ -159,7 +161,9 @@ public class ObjectConverter implements Converter<Object> {
 		if (property.isList()) {
 			List<String> list = (List<String>)value;
 			LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(result);
-			list.forEach(path -> linkList.addPath((String)path));
+			for (String path: list) {
+				linkList.addPath(path);
+			}
 		} else {
 			Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
 			link.setPath((String)value);

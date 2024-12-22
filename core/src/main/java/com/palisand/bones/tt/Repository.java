@@ -210,6 +210,7 @@ public class Repository {
 		if (root instanceof Node<?> node) {
 			node.setContainingAttribute(file.getAbsolutePath());
 		}
+		setContext(Node.class);
 
 		try (FileWriter fw = new FileWriter(file);
 			PrintWriter out = new PrintWriter(fw)) {
@@ -225,6 +226,7 @@ public class Repository {
 	public Object read(String absolutePath) throws IOException {
 		Object root = documents.get(absolutePath);
 		if (root == null) {
+			setContext(Node.class);
 			try (FileReader fr = new FileReader(absolutePath);
 				BufferedReader in = new BufferedReader(fr)) {
 				root = fromTypedText(in);

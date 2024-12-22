@@ -26,9 +26,9 @@ public class Entity extends Item<Model> {
 		return RULES.of(field);
 	}
 	
-	private Link<Entity,Entity> superEntity = Link.newLink(this,".*#/entities/.*");
+	private Link<Entity,Entity> superEntity = Link.newLink(this,".*#/entities/.*",obj -> obj.getSubEntities());
 	private boolean abstractEntity = false;
-	private LinkList<Entity,Entity> subEntities = new LinkList<>(this,".*#/entities/.*");
+	private LinkList<Entity,Entity> subEntities = new LinkList<>(this,".*#/entities/.*", obj -> obj.getSuperEntity());
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
 	

@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @RequiredArgsConstructor
-public abstract class Link<C extends Node<?>,X extends Node<?>> {
+public abstract class Link<C extends Node<?>,X extends Node<?>> implements AbstractLink<C,X> {
 	
 	private static class Internal<C extends Node<?>,X extends Node<?>> extends Link<C,X>{
 
@@ -21,13 +21,20 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 			super(container,pathPattern,null);
 		}
 		
-		public Internal(C container,String pathPattern, Function<X,Link<X,C>> oppositeGetter) {
+		public Internal(C container,String pathPattern, Function<X,AbstractLink<X,C>> oppositeGetter) {
 			super(container,pathPattern, oppositeGetter);
 		}
 
 		@Override
-		protected void internalSet(X x) {
+		public void internalSet(X x) {
 			link = x;
+		}
+		
+		@Override
+		public void internalUnset(X node) throws IOException {
+			if (link != null && link.equals(node)) {
+				link = null;
+			}
 		}
 
 		@Override
@@ -62,13 +69,20 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 			super(pathPattern,container);
 		}
 		
-		public External(C container, String pathPattern, Function<X,Link<X,C>> oppositeGetter) {
+		public External(C container, String pathPattern, Function<X,AbstractLink<X,C>> oppositeGetter) {
 			super(container,pathPattern, oppositeGetter);
 		}
 
 		@Override
-		protected void internalSet(X x) {
+		public void internalSet(X x) {
 			link = new SoftReference<>(x);
+		}
+		
+		@Override
+		public void internalUnset(X node) throws IOException {
+			if (link != null && link.get().equals(node)) {
+				link = null;
+			}
 		}
 
 		@Override
@@ -97,7 +111,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 		return new Internal<>(container,pattern);
 	}
 	
-	public static <C extends Node<?>,X extends Node<?>>  Link<C,X> newLink(C container, String pattern,Function<X,Link<X,C>> oppositeGetter) {
+	public static <C extends Node<?>,X extends Node<?>>  Link<C,X> newLink(C container, String pattern,Function<X,AbstractLink<X,C>> oppositeGetter) {
 		int pos = pattern.indexOf('#');
 		if (pos > 0) {
 			return new External<>(container,pattern,oppositeGetter);
@@ -107,15 +121,13 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 	
 	private final C container;
 	private final String pathPattern;
-	private final Function<X,Link<X,C>> oppositeGetter;
+	private final Function<X,AbstractLink<X,C>> oppositeGetter;
 	protected String path = null;
 	private Repository repository = null;
 	
 	private Link(String pathPattern, C container) {
 		this(container,pathPattern,null);
 	}
-	
-	protected abstract void internalSet(X x);
 	
 	public abstract X get() throws IOException;
 	
@@ -146,4 +158,27 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> {
 			return "<Error in path>";
 		}
 	}
+	
+	@Override
+	public boolean equals(Object object) {
+		if (object instanceof Link link) {
+			try {
+				return getPath().equals(link.getPath());
+			} catch (Exception ex) {
+				// intentionally ignored
+			}
+		}
+		return false;
+	}
+	
+	@Override
+	public int hashCode() {
+		try {
+			return getPath().hashCode();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return 0;
+	}
+	
 }

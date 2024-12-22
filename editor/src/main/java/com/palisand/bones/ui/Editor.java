@@ -428,9 +428,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		return null;
 	}
 	
-	private void setLinkListValue(Node<?> node, LinkList<?,?> linkList, List<String> paths) {
+	private void setLinkListValue(Node<?> node, LinkList<?,?> linkList, List<String> paths) throws IOException {
 		linkList.getList().clear();
-		paths.forEach(path -> linkList.addPath(path));
+		for (String path: paths) {
+			linkList.addPath(path);
+		}
 		validateProperties();
 		validateDocuments();
 	}
@@ -787,7 +789,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		properties.setLayout(box);
 		for (Property property: converter.getProperties()) {
 			Object value = getValue(node,property.getGetter());
-			if (!property.isList()) {
+			if (!property.isList() || property.isLink()) {
 				JPanel row = new JPanel();
 				row.setLayout(new GridLayout(1,2));
 				properties.add(row);
@@ -817,6 +819,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					button.addKeyListener(escListener);
 					buttons.add(button);
 				}
+			} else if (property.isLink()) {
 			} else {
 				JPanel row = new JPanel();
 				row.setLayout(new GridLayout(1,2));
