@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.function.Function;
 
 import lombok.Getter;
-import lombok.Setter;
 
 public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLink<C,X> {
 
@@ -47,7 +46,26 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 		addPath(path,true);
 	}
 	
+	public boolean contains(String path) throws IOException {
+		for (Link<?,?> link: list) {
+			if (link.getPath().equals(path)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public boolean contains(Node<?> node) throws IOException {
+		for (Link<?,?> link: list) {
+			if (link.get() != null && link.get().equals(node)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	private void addPath(String path, boolean doOpposite) throws IOException {
+		
 		Link<C,X> link = Link.newLink(container,pattern,oppositeGetter);
 		link.setPath(path);
 		link.setRepository(repository);
@@ -94,6 +112,10 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 	@Override
 	public void internalUnset(X node) throws IOException {
 		remove(node,false);
+	}
+	
+	public boolean isEmpty() {
+		return list.isEmpty();
 	}
 
 }

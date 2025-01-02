@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 import com.palisand.bones.log.Logger.Message;
 
 import lombok.Getter;
-import lombok.Setter;
 
 public class PrintStreamAppender extends Appender {
 

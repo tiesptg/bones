@@ -153,9 +153,12 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 	
 	public String toString() {
 		try {
+			if (get() != null) {
+				return get().toString();
+			}
 			return getPath();
 		} catch (IOException ex) {
-			return "<Error in path>";
+			throw new RuntimeException(ex); 
 		}
 	}
 	
@@ -165,7 +168,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 			try {
 				return getPath().equals(link.getPath());
 			} catch (Exception ex) {
-				// intentionally ignored
+				throw new RuntimeException(ex);
 			}
 		}
 		return false;
@@ -176,9 +179,8 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		try {
 			return getPath().hashCode();
 		} catch (IOException e) {
-			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
-		return 0;
 	}
 	
 }

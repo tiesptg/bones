@@ -100,6 +100,9 @@ public class ObjectConverter implements Converter<Object> {
 			if (value == null && defaultValue == null) {
 				return true;
 			} 
+			if (value instanceof LinkList linkList) {
+				return linkList.isEmpty();
+			}
 			if (value instanceof List list) {
 				return list.isEmpty();
 			}
