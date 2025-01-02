@@ -428,10 +428,10 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		return null;
 	}
 	
-	private void setLinkListValue(Node<?> node, LinkList<?,?> linkList, List<String> paths) throws IOException {
-		linkList.getList().clear();
-		for (String path: paths) {
-			linkList.addPath(path);
+	private <C extends Node<?>,X extends Node<?>> void setLinkListValue(C node, LinkList<C,X> linkList, List<X> nodes) throws IOException {
+		linkList.clear();
+		for (X child: nodes) {
+			linkList.add(child);
 		}
 		validateProperties();
 		validateDocuments();
@@ -650,7 +650,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	private void makeLinkListComponent(JPanel panel, Node<?> container, LinkList<?,?> value, Property property) {
+	private <C extends Node<?>,X extends Node<?>> void makeLinkListComponent(JPanel panel, C container, LinkList<C,X> value, Property property) {
 		JTextArea label = new JTextArea();
 		label.setName(property.getName());
 		label.putClientProperty(RULE, property.getRules());
@@ -749,24 +749,24 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		X get() throws Exception;
 	}
 	
-	private <X> X getCatch(ThrowsSupplier<X> supplier,X whenThrows) {
-		try {
-			return supplier.get();
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
-		return whenThrows;
-	}
-	
-
-	private void showLinkListEditor(JTextArea label, Node<?> node, LinkList<?,?> value, Property property) {
+	@SuppressWarnings("unchecked")
+	private <C extends Node<?>, X extends Node<?>>void showLinkListEditor(JTextArea label, C node, LinkList<C,X> value, Property property) {
 		LinkListEditor editor = (LinkListEditor)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
 		try {
-			List<Node<?>> candidates = repository.find(node, value.getPattern());
+			List<X> list = (List<X>)repository.find(node, value.getPattern());
+			List<X> candidates = list;
 			// check whether this is an absolute or relative path
-			editor.setOptions(candidates.stream().map(x -> x.getAbsolutePath()).toList());
-			if (editor != null && editor.editData(value.getList().stream().map(link -> getCatch(() ->link.getPath(),null)).toList())) {
-				setLinkListValue(node, value, editor.getData());
+			editor.setOptions((List<Node<?>>)candidates);
+			List<Node<?>> valueList = new ArrayList<>();
+			value.getList().forEach(link -> {
+				try {
+					valueList.add(link.get());
+				} catch (Exception ex) {
+					handleException(ex);
+				}
+			});
+			if (editor != null && editor.editData(valueList)) {
+				setLinkListValue(node, value, (List<X>)editor.getData());
 				showValue(label,editor.getData());
 			}
 		} catch (IOException e) {
@@ -778,7 +778,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.setText(data.stream().map(obj -> obj.toString()).collect(Collectors.joining("\n")));
 	}
 	
-	private void select(Node<?> node) {
+	@SuppressWarnings("unchecked")
+	private <C extends Node<?>, X extends Node<?>> void select(C node) {
 		selectedNode = node;
 		properties.removeAll();
 		propertyEditors.clear();
@@ -799,7 +800,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				} else if (Link.class.isAssignableFrom(property.getType())) {
 					makeLinkComponent(row,node,(Link<?,?>)value,property);
 				} else if (LinkList.class.isAssignableFrom(property.getType())) {
-					makeLinkListComponent(row,node,(LinkList<?,?>)value,property);
+					makeLinkListComponent(row,node,(LinkList<C,X>)value,property);
 				} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
 					makeBooleanComponent(row,node,(Boolean)value,property);
 				} else if (property.getType() == int.class || property.getType() == Integer.class

@@ -88,21 +88,21 @@ public abstract class ListEditor<X> extends JDialog {
 		}
 	}
 	
-	public static class LinkListEditor extends ListEditor<String> {
+	public static class LinkListEditor extends ListEditor<Node<?>> {
 		private static final long serialVersionUID = 3599575707371870934L;
-		private JComboBox<String> field = new JComboBox<>();
+		private JComboBox<Node<?>> field = new JComboBox<>();
 		
 		public LinkListEditor(JFrame frame, String title) {
 			super(frame,title);
 		}
 		
 		@Override
-		public String getValue() {
-			return (String)field.getSelectedItem();
+		public Node<?> getValue() {
+			return (Node<?>)field.getSelectedItem();
 		}
 
 		@Override
-		public void setValue(String node) {
+		public void setValue(Node<?> node) {
 			field.setSelectedItem(node);
 		}
 
@@ -111,7 +111,7 @@ public abstract class ListEditor<X> extends JDialog {
 			return field;
 		}
 		
-		public void setOptions(List<String> links) {
+		public void setOptions(List<Node<?>> links) {
 			links.forEach(str -> field.addItem(str));
 		}
 
@@ -129,7 +129,7 @@ public abstract class ListEditor<X> extends JDialog {
 		if (Number.class.isAssignableFrom(cls)) {
 			return (ListEditor<X>)new NumberListEditor(frame,title);
 		}
-		if (Link.class.isAssignableFrom(cls)) {
+		if (Node.class.isAssignableFrom(cls)) {
 			return (ListEditor<X>)new LinkListEditor(frame,title);
 		}
 		return null;

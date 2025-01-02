@@ -55,17 +55,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 					(property.isList() && Node.class.isAssignableFrom(property.getComponentType()))) {
 				try {
 					if (property.isList()) {
-						if (property.isLink()) {
-							LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(parent);
-							List<Link<Node<?>,Node<?>>> list = (List<Link<Node<?>,Node<?>>>)(Object)linkList.getList();
-							for (Link<Node<?>,Node<?>> link: list) {
-								try {
-									result.add(link.get());
-								} catch (Exception ex) {
-									handleException(ex);
-								}
-							}
-						} else {
+						if (!property.isLink()) {
 							List<Node<?>> list = (List<Node<?>>)property.getGetter().invoke(parent);
 							result.addAll(list);
 						}

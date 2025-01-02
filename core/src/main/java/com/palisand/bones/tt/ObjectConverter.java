@@ -78,13 +78,12 @@ public class ObjectConverter implements Converter<Object> {
 					LinkList.class.isAssignableFrom(getter.getReturnType());
 		}
 		
-		public String getName() {
-			String name = getLabel();
-			return Character.toLowerCase(name.charAt(0)) + name.substring(1);
+		public boolean isReadonly() {
+			return setter == null;
 		}
 		
 		public String getLabel() {
-			return setter.getName().substring(3);
+			return Character.toUpperCase(name.charAt(0)) + name.substring(1);
 		}
 		
 		public Object getValue(Object object) {
@@ -116,6 +115,14 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
+	private Method getSetter(Class<?> clazz, String label, Class<?> type) {
+		try {
+			return clazz.getMethod("set" + label, type);
+		} catch (NoSuchMethodException ex) {
+			return null;
+		}
+	}
+	
 	private ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
@@ -133,7 +140,7 @@ public class ObjectConverter implements Converter<Object> {
 					String getterName = (field.getType() == boolean.class || field.getType() == Boolean.class ? "is" : "get") + label;
 					try {
 						property.setGetter(clazz.getMethod(getterName));
-						property.setSetter(clazz.getMethod("set" + label, field.getType()));
+						property.setSetter(getSetter(clazz,label,field.getType()));
 						if (object instanceof Node<?> node) {
 							property.setRules(node.getConstraint(field.getName()));
 						}
@@ -164,6 +171,7 @@ public class ObjectConverter implements Converter<Object> {
 		if (property.isList()) {
 			List<String> list = (List<String>)value;
 			LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(result);
+			linkList.setRepository(repository);
 			for (String path: list) {
 				linkList.addPath(path);
 			}
@@ -202,12 +210,14 @@ public class ObjectConverter implements Converter<Object> {
 				} catch (Exception ex) {
 					throw new IOException(ex);
 				}
-				if (value instanceof Node<?> node) {
-					node.setContainer((Node<?>)result,token.label());
-				} else if (value instanceof List list) {
-					for (Object item: list) {
-						if (item instanceof Node<?> node) {
-							node.setContainer((Node<?>)result,token.label());
+				if (!property.isLink()) {
+					if (value instanceof Node<?> node) {
+						node.setContainer((Node<?>)result,token.label());
+					} else if (value instanceof List list) {
+						for (Object item: list) {
+							if (item instanceof Node<?> node) {
+								node.setContainer((Node<?>)result,token.label());
+							}
 						}
 					}
 				}
@@ -237,7 +247,19 @@ public class ObjectConverter implements Converter<Object> {
 		Object result = null;
 		if (property.isList()) {
 			LinkList<?,?> linkList = (LinkList<?,?>)value;
-			result = linkList.getList();
+			List<String> list = new ArrayList<>();
+			result = list;
+			List<IOException> exList = new ArrayList<>();
+			linkList.getList().forEach(link -> {
+				try {
+					list.add(link.getPath());
+				} catch (IOException ioex) {
+					exList.add(ioex);
+				}
+			});
+			if (!exList.isEmpty()) {
+				throw exList.get(0);
+			}
 			linkList.setRepository(repository);
 		} else {
 			Link<?,?> link = (Link<?,?>)value;

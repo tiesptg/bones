@@ -1,6 +1,7 @@
 package com.palisand.bones.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,6 +10,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.palisand.bones.meta.Entity;
+import com.palisand.bones.meta.Model;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Repository;
@@ -232,6 +235,28 @@ class TypedTextTest {
 		System.out.println(rep.toTypedText(object));
 		assertEquals(40,object.getList().get(0).getAge());
 		assertEquals(true,object.getList().get(0).isDone());
+	}
+	
+	@Test
+	void linkTest() throws IOException {
+		Repository repository = new Repository();
+		Model model = new Model();
+		model.setName("TestModel");
+		Entity one = new Entity();
+		one.setName("One");
+		Entity two = new Entity();
+		two.setName("Two");
+		Entity three = new Entity();
+		three.setName("Three");
+		model.addEntity(one);
+		model.addEntity(two);
+		model.addEntity(three);
+		two.setSuperEntity(one);
+		one.addSubEntity(three);
+		repository.write("target",model);
+		repository = new Repository();
+		Model check = (Model)repository.read("target/TestModel.tt");
+		assertEquals(2,check.getEntities().get(0).getSubEntities().getList().size());
 	}
 
 	

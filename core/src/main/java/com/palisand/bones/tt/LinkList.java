@@ -42,10 +42,6 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 		
 	}
 	
-	public void addPath(String path) throws IOException {
-		addPath(path,true);
-	}
-	
 	public boolean contains(String path) throws IOException {
 		for (Link<?,?> link: list) {
 			if (link.getPath().equals(path)) {
@@ -64,14 +60,10 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 		return false;
 	}
 	
-	private void addPath(String path, boolean doOpposite) throws IOException {
-		
+	void addPath(String path) throws IOException {
 		Link<C,X> link = Link.newLink(container,pattern,oppositeGetter);
 		link.setPath(path);
 		link.setRepository(repository);
-		if (doOpposite) {
-			link.set(link.get());
-		}
 		list.add(link);
 	}
 	
@@ -116,6 +108,13 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 	
 	public boolean isEmpty() {
 		return list.isEmpty();
+	}
+
+	public void clear() throws IOException {
+		while (!list.isEmpty()) {
+			Link<C,X> link = list.remove(list.size()-1);
+			link.internalSet(null);
+		}
 	}
 
 }
