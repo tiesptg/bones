@@ -209,10 +209,17 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		JMenuItem saveM = new JMenuItem("Save");
 		saveM.addActionListener(e -> saveToFile());
 		file.add(saveM);
+		JMenuItem closeM = new JMenuItem("Close");
+		closeM.addActionListener(e -> closeFiles());
+		file.add(closeM);
 		file.addSeparator();
 		JMenuItem quit = new JMenuItem("Quit");
 		quit.addActionListener(e -> dispose());
 		file.add(quit);
+	}
+	
+	private void closeFiles() {
+		repositoryModel.clear();
 	}
 	
 	private void openFile() {
@@ -820,8 +827,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					button.addKeyListener(escListener);
 					buttons.add(button);
 				}
-			} else if (property.isLink()) {
-			} else {
+			} else if (!property.isLink()) {
 				JPanel row = new JPanel();
 				row.setLayout(new GridLayout(1,2));
 				properties.add(row);

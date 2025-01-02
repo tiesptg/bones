@@ -8,12 +8,14 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.ref.SoftReference;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.TreeMap;
 
@@ -29,7 +31,7 @@ public class Repository {
 	private static final String EXTENSION = ".tt";
 	public static final String MARGIN_STEP = "\t";
 	private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
-	private final Map<String,Node<?>> documents = new TreeMap<>();
+	private final Map<String,SoftReference<Node<?>>> documents = new TreeMap<>();
 	private Token lastToken = null;
 	
 	@Getter @Setter private Class<?> context = Node.class;
@@ -66,6 +68,10 @@ public class Repository {
 		converters.put(cls, converter);
 		converter.setRepository(this);
 		return this;
+	}
+	
+	public void clear() {
+		documents.clear();
 	}
 	
 	private String getFullname(Class<?> context, String simpleName) {
@@ -217,14 +223,18 @@ public class Repository {
 			toTypedText(root,out);
 			if (root instanceof Node<?> node) {
 				node.setContainingAttribute(file.getAbsolutePath());
-				documents.put(file.getAbsolutePath(), node);
+				documents.put(file.getAbsolutePath(), new SoftReference<>(node));
 			}
 		}
 		return file;
 	}
 	
 	public Object read(String absolutePath) throws IOException {
-		Object root = documents.get(absolutePath);
+		SoftReference<Node<?>> ref = documents.get(absolutePath);
+		Object root = null;
+		if (ref != null) {
+			root = ref.get();
+		}
 		if (root == null) {
 			setContext(Node.class);
 			try (FileReader fr = new FileReader(absolutePath);
@@ -232,7 +242,7 @@ public class Repository {
 				root = fromTypedText(in);
 				if (root instanceof Node<?> node) {
 					node.setContainingAttribute(absolutePath);
-					documents.put(absolutePath, node);
+					documents.put(absolutePath, new SoftReference<>(node));
 				}
 			}
 		}
@@ -325,11 +335,16 @@ public class Repository {
 		return find(parts[0],parts[1].split("/"),0);
 	}
 	
-	private List<Node<?>> find(String filename, String[] pattern, int index) {
+	private List<Node<?>> find(String filename, String[] pattern, int index) throws IOException {
 		List<Node<?>> result = new ArrayList<>();
-		documents.values().forEach(document -> {
-			result.addAll(find(document,pattern,index));
-		});
+		Node<?> found = null;
+		for (Entry<String,SoftReference<Node<?>>> entry: documents.entrySet()) {
+			found = entry.getValue().get();
+			if (found == null) {
+				found = (Node<?>)read(entry.getKey());
+			}
+			result.addAll(find(found,pattern,index));
+		}
 		return result;
 	}
 	

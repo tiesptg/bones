@@ -14,8 +14,6 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 import com.palisand.bones.tt.Document;
-import com.palisand.bones.tt.Link;
-import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
 import com.palisand.bones.tt.Repository;
@@ -41,6 +39,12 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	public TreePath addRoot(Document root) {
 		roots.add(root);
 		return fireChildAdded(root);
+	}
+	
+	public void clear() {
+		repository.clear();
+		roots.forEach(document -> fireChildRemoved(getRoot(),document));
+		roots.clear();
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -140,6 +144,17 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n, child)},new Object[]{child});
 		listeners.forEach(l -> l.treeStructureChanged(event));
 		return event.getTreePath().pathByAddingChild(n);
+	}
+	
+	public TreePath fireChildRemoved(Object n,Node<?> child) {
+		List<Object> list = new ArrayList<>();
+		list.add(this);
+		if (n != this) {
+			getPathFor(list,(Node<?>)n);
+		}
+		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n, child)},new Object[]{child});
+		listeners.forEach(l -> l.treeNodesRemoved(event));
+		return event.getTreePath();
 	}
 	
 	public void fireNodeChanged(TreePath path) {

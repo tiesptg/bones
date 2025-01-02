@@ -28,7 +28,9 @@ public class Rules<N extends Node<?>> {
 	public record ConstraintViolation(Severity severity, Node<?> node, String field, String message) {}
 	
 	protected void doValidate(Validator validator,String field, Object value) {
-		validator.assertNotNull(field, value);
+		if (notNull) {
+			validator.assertNotNull(field, value);
+		}
 	}
 	
 	public boolean isEnabled(N node) {
@@ -68,26 +70,28 @@ public class Rules<N extends Node<?>> {
 		@Builder.Default
 		private int size = 40;
 		@Builder.Default
-		private int precision = 0;
+		private int scale = 0;
 		
 		@Override
 		protected void doValidate(Validator validator, String field, Object value) {
 			super.doValidate(validator, field, value);
-			Number number = (Number)value;
-			if (max != null && number.doubleValue() > max) {
-				validator.addViolation(field, "Value should not be higher than " + max);
-			}
-			if (min != null && number.doubleValue() < min) {
-				validator.addViolation(field, "Value should not be lower than " + min);
-			}
-			if (notZero && number.longValue() == 0) {
-				validator.addViolation(field, "Value should not be 0");
-			}
-			if (number.toString().length() > size + 1) {
-				validator.addViolation(field, "Value should not have more digits than " + size);
-			}
-			if (new BigDecimal(number.toString()).precision() > precision) {
-				validator.addViolation(field, "Value should not have more than " + precision + " digits after the decimal point");
+			if (value != null) {
+				Number number = (Number)value;
+				if (max != null && number.doubleValue() > max) {
+					validator.addViolation(field, "Value should not be higher than " + max);
+				}
+				if (min != null && number.doubleValue() < min) {
+					validator.addViolation(field, "Value should not be lower than " + min);
+				}
+				if (notZero && number.longValue() == 0) {
+					validator.addViolation(field, "Value should not be 0");
+				}
+				if (number.toString().length() > size + 1) {
+					validator.addViolation(field, "Value should not have more digits than " + size);
+				}
+				if (new BigDecimal(number.toString()).scale() > scale) {
+					validator.addViolation(field, "Value should not have more than " + scale + " digits after the decimal point");
+				}
 			}
 		}
 	}

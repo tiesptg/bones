@@ -10,9 +10,10 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Method extends Member {
+public class Method extends Item<Entity> {
 
-	private Type type;
+	private boolean returnTypeMultiple;
+	private Type returnType;
 	private final List<Parameter> parameters = new ArrayList<>();
 	
 }
