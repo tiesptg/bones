@@ -11,13 +11,17 @@ import java.io.StringWriter;
 import java.lang.ref.SoftReference;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
+import java.security.UnrecoverableKeyException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
 import com.palisand.bones.log.Logger;
 import com.palisand.bones.tt.ObjectConverter.Property;
@@ -348,7 +352,7 @@ public class Repository {
 		return result;
 	}
 	
-	private List<Node<?>> find(Node<?> context, String[] pattern, int index) {
+	private List<Node<?>> find(Node<?> context, String[] pattern, int index) throws PatternSyntaxException {
 		List<Node<?>> result = new ArrayList<>();
 		if (pattern[index].equals("..")) {
 			return find(context.getContainer(),pattern, index+1);
@@ -360,12 +364,17 @@ public class Repository {
 			} else {
 				ObjectConverter converter = (ObjectConverter)getConverter(context.getClass());
 				Property property = converter.getProperty(pattern[newIndex]);
-				Object value = property.getValue(context);
-				if (value instanceof Node<?> node) {
-					return find(node,pattern, newIndex+1);
-				}
-				if (value instanceof List<?> list) {
-					list.forEach(node -> result.addAll(find((Node<?>)node,pattern,newIndex+1)));
+				if (property != null) {
+					Object value = property.getValue(context);
+					if (value instanceof Node<?> node) {
+						return find(node,pattern, newIndex+1);
+					}
+					if (value instanceof List<?> list) {
+						list.forEach(node -> result.addAll(find((Node<?>)node,pattern,newIndex+1)));
+					}
+				} else {
+					throw new PatternSyntaxException(pattern[newIndex] + " is not known property of its container: " + context,
+							Arrays.stream(pattern).collect(Collectors.joining("/")),newIndex);
 				}
 			}
 		}

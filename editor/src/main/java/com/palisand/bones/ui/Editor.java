@@ -6,6 +6,8 @@ import java.awt.ContainerOrderFocusTraversalPolicy;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusAdapter;
@@ -27,11 +29,13 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -111,6 +115,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private Node<?> selectedNode = null;
 	private List<JComponent> propertyEditors = new ArrayList<>();
 	private ProblemsModel problemsModel = new ProblemsModel();
+	private final Map<Character,ActionListener> keyListeners = new TreeMap<>();
 	private KeyAdapter escListener = new KeyAdapter() {
 
 		@Override
@@ -304,6 +309,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		tree.addTreeSelectionListener(this);
 		tree.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+		tree.setInputMap(JComponent.WHEN_FOCUSED, new InputMap());
+		
 		tree.addFocusListener(new FocusListener() {
 
 			@Override
@@ -321,7 +328,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		tree.addKeyListener(new KeyAdapter() {
 
 			@Override
-			public void keyReleased(KeyEvent e) {
+			public void keyPressed(KeyEvent e) {
 				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
 					TreePath selection = tree.getSelectionPath();
 					if (selection != null) {
@@ -331,7 +338,24 @@ public class Editor extends JFrame implements TreeSelectionListener {
 							tree.expandPath(selection);
 						}
 					}
+				} else if (e.getKeyCode() == KeyEvent.VK_UP) {
+					int newRow = tree.getLeadSelectionRow();
+					if (newRow > 0) {
+						tree.setSelectionRow(newRow-1);
+					}
+				} else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+					int newRow = tree.getLeadSelectionRow();
+					if (newRow < tree.getRowCount()-1) {
+						tree.setSelectionRow(newRow+1);
+					}
+
+				} else if (!e.isAltDown() && !e.isControlDown() && !e.isShiftDown()) {
+					ActionListener listener = keyListeners.get(e.getKeyChar());
+					if (listener != null) {
+						listener.actionPerformed(new ActionEvent(e.getSource(),ActionEvent.ACTION_PERFORMED,"key"));
+					}
 				}
+
 			}
 			
 		});
@@ -417,6 +441,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		init(all);
 		pane.setResizeWeight(0.5);
 		add(all);
+		tree.addKeyListener(escListener);
 		
 		restoreConfig();
 	}
@@ -751,11 +776,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	@FunctionalInterface
-	private interface ThrowsSupplier<X> {
-		X get() throws Exception;
-	}
-	
 	@SuppressWarnings("unchecked")
 	private <C extends Node<?>, X extends Node<?>>void showLinkListEditor(JTextArea label, C node, LinkList<C,X> value, Property property) {
 		LinkListEditor editor = (LinkListEditor)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
@@ -785,12 +805,37 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.setText(data.stream().map(obj -> obj.toString()).collect(Collectors.joining("\n")));
 	}
 	
+	private String registerAction(String label, ActionListener listener) {
+		String chars = label.toLowerCase();
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < chars.length(); ++i) {
+			char c = chars.charAt(i);
+			if (!keyListeners.containsKey(c)) {
+				sb.append(label.substring(0, i));
+				sb.append("<u>");
+				sb.append(label.charAt(i));
+				sb.append("</u>");
+				sb.append(label.substring(i+1));
+				keyListeners.put(c, listener);
+				return sb.toString();
+			}
+		}
+		return null;
+	}
+	
+	private void deleteNode() {
+		
+	}
+	
 	@SuppressWarnings("unchecked")
 	private <C extends Node<?>, X extends Node<?>> void select(C node) {
 		selectedNode = node;
+		keyListeners.clear();
 		properties.removeAll();
 		propertyEditors.clear();
 		buttons.removeAll();
+		ActionListener deleteAction = e -> deleteNode();
+		String deleteLabel = registerAction("Delete", deleteAction);
 		ObjectConverter converter = (ObjectConverter)repositoryModel.getRepository().getConverter(node.getClass());
 		buttons.setLayout(new GridLayout(1,1));
 		BoxLayout box = new BoxLayout(properties,BoxLayout.PAGE_AXIS);
@@ -822,8 +867,10 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			} else if (Node.class.isAssignableFrom(property.getComponentType())) {
 				List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
 				for (Class<?> c: classes) {
-					JButton button = new JButton("New " + c.getSimpleName());
-					button.addActionListener(e -> newChildToList(property,node,c));
+					ActionListener listener = e -> newChildToList(property,node,c);
+					String label = registerAction(c.getSimpleName(),listener);
+					JButton button = new JButton("<html>New " + label);
+					button.addActionListener(listener);
 					button.addKeyListener(escListener);
 					buttons.add(button);
 				}
@@ -836,7 +883,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			}
 		}
 		validateProperties();
-		JButton remove = new JButton("Delete");
+		JButton remove = new JButton("<html>" + deleteLabel);
 		remove.addKeyListener(escListener);
 		buttons.add(remove);
 		properties.validate();
