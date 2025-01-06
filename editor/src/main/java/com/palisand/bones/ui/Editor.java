@@ -492,7 +492,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			list.add(child);
 			child.setContainer(node,property.getName());
 			TreePath path = repositoryModel.fireChildAdded(child);
-			tree.setSelectionPath(path);
+			SwingUtilities.invokeLater(() -> tree.setSelectionPath(path));
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -542,6 +542,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			values = Stream.concat(Arrays.asList(ne).stream(),Arrays.stream(values)).toArray(len -> (E[])Array.newInstance(property.getType(),len));
 		}
 		JComboBox<Enum<E>> box = new JComboBox<>(values);
+		if (value != null) {
+			box.setSelectedItem(value);
+		}
 		box.setName(property.getName());
 		box.putClientProperty(RULE, rules);
 		propertyEditors.add(box);

@@ -133,7 +133,7 @@ public class ObjectConverter implements Converter<Object> {
 		}
 		for (Class<?> clazz: classes) {
 			for (Field field: clazz.getDeclaredFields()) {
-				if (!Modifier.isVolatile(field.getModifiers())) {
+				if (!Modifier.isVolatile(field.getModifiers()) && !Modifier.isStatic(field.getModifiers())) {
 					Property property = new Property();
 					property.setName(field.getName());
 					String label = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
