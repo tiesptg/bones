@@ -22,6 +22,7 @@ public abstract class Node<N extends Node<?>> {
 		containingAttribute = attribute;
 	}
 	
+	@TextIgnore
 	public abstract String getId();
 	
 	public <M extends Node<?>> Rules<M> getConstraint(String fieldName) {

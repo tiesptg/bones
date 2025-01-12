@@ -9,6 +9,7 @@ import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
 import com.palisand.bones.tt.Rules.RulesMap;
+import com.palisand.bones.tt.TextIgnore;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -45,10 +46,12 @@ public class Entity extends Item<Model> {
 		subEntities.remove(entity);
 	}
 	
+	@TextIgnore
 	public List<Attribute> getAttributes() {
 		return members.stream().filter(member -> member instanceof Attribute).map(member -> (Attribute)member).toList();
 	}
 
+	@TextIgnore
 	public List<Role> getRoles() {
 		return members.stream().filter(member -> member instanceof Role).map(member -> (Role)member).toList();
 	}

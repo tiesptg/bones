@@ -7,6 +7,7 @@ import com.palisand.bones.tt.Document;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
 import com.palisand.bones.tt.Rules.RulesMap;
+import com.palisand.bones.tt.TextIgnore;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,6 +30,7 @@ public class Model extends Document {
 	private List<Entity> entities = new ArrayList<>();
 	private List<EnumType> enumTypes = new ArrayList<>();
 	
+	@TextIgnore
 	public String getId() {
 		return name;
 	}

@@ -562,39 +562,44 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
 		label.setOpaque(true);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
-		label.setFocusable(true);
-		label.addMouseListener(new MouseAdapter() {
-
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				if (e.getButton() == MouseEvent.BUTTON1) {
-					Boolean value = !Boolean.valueOf(label.getText());
-					label.setText(value.toString());
-					setValue(node,property.getSetter(),value);
+		if (!property.isReadonly()) {
+			label.setFocusable(true);
+			label.addMouseListener(new MouseAdapter() {
+	
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					if (e.getButton() == MouseEvent.BUTTON1) {
+						Boolean value = !Boolean.valueOf(label.getText());
+						label.setText(value.toString());
+						setValue(node,property.getSetter(),value);
+						label.selectAll();
+					}
+				}
+			});
+			label.addKeyListener(new KeyAdapter() {
+	
+				@Override
+				public void keyReleased(KeyEvent e) {
+					if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+						Boolean value = !Boolean.valueOf(label.getText());
+						label.setText(value.toString());
+						setValue(node,property.getSetter(),value);
+						label.selectAll();
+					}
+				}
+				
+			});
+			label.addFocusListener(new FocusAdapter() {
+	
+				@Override
+				public void focusGained(FocusEvent e) {
 					label.selectAll();
 				}
-			}
-		});
-		label.addKeyListener(new KeyAdapter() {
-
-			@Override
-			public void keyReleased(KeyEvent e) {
-				if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
-					Boolean value = !Boolean.valueOf(label.getText());
-					label.setText(value.toString());
-					setValue(node,property.getSetter(),value);
-					label.selectAll();
-				}
-			}
-			
-		});
-		label.addFocusListener(new FocusAdapter() {
-
-			@Override
-			public void focusGained(FocusEvent e) {
-				label.selectAll();
-			}
-		});
+			});
+		} else {
+			label.setEnabled(false);
+			label.setFocusable(false);
+		}
 		label.addKeyListener(escListener);
 
 		row.add(label);
@@ -628,7 +633,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		box.setSelectedIndex(selectedItem);
 		box.addActionListener(e -> setValue(node,property.getSetter(),box.getSelectedItem()));
 		box.addKeyListener(escListener);
-
+		box.setEnabled(!property.isReadonly());
 	}
 	
 	private void makeNumberComponent(JPanel panel,Node<?> node, Object value, Property property) {
@@ -657,6 +662,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		panel.add(spinner);
 		spinner.addChangeListener(e -> setValue(node,property.getSetter(),spinner.getValue()));
 		editor.getTextField().addKeyListener(escListener);
+		spinner.setEnabled(!property.isReadonly());
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -680,6 +686,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				}
 			});
 			box.addKeyListener(escListener);
+			box.setEnabled(!property.isReadonly());
 		} catch (Exception ex) {
 			handleException(ex);
 		}
@@ -725,6 +732,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		JScrollPane pane = new JScrollPane(label);
 		pane.setPreferredSize(new Dimension(100,85));
 		panel.add(pane);
+		label.setEnabled(!property.isReadonly());
 		
 	}
 	
@@ -768,6 +776,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		JScrollPane pane = new JScrollPane(label);
 		pane.setPreferredSize(new Dimension(100,85));
 		panel.add(pane);
+		label.setEnabled(!property.isReadonly());
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -867,7 +876,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				} else if (property.getType().isEnum()) {
 					makeEnumComponent(row,node,value,property);
 				}
-			} else if (Node.class.isAssignableFrom(property.getComponentType())) {
+			} else if (!property.isReadonly() && Node.class.isAssignableFrom(property.getComponentType())) {
 				List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
 				for (Class<?> c: classes) {
 					ActionListener listener = e -> newChildToList(property,node,c);

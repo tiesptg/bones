@@ -34,7 +34,7 @@ public class Attribute extends Member {
 	private Type type = Type.STRING;
 	private String defaultValue = null;
 	private boolean notNull = false;
-	private Integer maxLength = null;
+	private Integer maxLength = 40;
 	private Integer minLength = 0;
 	private String pattern = null;
 	private Long maxValue = null;

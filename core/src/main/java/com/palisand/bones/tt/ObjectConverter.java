@@ -115,57 +115,68 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
-	private Method getSetter(Class<?> clazz, String label, Class<?> type) {
-		try {
-			return clazz.getMethod("set" + label, type);
-		} catch (NoSuchMethodException ex) {
-			return null;
+	private boolean isGetter(Method method, StringBuilder name) {
+		if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && method.getAnnotation(TextIgnore.class) == null) {
+			String prefix = "get";
+			if (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class) {
+				prefix = "is";
+			}
+			if (method.getName().startsWith(prefix)) {
+				name.setLength(0);
+				name.append(method.getName().substring(prefix.length()));
+				return true;
+			}
 		}
+		return false;
 	}
 	
 	private ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
-		List<Class<?>> classes = new ArrayList<>();
-		while (cls != Node.class && cls != Object.class) {
-			classes.add(0, cls);
-			cls = cls.getSuperclass();
-		}
-		for (Class<?> clazz: classes) {
-			for (Field field: clazz.getDeclaredFields()) {
-				if (!Modifier.isVolatile(field.getModifiers()) && !Modifier.isStatic(field.getModifiers())) {
-					Property property = new Property();
-					property.setName(field.getName());
-					String label = Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
-					String getterName = (field.getType() == boolean.class || field.getType() == Boolean.class ? "is" : "get") + label;
+		StringBuilder name = new StringBuilder();
+		int index = 0;
+		Class<?> ref = cls;
+		for (Method method: cls.getMethods()) {
+			if (isGetter(method,name) && method.getDeclaringClass() != Object.class && method.getDeclaringClass() != Node.class) {
+				name.insert(0, "set");
+				Property property = new Property();
+				property.setGetter(method);
+				try {
+					Method setter = cls.getMethod(name.toString(), method.getReturnType());
+					if (!Modifier.isStatic(setter.getModifiers()) && setter.getAnnotation(TextIgnore.class) == null) {
+						property.setSetter(setter);
+					}
+				} catch (NoSuchMethodException ex) {
+					// ignore
+				}
+				name.delete(0, 3);
+				name.setCharAt(0, Character.toLowerCase(name.charAt(0)));
+				property.setName(name.toString());
+				if (object instanceof Node<?> node) {
+					property.setRules(node.getConstraint(name.toString()));
+				}
+				if (!Node.class.isAssignableFrom(property.getType()) && !Link.class.isAssignableFrom(property.getType())
+						&& !List.class.isAssignableFrom(property.getType())) {
 					try {
-						property.setGetter(clazz.getMethod(getterName));
-						property.setSetter(getSetter(clazz,label,field.getType()));
-						if (object instanceof Node<?> node) {
-							property.setRules(node.getConstraint(field.getName()));
-						}
-						if (!Node.class.isAssignableFrom(property.getType()) && !Link.class.isAssignableFrom(property.getType())
-								&& !List.class.isAssignableFrom(property.getType())) {
-							try {
-								property.setDefaultValue(property.getGetter().invoke(object));
-							} catch (Exception ex) {
-								// ignore
-							}
-						}
-						if (property.isLink()) {
-							property.setComponentType(Classes.getGenericType(field.getGenericType(), 1));
-						} else if (property.isList()) {
-							property.setComponentType(Classes.getGenericType(field.getGenericType(), 0));
-						}
-						properties.add(property);
-					} catch (NoSuchMethodException ex) {
+						property.setDefaultValue(property.getGetter().invoke(object));
+					} catch (Exception ex) {
 						// ignore
 					}
 				}
+				if (property.isLink()) {
+					property.setComponentType(Classes.getGenericType(method.getGenericReturnType(), 1));
+				} else if (property.isList()) {
+					property.setComponentType(Classes.getGenericType(method.getGenericReturnType(), 0));
+				}
+				if (ref != method.getDeclaringClass()) {
+					index = 0;
+					ref = method.getDeclaringClass();
+				}
+				properties.add(index++,property);
 			}
 		}
 	}
-	
+		
 	@SuppressWarnings("unchecked")
 	private void linkFromTypedText(Object result, Property property, Object value) throws Exception {
 		if (property.isList()) {
@@ -198,7 +209,7 @@ public class ObjectConverter implements Converter<Object> {
 		for (token = repository.nextToken(in); !isEnd(token,margin); token = repository.nextToken(in)) {
 			property = converter.getProperty(token.label());
 			repository.consumeLastToken();
-			if (property != null) {
+			if (property != null && !property.isReadonly()) {
 				Converter<?> propertyConverter = repository.getConverter(property.getType());
 				Object value = propertyConverter.fromTypedText(in, property.getComponentType(), newMargin);
 				try {
@@ -225,7 +236,7 @@ public class ObjectConverter implements Converter<Object> {
 				String testMargin = token.margin();
 				Converter<?> strConv = repository.getConverter(String.class);
 				strConv.fromTypedText(in, String.class, newMargin);
-				for (token = repository.nextToken(in); token.margin().length() > testMargin.length(); token = repository.nextToken(in)) {
+				for (token = repository.nextToken(in); token != null && token.margin().length() > testMargin.length(); token = repository.nextToken(in)) {
 					repository.consumeLastToken();
 					strConv.fromTypedText(in, String.class, newMargin);
 				}
@@ -280,25 +291,28 @@ public class ObjectConverter implements Converter<Object> {
 			out.println('>');
 			repository.setContext(obj.getClass());
 			for (Property property: properties) {
-				Object value = null;
-				try {
-					value = property.getGetter().invoke(obj);
-					if (property.isLink()) {
-						value = linkToTypedText(obj,property,value);
+				if (!property.isReadonly()) {
+					Object value = null;
+					try {
+						value = property.getGetter().invoke(obj);
+						if (property.isLink()) {
+							value = linkToTypedText(obj,property,value);
+						}
+					} catch (Exception ex) {
+						throw new IOException(ex);
 					}
-				} catch (Exception ex) {
-					throw new IOException(ex);
-				}
-				String newMargin = margin + Repository.MARGIN_STEP;
-				Converter<Object> converter = value == null ? (Converter<Object>)repository.getConverter(property.getType()) : (Converter<Object>)repository.getConverter(value.getClass());
-				if (!property.isDefault(value)) {
-					out.print(margin);
-					out.print(property.getName());
-					out.print(":\t");
-					if (converter != null) {
-						converter.toTypedText(value, out, newMargin);
-					} else {
-						out.println("null");
+					String newMargin = margin + Repository.MARGIN_STEP;
+					Converter<Object> converter = value == null ? (Converter<Object>)repository.getConverter(property.getType())
+							: (Converter<Object>)repository.getConverter(value.getClass());
+					if (!property.isDefault(value)) {
+						out.print(margin);
+						out.print(property.getName());
+						out.print(":\t");
+						if (converter != null) {
+							converter.toTypedText(value, out, newMargin);
+						} else {
+							out.println("null");
+						}
 					}
 				}
 			}
