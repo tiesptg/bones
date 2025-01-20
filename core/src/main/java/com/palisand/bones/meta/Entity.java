@@ -31,6 +31,8 @@ public class Entity extends Item<Model> {
 	private final Link<Entity,Entity> superEntity = Link.newLink(this,".*#/entities/.*",obj -> obj.getSubEntities());
 	private boolean abstractEntity = false;
 	private final LinkList<Entity,Entity> subEntities = new LinkList<>(this,".*#/entities/.*", obj -> obj.getSuperEntity());
+	private final Link<Entity,Entity> containerEntity = Link.newLink(this, ".*/entities/.*",obj -> obj.getContainedEntities());
+	private final LinkList<Entity,Entity> containedEntities = new LinkList<>(this,".*#/entities/.*",obj -> obj.getContainerEntity());
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
 	

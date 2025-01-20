@@ -54,7 +54,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		}
 		List<Node<?>> result = new ArrayList<>();
 		ObjectConverter converter = (ObjectConverter)repository.getConverter(parent.getClass());
-		converter.getProperties().stream().filter(property -> !property.isReadonly()).forEach(property -> {
+		converter.getProperties().stream().filter(property -> !property.isTextIgnore()).forEach(property -> {
 			if (Node.class.isAssignableFrom(property.getType()) ||
 					(property.isList() && Node.class.isAssignableFrom(property.getComponentType()))) {
 				try {

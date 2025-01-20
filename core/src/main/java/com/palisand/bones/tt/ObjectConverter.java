@@ -79,7 +79,15 @@ public class ObjectConverter implements Converter<Object> {
 		}
 		
 		public boolean isReadonly() {
-			return setter == null;
+			return setter == null && !isLink() && !isList();
+		}
+		
+		public boolean isTextIgnore() {
+			return getter.getAnnotation(TextIgnore.class) != null || isReadonly();
+		}
+		
+		public boolean hasTextIgnoreAnnotation() {
+			return getter.getAnnotation(TextIgnore.class) != null;
 		}
 		
 		public String getLabel() {
@@ -116,7 +124,7 @@ public class ObjectConverter implements Converter<Object> {
 	}
 	
 	private boolean isGetter(Method method, StringBuilder name) {
-		if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && method.getAnnotation(TextIgnore.class) == null) {
+		if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0) {
 			String prefix = "get";
 			if (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class) {
 				prefix = "is";
@@ -291,7 +299,7 @@ public class ObjectConverter implements Converter<Object> {
 			out.println('>');
 			repository.setContext(obj.getClass());
 			for (Property property: properties) {
-				if (!property.isReadonly()) {
+				if (!property.isTextIgnore()) {
 					Object value = null;
 					try {
 						value = property.getGetter().invoke(obj);

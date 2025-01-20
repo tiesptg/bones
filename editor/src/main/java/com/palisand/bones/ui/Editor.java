@@ -854,44 +854,46 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		properties.setLayout(box);
 		for (Property property: converter.getProperties()) {
 			Object value = getValue(node,property.getGetter());
-			if (!property.isList() || property.isLink()) {
-				JPanel row = new JPanel();
-				row.setLayout(new GridLayout(1,2));
-				properties.add(row);
-				row.add(new JLabel(property.getLabel()));
-				if (property.getType() == String.class) {
-					makeStringComponent(row,node,(String)value,property);
-				} else if (Link.class.isAssignableFrom(property.getType())) {
-					makeLinkComponent(row,node,(Link<?,?>)value,property);
-				} else if (LinkList.class.isAssignableFrom(property.getType())) {
-					makeLinkListComponent(row,node,(LinkList<C,X>)value,property);
-				} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
-					makeBooleanComponent(row,node,(Boolean)value,property);
-				} else if (property.getType() == int.class || property.getType() == Integer.class
-						|| property.getType() == long.class || property.getType() == Long.class
-						|| property.getType() == BigInteger.class) {
-					makeNumberComponent(row,node, value, property);
-				} else if (Node.class.isAssignableFrom(property.getType())) {
-					makeNodeComponent(row,node,(Node<?>)value,property);
-				} else if (property.getType().isEnum()) {
-					makeEnumComponent(row,node,value,property);
+			if (!property.hasTextIgnoreAnnotation()) {
+				if (!property.isList() || property.isLink()) {
+					JPanel row = new JPanel();
+					row.setLayout(new GridLayout(1,2));
+					properties.add(row);
+					row.add(new JLabel(property.getLabel()));
+					if (property.getType() == String.class) {
+						makeStringComponent(row,node,(String)value,property);
+					} else if (Link.class.isAssignableFrom(property.getType())) {
+						makeLinkComponent(row,node,(Link<?,?>)value,property);
+					} else if (LinkList.class.isAssignableFrom(property.getType())) {
+						makeLinkListComponent(row,node,(LinkList<C,X>)value,property);
+					} else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
+						makeBooleanComponent(row,node,(Boolean)value,property);
+					} else if (property.getType() == int.class || property.getType() == Integer.class
+							|| property.getType() == long.class || property.getType() == Long.class
+							|| property.getType() == BigInteger.class) {
+						makeNumberComponent(row,node, value, property);
+					} else if (Node.class.isAssignableFrom(property.getType())) {
+						makeNodeComponent(row,node,(Node<?>)value,property);
+					} else if (property.getType().isEnum()) {
+						makeEnumComponent(row,node,value,property);
+					}
+				} else if (!property.isReadonly() && Node.class.isAssignableFrom(property.getComponentType())) {
+					List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
+					for (Class<?> c: classes) {
+						ActionListener listener = e -> newChildToList(property,node,c);
+						String label = registerAction(c.getSimpleName(),listener);
+						JButton button = new JButton("<html>New " + label);
+						button.addActionListener(listener);
+						button.addKeyListener(escListener);
+						buttons.add(button);
+					}
+				} else if (!property.isLink()) {
+					JPanel row = new JPanel();
+					row.setLayout(new GridLayout(1,2));
+					properties.add(row);
+					row.add(new JLabel(property.getLabel()));
+					makeListComponent(row,node,(List<?>)value,property);
 				}
-			} else if (!property.isReadonly() && Node.class.isAssignableFrom(property.getComponentType())) {
-				List<Class<?>> classes = getConcreteAssignableClasses(property.getComponentType());
-				for (Class<?> c: classes) {
-					ActionListener listener = e -> newChildToList(property,node,c);
-					String label = registerAction(c.getSimpleName(),listener);
-					JButton button = new JButton("<html>New " + label);
-					button.addActionListener(listener);
-					button.addKeyListener(escListener);
-					buttons.add(button);
-				}
-			} else if (!property.isLink()) {
-				JPanel row = new JPanel();
-				row.setLayout(new GridLayout(1,2));
-				properties.add(row);
-				row.add(new JLabel(property.getLabel()));
-				makeListComponent(row,node,(List<?>)value,property);
 			}
 		}
 		validateProperties();
