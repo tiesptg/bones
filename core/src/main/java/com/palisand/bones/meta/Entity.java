@@ -31,10 +31,11 @@ public class Entity extends Item<Model> {
 	private final Link<Entity,Entity> superEntity = Link.newLink(this,".*#/entities/.*",obj -> obj.getSubEntities());
 	private boolean abstractEntity = false;
 	private final LinkList<Entity,Entity> subEntities = new LinkList<>(this,".*#/entities/.*", obj -> obj.getSuperEntity());
-	private final Link<Entity,Entity> containerEntity = Link.newLink(this, ".*/entities/.*",obj -> obj.getContainedEntities());
-	private final LinkList<Entity,Entity> containedEntities = new LinkList<>(this,".*#/entities/.*",obj -> obj.getContainerEntity());
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
+	private List<Contained> containedEntities = new ArrayList<>();
+	private Link<Entity,Contained> entityContainer = Link.newLink(this, ".*#/entities/.*/containedEntities/.*");
+	private Link<Entity,Attribute> idAttribute = Link.newLink(this, "/attributes/.*");
 	
 	public void setSuperEntity(Entity entity) throws IOException {
 		superEntity.set(entity);

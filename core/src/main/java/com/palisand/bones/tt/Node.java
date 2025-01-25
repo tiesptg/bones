@@ -110,9 +110,9 @@ public abstract class Node<N extends Node<?>> {
 		return getClass().getSimpleName() + ":" + getId();
 	}
 
-	private static String getRelativePath(String absoluteContextPath, String asbsolutePath) {
+	private static String getRelativePath(String absoluteContextPath, String absolutePath) {
 		Path context = Path.of(absoluteContextPath).getParent();
-		Path path = Path.of(asbsolutePath);
+		Path path = Path.of(absolutePath);
 		return context.relativize(path).toString();
 	}
 	
@@ -126,7 +126,10 @@ public abstract class Node<N extends Node<?>> {
 		if (contextRoot.getContainingAttribute() == null) {
 			throw new IOException(context + " should be saved before adding external links");
 		}
-		return getRelativePath(contextRoot.getContainingAttribute(),root.getContainingAttribute())
+		if (contextRoot.equals(root)) {
+		  return absolutePath;
+		}
+	  return getRelativePath(contextRoot.getContainingAttribute(),root.getContainingAttribute())
 				+ absolutePath;
 	}
 	

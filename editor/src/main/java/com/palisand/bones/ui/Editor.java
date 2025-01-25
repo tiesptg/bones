@@ -70,6 +70,7 @@ import javax.swing.tree.TreeSelectionModel;
 
 import com.palisand.bones.di.Classes;
 import com.palisand.bones.log.Logger;
+import com.palisand.bones.tt.CustomEditor;
 import com.palisand.bones.tt.Document;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
@@ -270,9 +271,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		tree.setSelectionPath(path);
 	}
 	
-	private Node<?> newInstance(Class<?> cls) {
+	private <A> A newInstance(Class<A> cls) {
 		try {
-			return (Node<?>)cls.getConstructor().newInstance();
+			return (A)cls.getConstructor().newInstance();
 		} catch (Exception ex) {
 			handleException(ex);
 		}
@@ -611,7 +612,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		try {
 			List<Class<?>> classes = Classes.findClasses(node.getClass().getPackageName(), 
 					cls -> !Modifier.isAbstract(cls.getModifiers()) && property.getType().isAssignableFrom(cls));
-			classes.forEach(cls -> nodes.add(newInstance(cls)));
+			classes.forEach(cls -> nodes.add((Node<?>)newInstance(cls)));
 		} catch (Exception ex) {
 			handleException(ex);
 		}
@@ -779,6 +780,18 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		label.setEnabled(!property.isReadonly());
 	}
 	
+	public void makeCustomComponent(JPanel panel,Node<?> node, Object value, Property property) {
+	  CustomEditor editor = newInstance(property.getEditor());
+	  JComponent field = editor.getComponent();
+    field.setName(property.getName());
+    editor.setValue(value);
+    field.putClientProperty(RULE, property.getRules());
+    propertyEditors.add(field);
+    panel.add(field);
+    editor.onValueChanged(newValue ->  setValue(node,property.getSetter(),newValue));
+    field.addKeyListener(escListener);
+	}
+	
 	@SuppressWarnings("unchecked")
 	private <D> void showListEditor(JTextArea label, Node<?> node, List<D> value, Property property) {
 		ListEditor<D> editor = (ListEditor<D>)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
@@ -860,7 +873,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 					row.setLayout(new GridLayout(1,2));
 					properties.add(row);
 					row.add(new JLabel(property.getLabel()));
-					if (property.getType() == String.class) {
+					if (property.getEditor() != null) {
+            makeCustomComponent(row,node,value,property);
+					} else if (property.getType() == String.class) {
 						makeStringComponent(row,node,(String)value,property);
 					} else if (Link.class.isAssignableFrom(property.getType())) {
 						makeLinkComponent(row,node,(Link<?,?>)value,property);

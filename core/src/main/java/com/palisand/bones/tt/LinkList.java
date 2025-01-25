@@ -113,7 +113,7 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 	public void clear() throws IOException {
 		while (!list.isEmpty()) {
 			Link<C,X> link = list.remove(list.size()-1);
-			link.internalSet(null);
+			link.set(null);
 		}
 	}
 

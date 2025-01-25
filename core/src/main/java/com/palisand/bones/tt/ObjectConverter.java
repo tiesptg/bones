@@ -3,7 +3,6 @@ package com.palisand.bones.tt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -56,6 +55,7 @@ public class ObjectConverter implements Converter<Object> {
 		private Class<?> componentType;
 		private Object defaultValue;
 		private Rules<?> rules;
+		private Class<? extends CustomEditor> editor;
 		
 		public Class<?> getType() {
 			return getter.getReturnType();
@@ -149,6 +149,10 @@ public class ObjectConverter implements Converter<Object> {
 				name.insert(0, "set");
 				Property property = new Property();
 				property.setGetter(method);
+				if (method.getAnnotation(Editor.class) != null) {
+				  Editor editor = method.getAnnotation(Editor.class);
+				  property.setEditor(editor.value());
+				}
 				try {
 					Method setter = cls.getMethod(name.toString(), method.getReturnType());
 					if (!Modifier.isStatic(setter.getModifiers()) && setter.getAnnotation(TextIgnore.class) == null) {
@@ -257,6 +261,10 @@ public class ObjectConverter implements Converter<Object> {
 	private String getClassLabel(Class<?> cls) {
 		Package pack = repository.getContext().getPackage();
 		if (pack.equals(cls.getPackage())) {
+		  // THIS IS DEBUG CODE
+	    if (Document.class.isAssignableFrom(cls)) {
+	      throw new RuntimeException("incorrect context");
+	    }
 			return cls.getSimpleName();
 		}
 		return cls.getName();
