@@ -21,11 +21,6 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 		this.oppositeGetter = oppositeGetter;
 	}
 	
-	public void setRepository(Repository repository) {
-		this.repository = repository;
-		list.forEach(link -> link.setRepository(repository));
-	}
-
 	public void add(X node) throws IOException {
 		add(node,true);
 	}
@@ -37,7 +32,6 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 		} else {
 			link.internalSet(node);
 		}
-		link.setRepository(repository);
 		list.add(link);
 		
 	}
@@ -63,7 +57,6 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 	void addPath(String path) throws IOException {
 		Link<C,X> link = Link.newLink(container,pattern,oppositeGetter);
 		link.setPath(path);
-		link.setRepository(repository);
 		list.add(link);
 	}
 	

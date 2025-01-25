@@ -40,7 +40,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		@Override
 		public X get() throws IOException {
 			if (link == null && path != null) {
-				link = getRepository().getFromPath(getContainer(), path);
+				link = getContainer().getRepository().getFromPath(getContainer(), path);
 			}
 			return link;
 		}
@@ -88,7 +88,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		@Override
 		public X get() throws IOException {
 			if ((link == null || link.get() == null) && path != null) {
-				internalSet(getRepository().getFromPath(getContainer(), path));
+				internalSet(getContainer().getRepository().getFromPath(getContainer(), path));
 			}
 			return link != null ? link.get() : null;
 		}
@@ -123,7 +123,6 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 	private final String pathPattern;
 	private final Function<X,AbstractLink<X,C>> oppositeGetter;
 	protected String path = null;
-	private Repository repository = null;
 	
 	private Link(String pathPattern, C container) {
 		this(container,pathPattern,null);

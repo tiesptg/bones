@@ -1,6 +1,13 @@
 package com.palisand.bones.tt;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
 public abstract class Document extends Node<Document> {
+  
+  private Repository repository;
 	
 	@TextIgnore
 	public String getFilename() {

@@ -7,7 +7,9 @@ import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
 
 import javax.swing.JComponent;
+import javax.swing.JFrame;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 
 import com.palisand.bones.tt.CustomEditor;
 import com.palisand.bones.tt.Node;
@@ -27,6 +29,10 @@ public class PatternComponent extends JTextField implements CustomEditor {
       }
       
     });
+  }
+  
+  private JFrame getJFrame() {
+    return (JFrame) SwingUtilities.getWindowAncestor(this);
   }
 
   @Override

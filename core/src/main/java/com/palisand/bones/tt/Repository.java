@@ -35,7 +35,7 @@ public class Repository {
 	private static final String EXTENSION = ".tt";
 	public static final String MARGIN_STEP = "\t";
 	private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
-	private final Map<String,SoftReference<Node<?>>> documents = new TreeMap<>();
+	@Getter private final Map<String,SoftReference<Document>> documents = new TreeMap<>();
 	private Token lastToken = null;
 	
 	@Getter @Setter private Class<?> context = Node.class;
@@ -219,13 +219,16 @@ public class Repository {
 		}
 		if (root instanceof Node<?> node) {
 			node.setContainingAttribute(file.getAbsolutePath());
+			if (root instanceof Document document) {
+			  document.setRepository(this);
+			}
 		}
 		setContext(Node.class);
 
 		try (FileWriter fw = new FileWriter(file);
 			PrintWriter out = new PrintWriter(fw)) {
 			toTypedText(root,out);
-			if (root instanceof Node<?> node) {
+			if (root instanceof Document node) {
 				node.setContainingAttribute(file.getAbsolutePath());
 				documents.put(file.getAbsolutePath(), new SoftReference<>(node));
 			}
@@ -234,7 +237,7 @@ public class Repository {
 	}
 	
 	public Object read(String absolutePath) throws IOException {
-		SoftReference<Node<?>> ref = documents.get(absolutePath);
+		SoftReference<Document> ref = documents.get(absolutePath);
 		Object root = null;
 		if (ref != null) {
 			root = ref.get();
@@ -244,9 +247,12 @@ public class Repository {
 			try (FileReader fr = new FileReader(absolutePath);
 				BufferedReader in = new BufferedReader(fr)) {
 				root = fromTypedText(in);
-				if (root instanceof Node<?> node) {
+				if (root instanceof Document node) {
 					node.setContainingAttribute(absolutePath);
 					documents.put(absolutePath, new SoftReference<>(node));
+					if (root instanceof Document document) {
+					  document.setRepository(this);
+					}
 				}
 			}
 		}
@@ -342,7 +348,7 @@ public class Repository {
 	private List<Node<?>> find(String filename, String[] pattern, int index) throws IOException {
 		List<Node<?>> result = new ArrayList<>();
 		Node<?> found = null;
-		for (Entry<String,SoftReference<Node<?>>> entry: documents.entrySet()) {
+		for (Entry<String,SoftReference<Document>> entry: documents.entrySet()) {
 			found = entry.getValue().get();
 			if (found == null) {
 				found = (Node<?>)read(entry.getKey());

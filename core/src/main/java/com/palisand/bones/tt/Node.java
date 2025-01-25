@@ -29,6 +29,10 @@ public abstract class Node<N extends Node<?>> {
 		return null;
 	}
 	
+	public Repository getRepository() {
+	  return getRootContainer().getRepository();
+	}
+	
 	@SuppressWarnings("unchecked")
 	public boolean validate(Validator validator) {
 		validator.setNode(this);

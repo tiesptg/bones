@@ -194,14 +194,12 @@ public class ObjectConverter implements Converter<Object> {
 		if (property.isList()) {
 			List<String> list = (List<String>)value;
 			LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(result);
-			linkList.setRepository(repository);
 			for (String path: list) {
 				linkList.addPath(path);
 			}
 		} else {
 			Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
 			link.setPath((String)value);
-			link.setRepository(repository);
 		}
 	}
 	
@@ -287,11 +285,9 @@ public class ObjectConverter implements Converter<Object> {
 			if (!exList.isEmpty()) {
 				throw exList.get(0);
 			}
-			linkList.setRepository(repository);
 		} else {
 			Link<?,?> link = (Link<?,?>)value;
 			result = link.getPath();
-			link.setRepository(repository);
 		}
 		return result;
 	}
