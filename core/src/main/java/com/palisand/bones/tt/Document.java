@@ -8,6 +8,11 @@ import lombok.Setter;
 public abstract class Document extends Node<Document> {
   
   private Repository repository;
+  
+  @TextIgnore
+  public Repository getRepository() {
+    return repository;
+  }
 	
 	@TextIgnore
 	public String getFilename() {

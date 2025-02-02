@@ -35,7 +35,7 @@ public class Entity extends Item<Model> {
 	private List<Method> methods = new ArrayList<>();
 	private List<Contained> containedEntities = new ArrayList<>();
 	private Link<Entity,Contained> entityContainer = Link.newLink(this, ".*#/entities/.*/containedEntities/.*");
-	private Link<Entity,Attribute> idAttribute = Link.newLink(this, "/attributes/.*");
+	private Link<Entity,Attribute> idAttribute = Link.newLink(this, "members/.*");
 	
 	public void setSuperEntity(Entity entity) throws IOException {
 		superEntity.set(entity);

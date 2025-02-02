@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.ref.SoftReference;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.security.UnrecoverableKeyException;
@@ -334,58 +335,84 @@ public class Repository {
 		return null;
 	}
 	
-	public List<Node<?>> find(Node<?> context, String pattern) throws IOException {
-		String[] parts = pattern.split("#");
-		if (parts.length == 1) {
-			return find(context,pattern.split("/"),0);
-		}
-		if (parts[0].isEmpty()) {
-			return find(context.getRootContainer(),parts[1].split("/"),0);
-		}
-		return find(parts[0],parts[1].split("/"),0);
+	public <A extends Node<?>> List<A> find(Class<A> type, Node<?> context, String pattern) throws IOException {
+    List<A> list = new ArrayList<>();
+	  int index = pattern.indexOf('#');
+	  if (index == -1) {
+	    int[] from = {0};
+	    Node<?> root = findStartNode(context,pattern,from);
+	    findFromNode(list,type,root,pattern,from[0]);
+	  } else if (index == 0) {
+	    assert pattern.charAt(1) == '/';
+	    findFromNode(list,type,context.getRootContainer(),pattern,2);
+	  } else {
+  	  assert pattern.charAt(index+1) == '/';
+  	  String filePattern = pattern.substring(0,index);
+  	  List<Document> documents = getDocumentsFrom(context.getRootContainer(),filePattern);
+  	  for (Document document: documents) {
+  	    findFromNode(list,type,document,pattern,index+2);
+  	  }
+	  }
+	  return list;
 	}
 	
-	private List<Node<?>> find(String filename, String[] pattern, int index) throws IOException {
-		List<Node<?>> result = new ArrayList<>();
-		Node<?> found = null;
-		for (Entry<String,SoftReference<Document>> entry: documents.entrySet()) {
-			found = entry.getValue().get();
-			if (found == null) {
-				found = (Node<?>)read(entry.getKey());
-			}
-			result.addAll(find(found,pattern,index));
-		}
-		return result;
+	public List<Document> getLoadedDocuments() throws IOException {
+	  List<Document> list = new ArrayList<>();
+	  for (Entry<String,SoftReference<Document>> entry: documents.entrySet()) {
+	    Document doc = entry.getValue().get();
+	    if (doc == null) {
+	      doc = (Document)read(entry.getKey());
+	    }
+	    list.add(doc);
+	  }
+	  return list;
 	}
 	
-	private List<Node<?>> find(Node<?> context, String[] pattern, int index) throws PatternSyntaxException {
-		List<Node<?>> result = new ArrayList<>();
-		if (pattern[index].equals("..")) {
-			return find(context.getContainer(),pattern, index+1);
-		}
-		if (pattern[index].isEmpty() || context.getId().matches(pattern[index])) {
-			final int newIndex = index + 1;
-			if (newIndex == pattern.length) {
-				result.add(context);
-			} else {
-				ObjectConverter converter = (ObjectConverter)getConverter(context.getClass());
-				Property property = converter.getProperty(pattern[newIndex]);
-				if (property != null) {
-					Object value = property.getValue(context);
-					if (value instanceof Node<?> node) {
-						return find(node,pattern, newIndex+1);
-					}
-					if (value instanceof List<?> list) {
-						list.forEach(node -> result.addAll(find((Node<?>)node,pattern,newIndex+1)));
-					}
-				} else {
-					throw new PatternSyntaxException(pattern[newIndex] + " is not known property of its container: " + context,
-							Arrays.stream(pattern).collect(Collectors.joining("/")),newIndex);
-				}
-			}
-		}
-		return result;
+	public List<Document> getDocumentsFrom(Node<?> node, String filePattern) throws IOException {
+	  if (filePattern.equals(".*")) {
+	    return getLoadedDocuments();
+	  }
+	  return getLoadedDocuments().stream().filter(document -> document.getFilename().matches(filePattern)).toList();
 	}
-
-
+	
+	private Node<?> findStartNode(Node<?> node, String pattern, int[] from) {
+	  while (pattern.indexOf("../",from[0]) == 0) {
+	    node = node.getContainer();
+	    from[0] += 3;
+	  }
+	  return node;
+	}
+	
+	@SuppressWarnings("unchecked")
+  private <A extends Node<?>> void findFromNode(List<A> result, Class<A> type, Node<?> fromNode, String pattern, int startIndex) throws IOException {
+	  ObjectConverter converter = ObjectConverter.getConverter(fromNode.getClass());
+	  int endProperty = pattern.indexOf('/',startIndex);
+	  assert endProperty != -1;
+	  String name = pattern.substring(startIndex,endProperty);
+	  Property property = converter.getProperty(name);
+	  if (property != null && !property.isLink()) {
+	    if (property.isList()) {
+	      int idEnd = pattern.indexOf('/',endProperty+1);
+	      String idPattern = idEnd == -1 ? pattern.substring(endProperty+1) : pattern.substring(endProperty+1,idEnd);
+        List<A> list = (List<A>) property.get(fromNode);
+        if (!idPattern.equals(".*")) {
+          list = list.stream().filter(node -> node.getId().matches(idPattern)).toList();
+        }
+        if (idEnd == -1) {
+          if (property.getComponentType() != type) {
+            result.addAll(list.stream().filter(a -> type.isAssignableFrom(a.getClass())).toList());
+          } else {
+            result.addAll(list);
+          }
+        } else {
+          for (Node<?> node: list) {
+            findFromNode(result,type,node,pattern,idEnd+1);
+          }
+        }
+	    } else {
+	      throw new UnsupportedOperationException();
+	    }
+	  }
+	}
+	
 }

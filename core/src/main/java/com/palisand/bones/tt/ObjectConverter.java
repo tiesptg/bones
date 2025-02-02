@@ -3,6 +3,7 @@ package com.palisand.bones.tt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -68,6 +69,34 @@ public class ObjectConverter implements Converter<Object> {
 			return getType();
 		}
 		
+		public Object get(Object target) throws IOException {
+		  return invoke(getter,target);
+		}
+		
+		public void set(Object target, Object value) throws IOException {
+		  invoke(setter,target,value);
+		}
+		
+	  private Object invoke(Method method, Object target, Object...parameters) throws IOException {
+	    try {
+	      return method.invoke(target,parameters);
+      } catch (IllegalAccessException e) {
+        throw new IOException(e);
+      } catch (IllegalArgumentException e) {
+        assert false;
+        throw new IOException(e);
+      } catch (InvocationTargetException e) {
+        if (e.getCause() instanceof RuntimeException) {
+          throw (RuntimeException)e.getCause();
+        } else if (e.getCause() instanceof IOException) {
+          throw (IOException)e.getCause();
+        }
+        throw new IOException(e.getCause());
+	    }
+	  }
+	  
+
+		
 		public boolean isList() {
 			return List.class.isAssignableFrom(getter.getReturnType()) ||
 					LinkList.class.isAssignableFrom(getter.getReturnType());
@@ -123,8 +152,8 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
-	private boolean isGetter(Method method, StringBuilder name) {
-		if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0) {
+	private boolean isPropertyGetter(Method method, StringBuilder name) {
+		if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0 && method.getAnnotation(TextIgnore.class) == null) {
 			String prefix = "get";
 			if (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class) {
 				prefix = "is";
@@ -145,7 +174,7 @@ public class ObjectConverter implements Converter<Object> {
 		int index = 0;
 		Class<?> ref = cls;
 		for (Method method: cls.getMethods()) {
-			if (isGetter(method,name) && method.getDeclaringClass() != Object.class && method.getDeclaringClass() != Node.class) {
+			if (isPropertyGetter(method,name) && method.getDeclaringClass() != Object.class && method.getDeclaringClass() != Node.class) {
 				name.insert(0, "set");
 				Property property = new Property();
 				property.setGetter(method);

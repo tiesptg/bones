@@ -2,7 +2,9 @@ package com.palisand.bones.tt;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.util.Arrays;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -45,21 +47,6 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 			return link;
 		}
 		
-		public boolean isAbsolute() {
-			return getPathPattern().contains("#");
-		}
-
-		@Override
-		protected String getPathOfObject() {
-			if (link != null) {
-				if (isAbsolute()) {
-					return link.getAbsolutePath();
-				}
-				return link.getRelativePath(getContainer());
-			}
-			return null;
-		}
-
 	}
 	private static class External<C extends Node<?>,X extends Node<?>> extends Link<C,X>{
 
@@ -93,19 +80,10 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 			return link != null ? link.get() : null;
 		}
 
-		@Override
-		protected String getPathOfObject() throws IOException {
-			if (link != null && link.get() != null) {
-				return link.get().getExternalPath(getContainer());
-			}
-			return null;
-		}
-
 	}
 	
 	public static <C extends Node<?>,X extends Node<?>>  Link<C,X> newLink(C container, String pattern) {
-		int pos = pattern.indexOf('#');
-		if (pos > 0) {
+		if (pattern.contains("#")) {
 			return new External<>(container,pattern);
 		} 
 		return new Internal<>(container,pattern);
@@ -141,11 +119,26 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		}
 	}
 	
-	protected abstract String getPathOfObject() throws IOException;
+	protected String getPathOfObject(X node) throws IOException {
+	  String[] parts = getPathPattern().split("/");
+	  int i = parts.length - 1;
+	  Node<?> n = node;
+	  while (i > 0 && !parts[i].equals("..")) {
+	    parts[i] = n.getId();
+	    i -= 2;
+	  }
+	  
+	  String result = Arrays.stream(parts).collect(Collectors.joining("/"));
+	  if (!n.equals(node) && n.getContainer() == null) {
+	    result = "#/" + result;
+	  }
+	  return result;
+	}
 	
 	public String getPath() throws IOException {
-		if (path == null && get() != null) {
-			path = getPathOfObject();
+	  X node = get();
+		if (path == null && node != null) {
+			path = getPathOfObject(node);
 		}
 		return path;
 	}

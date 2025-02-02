@@ -1,12 +1,18 @@
 package com.palisand.bones.meta.ui;
 
+import java.awt.GridLayout;
+import java.awt.Rectangle;
 import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
+import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.event.TreeModelListener;
@@ -128,16 +134,63 @@ public class PatternDialog extends JDialog {
     public void valueForPathChanged(TreePath arg0, Object arg1) {
       throw new UnsupportedOperationException();
     }
+
+    public TreePath getPath(String pattern) {
+      return null;
+    }
     
   }
   
   private JTree tree = new JTree();
   private JTextField field = new JTextField();
   private boolean accepted = false;
+  private ModelTreeModel treeModel = null;
   
-  public PatternDialog(JFrame frame) {
+  public PatternDialog(JFrame frame, Entity context) {
     super(frame,"Choose Link Pattern",true);
+    setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
+    getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+    add(tree);
     tree.setRootVisible(false);
+    treeModel = new ModelTreeModel(context);
+    add(field);
+    
+    JPanel buttons = new JPanel();
+    buttons.setLayout(new GridLayout(1,2));
+    add(buttons);
+    
+    JButton cancel = new JButton("Cancel");
+    buttons.add(cancel);
+    cancel.addActionListener(e -> setVisible(false));
+    JButton ok = new JButton("OK");
+    buttons.add(ok);
+    ok.addActionListener(e -> {
+      accepted = true;
+      setVisible(false);
+    });
+    
+    setSize(400,300);
+    Rectangle rect = getParent().getBounds();
+    setLocation((rect.width - getWidth())/2+rect.x,(rect.height-getHeight())/2+rect.y);
+  }
+  
+  public void setPattern(String pattern) {
+    field.setText(pattern);
+    TreePath path = treeModel.getPath(pattern);
+    tree.setSelectionPath(path);
+  }
+  
+  public String getPattern() {
+    return field.getText();
+  }
+  
+  public static String editPattern(JFrame frame, Entity context, String pattern) {
+    PatternDialog dialog = new PatternDialog(frame,context);
+    dialog.setVisible(true);
+    if (!dialog.accepted) {
+      return null;
+    }
+    return dialog.getPattern();
   }
   
 }

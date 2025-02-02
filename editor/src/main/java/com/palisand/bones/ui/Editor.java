@@ -667,10 +667,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	}
 	
 	@SuppressWarnings("unchecked")
-	private void makeLinkComponent(JPanel panel,Node<?> node, Link<?,?> link, Property property) {
-		Node<?> container = link.getContainer();
+	private <A extends Node<?>> void makeLinkComponent(JPanel panel,Node<?> node, Link<?,A> link, Property property) {
 		try {
- 			List<Node<?>> candidates = repository.find(container, link.getPathPattern());
+ 			List<A> candidates = repository.find((Class<A>)property.getComponentType(),node, link.getPathPattern());
 			candidates.add(0,null);
 			JComboBox<Node<?>> box = new JComboBox<>(candidates.toArray(len -> new Node[len]));
 			box.setName(property.getName());
@@ -805,7 +804,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	private <C extends Node<?>, X extends Node<?>>void showLinkListEditor(JTextArea label, C node, LinkList<C,X> value, Property property) {
 		LinkListEditor editor = (LinkListEditor)ListEditor.dialogFor(Editor.this, "Edit " + property.getLabel(), property.getComponentType());
 		try {
-			List<X> list = (List<X>)repository.find(node, value.getPattern());
+			List<X> list = (List<X>)repository.find((Class<X>)property.getComponentType(),node, value.getPattern());
 			List<X> candidates = list;
 			// check whether this is an absolute or relative path
 			editor.setOptions((List<Node<?>>)candidates);

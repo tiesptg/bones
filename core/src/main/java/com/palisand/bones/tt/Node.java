@@ -72,35 +72,6 @@ public abstract class Node<N extends Node<?>> {
 		return new ArrayList<>();
 	}
 	
-	public String getAbsolutePath() {
-		return getRelativePath(null);
-	}
-	
-	public String getRelativePath(Node<?> context) {
-		List<String> pathList = getPathList();
-		if (context != null) {
-			List<String> contextList = context.getPathList();
-			for (int i = 0; i < contextList.size() && i < pathList.size(); ++i) {
-				if (!pathList.get(i).equals(contextList.get(i))) {
-					if (i % 2 == 1) {
-						--i;
-					}
-					if (i != 0) {
-						pathList = pathList.subList(i, pathList.size());
-						for (int x = 0; x < i; x+=2) {
-							pathList.add(0, "..");
-						}
-					} else {
-						pathList.add(0, "#");
-					}
-					return pathList.stream().collect(Collectors.joining("/"));
-				}
-			}
-		}
-		pathList.add(0, "#");
-		return pathList.stream().collect(Collectors.joining("/"));
-	}
-	
 	public Node<?> getRootContainer() {
 		Node<?> root = this;
 		while (root.container != null) {
@@ -118,6 +89,11 @@ public abstract class Node<N extends Node<?>> {
 		Path context = Path.of(absoluteContextPath).getParent();
 		Path path = Path.of(absolutePath);
 		return context.relativize(path).toString();
+	}
+	
+	public String getAbsolutePath() {
+	  List<String> parts = getPathList();
+	  return "#/" + parts.stream().collect(Collectors.joining("/"));
 	}
 	
 	public String getExternalPath(Node<?> context) throws IOException {
