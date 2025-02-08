@@ -1,6 +1,7 @@
 package com.palisand.bones.ui;
 
 import java.awt.Component;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +28,7 @@ import lombok.Setter;
 @RequiredArgsConstructor
 public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	private final Repository repository;
-	private final List<Document> roots = new ArrayList<>();
+	private List<Document> roots = new ArrayList<>();
 	private final DefaultTreeCellRenderer cellRenderer = new DefaultTreeCellRenderer();
 	private final List<TreeModelListener> listeners = new ArrayList<>();
 	
@@ -36,15 +37,16 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		return this;
 	}
 	
-	public TreePath addRoot(Document root) {
-		roots.add(root);
-		return fireChildAdded(root);
+	public TreePath addRoot(Document root) throws IOException {
+	  roots = repository.getLoadedDocuments();
+		fireAllChanged();
+		return new TreePath(new Object[] {this,root});
 	}
 	
 	public void clear() {
 		repository.clear();
-		roots.forEach(document -> fireChildRemoved(getRoot(),document));
 		roots.clear();
+		fireAllChanged();
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -155,6 +157,11 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n, child)},new Object[]{child});
 		listeners.forEach(l -> l.treeNodesRemoved(event));
 		return event.getTreePath();
+	}
+	
+	public void fireAllChanged() {
+	  TreeModelEvent event = new TreeModelEvent(this,new TreePath(new Object[] {getRoot()}));
+	  listeners.forEach(l -> l.treeStructureChanged(event));
 	}
 	
 	public void fireNodeChanged(TreePath path) {

@@ -2,6 +2,7 @@ package com.palisand.bones.tt;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -62,16 +63,22 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 
 		@Override
 		public void internalSet(X x) {
-			link = new SoftReference<>(x);
+		  if (x != null) {
+		    link = new SoftReference<>(x);
+		  } else {
+		    link = null;
+		  }
+      path = null;
 		}
 		
 		@Override
 		public void internalUnset(X node) throws IOException {
 			if (link != null && link.get().equals(node)) {
 				link = null;
+				path = null;
 			}
 		}
-
+		
 		@Override
 		public X get() throws IOException {
 			if ((link == null || link.get() == null) && path != null) {
@@ -119,26 +126,48 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		}
 	}
 	
+  private static String getRelativePath(String absolutePath, String absoluteContextPath) {
+    Path context = Path.of(absoluteContextPath).getParent();
+    Path target = Path.of(absolutePath);
+    return context.relativize(target).toString();
+  }
+  
 	protected String getPathOfObject(X node) throws IOException {
-	  String[] parts = getPathPattern().split("/");
+	  String pattern = getPathPattern();
+	  int index = pattern.indexOf('#');
+	  String file = null;
+	  if (index != -1) {
+	    file = pattern.substring(0,index);
+	    pattern = pattern.substring(index);
+	    
+	    if (node.getRootContainer().equals(getContainer().getRootContainer())) {
+	      file = null;
+	    } else {
+	      file = getRelativePath(node.getRootContainer().getFilename(),getContainer().getRootContainer().getFilename());
+	    }
+	  }
+	  String[] parts = pattern.split("/");
 	  int i = parts.length - 1;
 	  Node<?> n = node;
 	  while (i > 0 && !parts[i].equals("..")) {
 	    parts[i] = n.getId();
+	    n = n.getContainer();
 	    i -= 2;
 	  }
 	  
 	  String result = Arrays.stream(parts).collect(Collectors.joining("/"));
-	  if (!n.equals(node) && n.getContainer() == null) {
-	    result = "#/" + result;
+	  if (file != null) {
+      result = file + result;
 	  }
 	  return result;
 	}
 	
 	public String getPath() throws IOException {
-	  X node = get();
-		if (path == null && node != null) {
-			path = getPathOfObject(node);
+		if (path == null) {
+	    X node = get();
+	    if (node != null) {
+	      path = getPathOfObject(node);
+	    }
 		}
 		return path;
 	}

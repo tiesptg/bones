@@ -9,20 +9,17 @@ import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.ref.SoftReference;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
-import java.security.UnrecoverableKeyException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.PatternSyntaxException;
-import java.util.stream.Collectors;
+import java.util.TreeSet;
 
 import com.palisand.bones.log.Logger;
 import com.palisand.bones.tt.ObjectConverter.Property;
@@ -37,11 +34,19 @@ public class Repository {
 	public static final String MARGIN_STEP = "\t";
 	private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
 	@Getter private final Map<String,SoftReference<Document>> documents = new TreeMap<>();
-	private Token lastToken = null;
+	private ParsingData parsingData = null;
 	
 	@Getter @Setter private Class<?> context = Node.class;
 
 	public record Token(String margin, String label, char delimiter) {
+	}
+	
+	@Getter
+	@Setter
+	class ParsingData {
+	  private Token lastToken;
+	  private final Set<String> toRead = new TreeSet<>();
+	  private String reading;
 	}
 
 	public Repository() {
@@ -120,7 +125,7 @@ public class Repository {
 	}
 
 	void consumeLastToken() {
-		lastToken = null;
+		parsingData.setLastToken(null);
 	}
 
 	String readUntilLineEnd(BufferedReader in) throws IOException {
@@ -139,8 +144,8 @@ public class Repository {
 	}
 
 	Token nextToken(BufferedReader in) throws IOException {
-		if (lastToken != null) {
-			return lastToken;
+		if (parsingData.getLastToken() != null) {
+			return parsingData.getLastToken();
 		}
 		StringBuilder sb = new StringBuilder();
 		String margin = null;
@@ -174,7 +179,8 @@ public class Repository {
 			default -> sb.append(c);
 			}
 		}
-		return lastToken = new Token(margin, sb.toString(), c);
+		parsingData.setLastToken(new Token(margin, sb.toString(), c));
+		return parsingData.getLastToken();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -237,6 +243,34 @@ public class Repository {
 		return file;
 	}
 	
+	void addToRead(String nodePath) {
+	  int index = nodePath.indexOf('#');
+	  if (index > 0) {
+	    String relativePath = nodePath.substring(0,index);
+  	  String absolutePath = getAbsolutePath(relativePath,parsingData.getReading());
+  	  if (!documents.containsKey(absolutePath)) {
+  	    parsingData.getToRead().add(absolutePath);
+  	  }
+	  }
+	}
+	
+	private Object readInternal(String absolutePath) throws IOException {
+    setContext(Node.class);
+    parsingData.setReading(absolutePath);
+    try (FileReader fr = new FileReader(absolutePath);
+      BufferedReader in = new BufferedReader(fr)) {
+      Object root = fromTypedText(in);
+      if (root instanceof Document node) {
+        node.setContainingAttribute(absolutePath);
+        documents.put(absolutePath, new SoftReference<>(node));
+        if (root instanceof Document document) {
+          document.setRepository(this);
+        }
+      }
+      return root;
+    }
+	}
+	
 	public Object read(String absolutePath) throws IOException {
 		SoftReference<Document> ref = documents.get(absolutePath);
 		Object root = null;
@@ -244,25 +278,21 @@ public class Repository {
 			root = ref.get();
 		}
 		if (root == null) {
-			setContext(Node.class);
-			try (FileReader fr = new FileReader(absolutePath);
-				BufferedReader in = new BufferedReader(fr)) {
-				root = fromTypedText(in);
-				if (root instanceof Document node) {
-					node.setContainingAttribute(absolutePath);
-					documents.put(absolutePath, new SoftReference<>(node));
-					if (root instanceof Document document) {
-					  document.setRepository(this);
-					}
-				}
+		  parsingData = new ParsingData();
+		  root = readInternal(absolutePath);
+			while (!parsingData.getToRead().isEmpty()) {
+			  String path = parsingData.getToRead().iterator().next();
+			  readInternal(path);
+			  parsingData.getToRead().remove(path);
 			}
+			parsingData = null;
 		}
 		return root;
 	}
 	
 	private static String getAbsolutePath(String relativePath, String absoluteContextPath) {
-		Path path = Path.of(relativePath);
-		return path.resolve(absoluteContextPath).toString();
+		Path path = Path.of(absoluteContextPath).getParent();
+		return path.resolve(relativePath).toString();
 	}
 
 	public <N extends Node<?>> N getFromPath(Node<?> context, String path) throws IOException {
@@ -273,7 +303,7 @@ public class Repository {
 				throw new IOException("does not contain path before root (#)");
 			}
 			
-			String absolutePath = getAbsolutePath(parts[0], context.getRootContainer().getContainingAttribute());
+			String absolutePath = getAbsolutePath(parts[0], context.getRootContainer().getFilename());
 			Node<?> root = (Node<?>)read(absolutePath);
 			String[] pathParts = parts[1].split("/");
 			return getFromPath(root,pathParts,1);

@@ -217,7 +217,7 @@ public class ObjectConverter implements Converter<Object> {
 			}
 		}
 	}
-		
+	
 	@SuppressWarnings("unchecked")
 	private void linkFromTypedText(Object result, Property property, Object value) throws Exception {
 		if (property.isList()) {
@@ -225,11 +225,25 @@ public class ObjectConverter implements Converter<Object> {
 			LinkList<?,?> linkList = (LinkList<?,?>)property.getGetter().invoke(result);
 			for (String path: list) {
 				linkList.addPath(path);
+				repository.addToRead(path);
 			}
 		} else {
 			Link<?,?> link = (Link<?,?>)property.getter.invoke(result);
 			link.setPath((String)value);
+      repository.addToRead(link.getPath());
 		}
+	}
+	
+	private void setContainer(Object value, Object parent, String containerProperty) {
+    if (value instanceof Node<?> node) {
+      node.setContainer((Node<?>)parent,containerProperty);
+    } else if (value instanceof List list) {
+      for (Object item: list) {
+        if (item instanceof Node<?> node) {
+          node.setContainer((Node<?>)parent,containerProperty);
+        }
+      }
+    }
 	}
 	
 	@Override
@@ -251,6 +265,9 @@ public class ObjectConverter implements Converter<Object> {
 			if (property != null && !property.isReadonly()) {
 				Converter<?> propertyConverter = repository.getConverter(property.getType());
 				Object value = propertyConverter.fromTypedText(in, property.getComponentType(), newMargin);
+        if (!property.isLink()) {
+          setContainer(value,result,token.label());
+        }
 				try {
 					if (property.isLink()) {
 						linkFromTypedText(result,property,value);
@@ -260,22 +277,10 @@ public class ObjectConverter implements Converter<Object> {
 				} catch (Exception ex) {
 					throw new IOException(ex);
 				}
-				if (!property.isLink()) {
-					if (value instanceof Node<?> node) {
-						node.setContainer((Node<?>)result,token.label());
-					} else if (value instanceof List list) {
-						for (Object item: list) {
-							if (item instanceof Node<?> node) {
-								node.setContainer((Node<?>)result,token.label());
-							}
-						}
-					}
-				}
 			} else {
-				String testMargin = token.margin();
 				Converter<?> strConv = repository.getConverter(String.class);
 				strConv.fromTypedText(in, String.class, newMargin);
-				for (token = repository.nextToken(in); token != null && token.margin().length() > testMargin.length(); token = repository.nextToken(in)) {
+				for (token = repository.nextToken(in); isEnd(token,margin); token = repository.nextToken(in)) {
 					repository.consumeLastToken();
 					strConv.fromTypedText(in, String.class, newMargin);
 				}

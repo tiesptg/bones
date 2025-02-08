@@ -107,11 +107,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 
 	};
-	private RepositoryModel repositoryModel = new RepositoryModel(new Repository());
 	private JPanel buttons = new JPanel();
 	private JPanel top = new JPanel();
 	private Map<Class<?>,List<Class<?>>> concreteClasses = new HashMap<>();
 	private final Repository repository = new Repository();
+  private RepositoryModel repositoryModel = new RepositoryModel(repository);
 	private File lastDirectory = new File(".").getAbsoluteFile();
 	private Node<?> selectedNode = null;
 	private List<JComponent> propertyEditors = new ArrayList<>();
@@ -234,8 +234,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		fc.addChoosableFileFilter(new FileNameExtensionFilter("TypedText Files", ".tt"));
 		if (JFileChooser.APPROVE_OPTION == fc.showOpenDialog(this)) {
 			try {
-				Document root = (Document)repository.read(fc.getSelectedFile().getAbsolutePath());
-				addRoot(root);
+				Document doc = (Document)repository.read(fc.getSelectedFile().getAbsolutePath());
+				addRoot(doc);
 				lastDirectory = fc.getSelectedFile().getParentFile();
 				saveConfig();
 				validateDocuments();
@@ -266,9 +266,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		});
 	}
 	
-	private void addRoot(Document root) {
-		TreePath path = repositoryModel.addRoot(root);
-		tree.setSelectionPath(path);
+	private void addRoot(Document document) {
+	  try {
+  		TreePath path = repositoryModel.addRoot(document);
+  		tree.setSelectionPath(path);
+	  } catch (Exception ex) {
+	    handleException(ex);
+	  }
 	}
 	
 	private <A> A newInstance(Class<A> cls) {
@@ -669,14 +673,16 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	@SuppressWarnings("unchecked")
 	private <A extends Node<?>> void makeLinkComponent(JPanel panel,Node<?> node, Link<?,A> link, Property property) {
 		try {
+      final Link<Node<?>,Node<?>> value = (Link<Node<?>,Node<?>>)getValue(node,property.getGetter());
+      Node<?> linked = value.get();
+		  
  			List<A> candidates = repository.find((Class<A>)property.getComponentType(),node, link.getPathPattern());
 			candidates.add(0,null);
 			JComboBox<Node<?>> box = new JComboBox<>(candidates.toArray(len -> new Node[len]));
 			box.setName(property.getName());
+      box.setSelectedItem(linked);
 			box.putClientProperty(RULE, property.getRules());
 			propertyEditors.add(box);
-			final Link<Node<?>,Node<?>> value = (Link<Node<?>,Node<?>>)getValue(node,property.getGetter());
-			box.setSelectedItem(value.get());
 			panel.add(box);
 			box.addActionListener(e -> {
 				try {
@@ -783,6 +789,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	  CustomEditor editor = newInstance(property.getEditor());
 	  JComponent field = editor.getComponent();
     field.setName(property.getName());
+    editor.setNode(node);
     editor.setValue(value);
     field.putClientProperty(RULE, property.getRules());
     propertyEditors.add(field);

@@ -43,7 +43,7 @@ public abstract class Node<N extends Node<?>> {
 			if (constr != null && constr.isEnabled((N)this)) {
 				constr.doValidate(validator, property.getName(),value);
 			}
-			if (value != null && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
+			if (value != null && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink() && !property.isReadonly()) {
 				if (property.isList()) {
 					List<Node<?>> list = (List<Node<?>>)value;
 					list.forEach(node -> node.validate(validator));
@@ -72,12 +72,12 @@ public abstract class Node<N extends Node<?>> {
 		return new ArrayList<>();
 	}
 	
-	public Node<?> getRootContainer() {
+	public Document getRootContainer() {
 		Node<?> root = this;
 		while (root.container != null) {
 			root = root.container;
 		}
-		return root;
+		return (Document)root;
 	}
 	
 	@Override
