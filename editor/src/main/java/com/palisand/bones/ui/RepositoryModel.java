@@ -3,7 +3,9 @@ package com.palisand.bones.ui;
 import java.awt.Component;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.swing.JLabel;
 import javax.swing.JTree;
@@ -28,7 +30,7 @@ import lombok.Setter;
 @RequiredArgsConstructor
 public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	private final Repository repository;
-	private List<Document> roots = new ArrayList<>();
+	private final Set<Document> roots = new HashSet<>();
 	private final DefaultTreeCellRenderer cellRenderer = new DefaultTreeCellRenderer();
 	private final List<TreeModelListener> listeners = new ArrayList<>();
 	
@@ -38,7 +40,9 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	}
 	
 	public TreePath addRoot(Document root) throws IOException {
-	  roots = repository.getLoadedDocuments();
+	  roots.clear();
+	  roots.addAll(repository.getLoadedDocuments());
+	  roots.add(root);
 		fireAllChanged();
 		return new TreePath(new Object[] {this,root});
 	}
@@ -52,7 +56,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 	@SuppressWarnings("unchecked")
 	private List<Node<?>> getChildren(Object parent) {
 		if (parent == this) {
-			return (List<Node<?>>)(Object)roots;
+			return new ArrayList<>(roots);
 		}
 		List<Node<?>> result = new ArrayList<>();
 		ObjectConverter converter = (ObjectConverter)repository.getConverter(parent.getClass());

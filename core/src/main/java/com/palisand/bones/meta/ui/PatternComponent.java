@@ -56,7 +56,10 @@ public class PatternComponent extends JTextField implements CustomEditor {
   }
   
   private void showPatternEditor() {
-    PatternEditor.editPattern(getJFrame(),role.getContainer(),(String)getValue());
+    String pattern = PatternEditor.editPattern(getJFrame(),role.getContainer(),(String)getValue());
+    if (!pattern.equals(getValue())) {
+      setValue(pattern);
+    }
   }
   
   private JFrame getJFrame() {

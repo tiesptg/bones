@@ -1,0 +1,21 @@
+com.palisand.bones.meta.Model>
+name:	Schema
+entities:	
+	-	Entity>
+		name:	Table
+		containedEntities:	
+			-	Contained>
+				name:	fields
+				entity:	#/entities/Field
+			-	Contained>
+				name:	foreignKeys
+				entity:	#/entities/Key
+			-	Contained>
+				name:	primaryKey
+				entity:	#/entities/Key
+				multiple:	false
+	-	Entity>
+		name:	Field
+	-	Entity>
+		name:	Key
+		entityContainer:	#/entities/Table/containedEntities/primaryKey

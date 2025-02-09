@@ -113,7 +113,8 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
       List<Branch> result = new ArrayList<>();
       try {
         if (object == this) {
-          if (!absolute && context != null && context.getEntityContainer().get() != null) {
+          if (!absolute && context != null && context.getEntityContainer().get() != null 
+              && context.getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
             result.add(new Branch(context.getEntityContainer().get().getContainer(),null));
           }
           for (Document document: context.getRepository().getLoadedDocuments()) {
@@ -127,7 +128,8 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
           }
         } else if (object instanceof Branch branch) {
           Entity entity = branch.entity();
-          if (!absolute && branch.isUp() && entity.getEntityContainer().get() != null && branch.entity().getEntityContainer().get() != null) {
+          if (!absolute && branch.isUp() && entity.getEntityContainer().get() != null
+            && entity.getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
             result.add(new Branch(entity.getEntityContainer().get().getContainer(),null));
           }
           for (Contained contained: entity.getContainedEntities()) {
@@ -367,7 +369,7 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     PatternEditor dialog = new PatternEditor(frame,context,pattern);
     dialog.setVisible(true);
     if (!dialog.accepted) {
-      return null;
+      return pattern;
     }
     return dialog.getPattern();
   }
