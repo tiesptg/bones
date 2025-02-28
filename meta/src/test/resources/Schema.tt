@@ -1,0 +1,16 @@
+com.palisand.bones.meta.Model>
+name:	Schema
+entities:	
+	-	Entity>
+		name:	Field
+	-	Entity>
+		name:	Key
+		entityContainer:	#/entities/Table/subEntities/PrimaryKey
+	-	Entity>
+		name:	Table
+		members:	
+			-	ContainerRole>
+				name:	PrimaryKey
+				entity:	#/entities/Key
+			-	ContainerRole>
+				name:	ForeignKeys

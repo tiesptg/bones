@@ -10,7 +10,8 @@
 
 	<modules>
 		<module>core</module>
-		<module>editor</module>
+		<module>meta</module>
+		<module>generator</module>
 	</modules>
 
 	<dependencyManagement>
@@ -18,6 +19,11 @@
 			<dependency>
 				<groupId>com.palisand</groupId>
 				<artifactId>bones-core</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.palisand</groupId>
+				<artifactId>bones-meta</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

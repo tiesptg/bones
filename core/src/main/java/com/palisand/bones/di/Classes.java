@@ -11,8 +11,6 @@ import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import com.palisand.bones.tt.Document;
-
 public class Classes {
 	
 	public static Class<?> getGenericType(Type type, int position) {
@@ -100,8 +98,4 @@ public class Classes {
 		return result;
 	}
 	
-	public static void main(String...args) throws IOException {
-		findClasses("com.palisand.bones.meta",c -> Document.class.isAssignableFrom(c)).forEach(c -> System.out.println(c.getName()));
-	}
-
 }
