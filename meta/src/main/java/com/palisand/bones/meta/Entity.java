@@ -38,7 +38,7 @@ public class Entity extends Item<Model> {
 	private final LinkList<Entity,Entity> specialisations = new LinkList<>(this,".*#/entities/.*", obj -> obj.getSuperEntity());
 	private List<Member> members = new ArrayList<>();
 	private List<Method> methods = new ArrayList<>();
-	private Link<Entity,ContainerRole> entityContainer = Link.newLink(this, ".*#/entities/.*/subEntities/.*",contained -> contained.getEntity());
+	private Link<Entity,ContainerRole> entityContainer = Link.newLink(this, ".*#/entities/.*/members/.*",contained -> contained.getEntity());
 	private Link<Entity,Attribute> idAttribute = Link.newLink(this, "members/.*");
 	
 	public void setSuperEntity(Entity entity) throws IOException {

@@ -1,7 +1,9 @@
 package com.palisand.bones.meta;
 
+import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.EnumRules;
+import com.palisand.bones.tt.Rules.LinkRules;
 import com.palisand.bones.tt.Rules.NumberRules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
@@ -23,7 +25,8 @@ public class Attribute extends Member {
 		.and("after", NumberRules.builder().enabled(attribute -> ((Attribute)attribute).getType() == Type.TIMESTAMP).build())
 		.and("maxValue", NumberRules.builder().enabled(attribute -> ((Attribute)attribute).getType().isNumber()).build())
 		.and("minValue", NumberRules.builder().enabled(attribute -> ((Attribute)attribute).getType().isNumber()).build())
-		.and("step", NumberRules.builder().enabled(attribute -> ((Attribute)attribute).getType().isNumber()).build());
+		.and("step", NumberRules.builder().enabled(attribute -> ((Attribute)attribute).getType().isNumber()).build())
+		.and("enumType", LinkRules.builder().enabled(attribute -> ((Attribute)attribute).getType() == Type.ENUM).build());
 	
 	@Override
 	public Rules getConstraint(String field) {
@@ -41,4 +44,5 @@ public class Attribute extends Member {
 	private Long step = 1l;
 	private String before = null;
 	private String after = null;
+	private Link<Attribute,EnumType> enumType = Link.newLink(this,".*#/enumTypes/.*");
 }

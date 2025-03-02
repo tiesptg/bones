@@ -67,7 +67,11 @@ public class Repository {
 	  
 
 	  
-	  String readUntilLineEnd(BufferedReader in) throws IOException {
+	  String readUntilLineEnd(BufferedReader in, boolean skipTab) throws IOException {
+	    if (skipTab) {
+	      int c = (char)in.read();
+	      assert c == '\t';
+	    }
 	    StringBuilder sb = new StringBuilder();
 	    int c = (char) in.read();
 	    // collect chars until end of line
@@ -102,20 +106,18 @@ public class Repository {
 	        sb.setLength(0);
 	      }
 	      switch (c) {
-	      case '>' -> {
+	      case '>': {
+	        if (sb.charAt(0) == '\t') {
+	          sb.deleteCharAt(0);
+	        }
 	        break loop;
 	      }
-	      case ':' -> {
-	        int x = in.read(); // skip tab
-	        assert x == '\t';
+	      case ':':
+	      case '-': 
 	        break loop;
-	      }
-	      case '-' -> {
-	        int x = in.read(); // skip tab
-	        assert x == '\t';
-	        break loop;
-	      }
-	      default -> sb.append(c);
+	      default: 
+	        sb.append(c);
+	        break;
 	      }
 	    }
 	    return lastToken = new Token(margin, sb.toString(), c);

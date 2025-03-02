@@ -9,18 +9,37 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>bones-meta</artifactId>
-	<name>Bare bones Meta Model Framework</name>
+	<artifactId>bones-meta-test</artifactId>
+	<name>Bare bones testproject for meta</name>
 
 	<properties>
 		<maven.compiler.release>17</maven.compiler.release>
 	</properties>
+	
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>com.palisand.bones</groupId>
+				<artifactId>bones-meta-maven-plugin</artifactId>
+				<version>${project.version}</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>generate-sources</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<model>src/main/resources/Schema.tt</model>
+					<generatorConfig implementation="com.palisand.bones.meta.ModelConfig" />
+				</configuration>
+				<dependencies>
+				</dependencies>
+			</plugin>
+		</plugins>
+	</build>
 
 	<dependencies>
-		<dependency>
-			<groupId>com.palisand.bones</groupId>
-			<artifactId>bones-core</artifactId>
-		</dependency>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>

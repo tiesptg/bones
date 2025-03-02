@@ -214,18 +214,20 @@ class TypedTextTest {
 			"com.palisand.bones.tt.TypedTextTest$SimpleObject>\n" +
 			"unknownString:	something\n" +
 			"name:	Object\n" +
-			"justALabel:	\n" +
+			"justALabel:\n" +
 			"age:	23\n" +
 			"list:	\n" +
-			"	-	SimpleObject>\n" +
-			"		name:	Another\n" +
-			"		unknownObject:	\n" +
-			"			label:	\n" +
-			"			list:	\n" +
-			"				-	X>\n" +
-			"					any:	false\n" +
-			"		age:	40\n" +
-			"		done:	true";
+			"-	SimpleObject>\n" +
+			"	name:	Another\n" +
+			"	unknownObject: UnknownType>\n" +
+			"		label:\n" +
+			"		list:\n" +
+			"		-	X>\n" +
+			"			any:	false\n" +
+			"	age:	40\n" +
+			"\tdone:	true\n" + 
+			"\tdummyobject:\tG>\n" +
+			"\t\tignore: text";
 
 	
 	@Test

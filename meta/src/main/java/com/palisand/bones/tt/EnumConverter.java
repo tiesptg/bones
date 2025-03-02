@@ -23,7 +23,7 @@ public class EnumConverter implements Converter<Enum<?>> {
 
 	@Override
 	public Enum<?> fromTypedText(Parser parser, BufferedReader in, Class<?> cls, Class<?> context, String margin) throws IOException {
-		String str = parser.readUntilLineEnd(in);
+		String str = parser.readUntilLineEnd(in,true);
 		if (str.isBlank()) {
 			return null;
 		}

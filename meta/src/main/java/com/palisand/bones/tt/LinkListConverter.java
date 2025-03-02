@@ -29,5 +29,12 @@ public class LinkListConverter implements Converter<List<String>> {
 	public Class<?> getType() {
 		return LinkList.class;
 	}
+	
+	@Override
+	public boolean isValueOnSameLine() {
+    return false;
+  }
+  
+
 
 }

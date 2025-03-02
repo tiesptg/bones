@@ -249,7 +249,7 @@ public class ObjectConverter implements Converter<Object> {
 		Repository repository = parser.getRepository();
 		ObjectConverter converter = (ObjectConverter)repository.getConverter(cls,token.label());
 		parser.consumeLastToken();
-		parser.readUntilLineEnd(in);
+		parser.readUntilLineEnd(in,false);
 		
 		Object result = newInstance(converter.type);
 		String newMargin = margin + Repository.MARGIN_STEP;
@@ -273,15 +273,19 @@ public class ObjectConverter implements Converter<Object> {
 					throw new IOException(ex);
 				}
 			} else {
-				Converter<?> strConv = repository.getConverter(String.class);
-				strConv.fromTypedText(parser,in, String.class, cls, newMargin);
-				for (token = parser.nextToken(in); isEnd(token,margin); token = parser.nextToken(in)) {
+			  // skip and ignore unknown property
+        parser.readUntilLineEnd(in,false);
+				for (token = parser.nextToken(in); canIgnore(token,margin); token = parser.nextToken(in)) {
 					parser.consumeLastToken();
-					strConv.fromTypedText(parser, in, String.class, cls, newMargin);
+	        parser.readUntilLineEnd(in,false);
 				}
 			}
 		}
 		return result;
+	}
+	
+	private boolean canIgnore(Token token, String margin) {
+	  return token != null && token.margin().length() > margin.length();
 	}
 	
 	private String getClassLabel(Class<?> cls, Class<?> context) {
@@ -341,11 +345,14 @@ public class ObjectConverter implements Converter<Object> {
 					if (!property.isDefault(value)) {
 						out.print(margin);
 						out.print(property.getName());
-						out.print(":\t");
+						out.print(':');
 						if (converter != null) {
+						  if (converter.isValueOnSameLine()) {
+						    out.print('\t');
+						  }
 							converter.toTypedText(repository,value, out, obj.getClass(), newMargin);
 						} else {
-							out.println("null");
+							out.println("\tnull");
 						}
 					}
 				}
@@ -353,4 +360,8 @@ public class ObjectConverter implements Converter<Object> {
 		}
 	}
 	
+ @Override
+  public boolean isValueOnSameLine() {
+    return false;
+  }
 }

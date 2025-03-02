@@ -13,13 +13,13 @@ public class StringConverter implements Converter<String> {
 	
 	@Override
 	public String fromTypedText(Parser parser, BufferedReader in, Class<?> cls, Class<?> context, String margin) throws IOException {
-		String result = parser.readUntilLineEnd(in);
+		String result = parser.readUntilLineEnd(in,true);
 		if (result.length() != 0 && result.charAt(result.length()-1) == '\\') {
 			StringBuilder sb = new StringBuilder(result);
 			String strMargin = margin + Repository.MARGIN_STEP;
 			do {
 				sb.replace(sb.length()-1,sb.length(),"\n");
-				result = parser.readUntilLineEnd(in);
+				result = parser.readUntilLineEnd(in,false);
 				sb.append(result.substring(strMargin.length()));
 			} while (result.charAt(result.length()-1) == '\\');
 			result = sb.toString();

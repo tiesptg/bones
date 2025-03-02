@@ -13,7 +13,9 @@ public class ListConverter implements Converter<List<?>> {
 
 	@Override
 	public List<?> fromTypedText(Parser parser, BufferedReader in, Class<?> cls, Class<?> context, String margin) throws IOException {
-		parser.readUntilLineEnd(in);
+		parser.readUntilLineEnd(in,false);
+		// use same margin as parent for -
+    margin = margin.substring(Repository.MARGIN_STEP.length());
 		List<Object> result = new ArrayList<Object>();
 		String newMargin = margin + Repository.MARGIN_STEP;
 		Converter<?> converter = parser.getRepository().getConverter(cls);
@@ -33,6 +35,8 @@ public class ListConverter implements Converter<List<?>> {
 		List<Object> list = (List<Object>)obj;
 		Class<Object> type = null;
 		Converter<Object> converter = null;
+    // use same margin as parent for -
+		margin = margin.substring(Repository.MARGIN_STEP.length());
 		String nextMargin = margin + Repository.MARGIN_STEP;
 		for (Object value: list) {
 			out.print(margin);
@@ -49,5 +53,16 @@ public class ListConverter implements Converter<List<?>> {
 	public Class<?> getType() {
 		return List.class;
 	}
+
+  public boolean isEnd(Token token, String margin) {
+    return token == null || token.margin().length() < margin.length() 
+        || (token.margin().length() == margin.length() && token.delimiter() != '-');
+  }
+	  
+  @Override
+  public boolean isValueOnSameLine() {
+    return false;
+  }
+  
 
 }
