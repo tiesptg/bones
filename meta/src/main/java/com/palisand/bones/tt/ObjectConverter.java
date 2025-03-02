@@ -119,13 +119,12 @@ public class ObjectConverter implements Converter<Object> {
 			return Character.toUpperCase(name.charAt(0)) + name.substring(1);
 		}
 		
-		public Object getValue(Object object) {
+		public Object getValue(Object object) throws IOException {
 			try {
 				return getter.invoke(object);
 			} catch (Exception e) {
-				e.printStackTrace();
+				throw new IOException(e.getCause() != null ? e.getCause() : e);
 			}
-			return null;
 		}
 		
 		public boolean isDefault(Object value) {

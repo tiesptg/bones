@@ -927,18 +927,35 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		validateProperties();
 		JButton remove = new JButton("<html>" + deleteLabel);
 		remove.addKeyListener(escListener);
+		remove.addActionListener((e) -> deleteSelected());
 		buttons.add(remove);
 		properties.validate();
 		top.validate();
 	}
 	
+	private void deleteSelected() {
+	  TreePath path = tree.getSelectionPath();
+	  Node<?> node = (Node<?>)path.getLastPathComponent();
+	  try {
+	    repositoryModel.deleteNode(node);
+	  } catch (Exception ex) {
+	    handleException(ex);
+	  }
+	}
+	
 	private void validateDocuments() {
 		Validator validator = new Validator();
-		repositoryModel.getRoots().forEach(doc -> doc.validate(validator));
-		List<ConstraintViolation> problems = validator.getViolations();
-		problemsModel.setProblems(problems);
-		problems.stream().filter(problem -> problem.exception() != null).forEach(problem -> handleException(problem.exception()));
-		problemsModel.fireTableDataChanged();
+		try {
+		  for (Document document: repositoryModel.getRoots()) {
+		    document.validate(validator);
+		  }
+	    List<ConstraintViolation> problems = validator.getViolations();
+	    problemsModel.setProblems(problems);
+	    problems.stream().filter(problem -> problem.exception() != null).forEach(problem -> handleException(problem.exception()));
+	    problemsModel.fireTableDataChanged();
+		} catch (Exception ex) {
+		  handleException(ex);
+		}
 	}
 
 	public static void main(String...args) throws Exception {

@@ -451,5 +451,9 @@ public class Repository {
 	    }
 	  }
 	}
+
+  public void removeRoot(Document node) {
+    documents.remove(node.getAbsolutePath());
+  }
 	
 }
