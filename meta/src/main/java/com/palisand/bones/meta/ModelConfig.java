@@ -6,5 +6,6 @@ public class ModelConfig extends GeneratorConfig {
 
   public ModelConfig() {
     add(Entity.class,new EntityGenJava(),new EntityJava());
+    add(EnumType.class,new EnumJava());
   }
 }

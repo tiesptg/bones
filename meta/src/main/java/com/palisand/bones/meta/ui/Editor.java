@@ -454,7 +454,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 	
 	@Override
 	public void valueChanged(TreeSelectionEvent e) {
-		select((Node<?>)e.getPath().getLastPathComponent());
+	  if (e.isAddedPath() && e.getPath().getPathCount() > 1) {
+	    select((Node<?>)e.getPath().getLastPathComponent());
+	  }
 	}
 	
 	private Object getValue(Node<?> node, Method getter) {
@@ -927,18 +929,36 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		validateProperties();
 		JButton remove = new JButton("<html>" + deleteLabel);
 		remove.addKeyListener(escListener);
+		remove.addActionListener((e) -> deleteSelected());
 		buttons.add(remove);
 		properties.validate();
 		top.validate();
 	}
 	
+	private void deleteSelected() {
+	  TreePath path = tree.getSelectionPath();
+	  Node<?> node = (Node<?>)path.getLastPathComponent();
+	  try {
+	    TreePath parent = repositoryModel.deleteNode(node);
+	    tree.setSelectionPath(parent);
+	  } catch (Exception ex) {
+	    handleException(ex);
+	  }
+	}
+	
 	private void validateDocuments() {
 		Validator validator = new Validator();
-		repositoryModel.getRoots().forEach(doc -> doc.validate(validator));
-		List<ConstraintViolation> problems = validator.getViolations();
-		problemsModel.setProblems(problems);
-		problems.stream().filter(problem -> problem.exception() != null).forEach(problem -> handleException(problem.exception()));
-		problemsModel.fireTableDataChanged();
+		try {
+		  for (Document document: repositoryModel.getRoots()) {
+		    document.validate(validator);
+		  }
+	    List<ConstraintViolation> problems = validator.getViolations();
+	    problemsModel.setProblems(problems);
+	    problems.stream().filter(problem -> problem.exception() != null).forEach(problem -> handleException(problem.exception()));
+	    problemsModel.fireTableDataChanged();
+		} catch (Exception ex) {
+		  handleException(ex);
+		}
 	}
 
 	public static void main(String...args) throws Exception {

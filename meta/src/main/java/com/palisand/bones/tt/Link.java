@@ -118,7 +118,7 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 	public void set(X x) throws IOException {
 		X link = get();
 		if (oppositeGetter != null && link != null) {
-			oppositeGetter.apply(link).internalSet(null);
+			oppositeGetter.apply(link).internalUnset(container);
 		}
 		internalSet(x);
 		if (oppositeGetter != null && x != null) {

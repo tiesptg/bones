@@ -54,7 +54,7 @@ public class Model extends Document {
 	protected void doValidate(Validator validator) {
 	  validator.assertTrue("entities",
 	      getEntities().stream().filter(
-	          validator.checkException("entities",entity -> entity.getEntityContainer().get() == null)).count() == 1
+	          validator.checkException("entities",entity -> entity.getEntityContainer().get() == null && !entity.isAbstractEntity())).count() == 1
 	    ,"The model should have exactly one entity that does not have an entitycontainer");
 	}
 

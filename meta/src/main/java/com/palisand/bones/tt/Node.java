@@ -1,6 +1,7 @@
 package com.palisand.bones.tt;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,25 +37,31 @@ public abstract class Node<N extends Node<?>> {
 	@SuppressWarnings("unchecked")
 	public boolean validate(Validator validator) {
 		validator.setNode(this);
-		ObjectConverter converter = ObjectConverter.getConverter(getClass());
-		for (Property property: converter.getProperties()) {
-			Rules constr = (Rules)getConstraint(property.getName());
-			Object value = property.getValue(this);
-			if (constr != null && constr.isEnabled((N)this)) {
-				constr.doValidate(validator, property.getName(),value);
-			}
-			if (value != null && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink() && !property.isReadonly()) {
-				if (property.isList()) {
-					List<Node<?>> list = (List<Node<?>>)value;
-					list.forEach(node -> node.validate(validator));
-				} else {
-					Node<?> node = (Node<?>)value;
-					node.validate(validator);
-				}
-				validator.setNode(this);
-			}
+		try {
+  		ObjectConverter converter = ObjectConverter.getConverter(getClass());
+  		for (Property property: converter.getProperties()) {
+  			Rules constr = (Rules)getConstraint(property.getName());
+  			Object value = property.getValue(this);
+  			if (constr != null && constr.isEnabled((N)this)) {
+  				constr.doValidate(validator, property.getName(),value);
+  			}
+  			if (value != null && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink() && !property.isReadonly()) {
+  				if (property.isList()) {
+  					List<Node<?>> list = (List<Node<?>>)value;
+  					for (Node<?> child: list) {
+  					  child.validate(validator);
+  					}
+  				} else {
+  					Node<?> node = (Node<?>)value;
+  					node.validate(validator);
+  				}
+  				validator.setNode(this);
+  			}
+  		}
+  		doValidate(validator);
+		} catch (Exception ex) {
+		  validator.addViolation(null,ex);
 		}
-		doValidate(validator);
 		return validator.containsErrors();
 	}
 	
@@ -111,6 +118,55 @@ public abstract class Node<N extends Node<?>> {
 		}
 	  return getRelativePath(contextRoot.getContainingAttribute(),root.getContainingAttribute())
 				+ absolutePath;
+	}
+	
+	@SuppressWarnings("unchecked")
+  public void delete() throws IOException {
+	  ObjectConverter converter = (ObjectConverter)ObjectConverter.getConverter(getClass());
+	  for (Property property: converter.getProperties().stream()
+	      .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
+	    if (property.isLink()) {
+	      // set links to null
+	      if (property.isList()) {
+	        LinkList<?,?> list = (LinkList<?,?>)property.getValue(this);
+	        list.clear();
+	      } else {
+	        Link<?,?> child = (Link<?,?>)property.getValue(this);
+	        child.set(null);
+	      }
+	      // remove children
+	    } else if (property.isList()) {
+	      List<Node<?>> list = (List<Node<?>>)property.getValue(this);
+	      // to prevent changing the list while iterating
+	      List<Node<?>> copy = new ArrayList<Node<?>>(list);
+	      for (Node<?> child: copy) {
+	        child.delete();
+	      }
+	    } else {
+	      Node<?> child = (Node<?>)property.getValue(this);
+	      if (child != null) {
+	        child.delete();
+	      }
+	    }
+	  }
+    if (getContainer() != null) {
+      getContainer().removeChild(this);
+    } else if (this instanceof Document document){
+      getRepository().removeRoot(document);
+    }
+	}
+	
+	@SuppressWarnings("unchecked")
+  void removeChild(Node<?> node) throws IOException {
+    ObjectConverter converter = (ObjectConverter)ObjectConverter.getConverter(getClass());
+    Property property = converter.getProperty(node.getContainingAttribute());
+    if (property.isList()) {
+      List<Node<?>> list = (List<Node<?>>)property.getValue(this);
+      list.remove(node);
+    } else {
+      property.set(this,null);
+    }
+    node.setContainer(null,null);
 	}
 	
 	

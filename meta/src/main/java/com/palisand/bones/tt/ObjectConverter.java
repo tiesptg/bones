@@ -119,13 +119,12 @@ public class ObjectConverter implements Converter<Object> {
 			return Character.toUpperCase(name.charAt(0)) + name.substring(1);
 		}
 		
-		public Object getValue(Object object) {
+		public Object getValue(Object object) throws IOException {
 			try {
 				return getter.invoke(object);
 			} catch (Exception e) {
-				e.printStackTrace();
+				throw new IOException(e.getCause() != null ? e.getCause() : e);
 			}
-			return null;
 		}
 		
 		public boolean isDefault(Object value) {
@@ -245,7 +244,9 @@ public class ObjectConverter implements Converter<Object> {
 	@Override
 	public Object fromTypedText(Parser parser, BufferedReader in, Class<?> cls, Class<?> context, String margin) throws IOException {
 		Token token = parser.nextToken(in);
-		assert token.delimiter() == '>';
+		if (token.delimiter() != '>') {
+		  throw new IOException("Expected type at " + token.location() + " but found: [" + token.label() + "] '>' is missing");
+		}
 		Repository repository = parser.getRepository();
 		ObjectConverter converter = (ObjectConverter)repository.getConverter(cls,token.label());
 		parser.consumeLastToken();
@@ -285,7 +286,7 @@ public class ObjectConverter implements Converter<Object> {
 	}
 	
 	private boolean canIgnore(Token token, String margin) {
-	  return token != null && token.margin().length() > margin.length();
+	  return token != null && !token.isEof() && token.margin().length() > margin.length();
 	}
 	
 	private String getClassLabel(Class<?> cls, Class<?> context) {

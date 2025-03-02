@@ -152,13 +152,15 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
 		return event.getTreePath().pathByAddingChild(n);
 	}
 	
-	public TreePath fireChildRemoved(Object n,Node<?> child) {
+	public TreePath deleteNode(Node<?> child) throws IOException {
+	  Object n = child.getContainer() != null ? child.getContainer() : this;
 		List<Object> list = new ArrayList<>();
 		list.add(this);
 		if (n != this) {
 			getPathFor(list,(Node<?>)n);
 		}
 		TreeModelEvent event = new TreeModelEvent(this,new TreePath(list.toArray()),new int[]{getIndexOfChild(n, child)},new Object[]{child});
+		child.delete();
 		listeners.forEach(l -> l.treeNodesRemoved(event));
 		return event.getTreePath();
 	}

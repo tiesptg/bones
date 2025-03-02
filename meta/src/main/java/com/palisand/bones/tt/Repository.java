@@ -36,7 +36,15 @@ public class Repository {
 	private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
 	@Getter private final Map<String,SoftReference<Document>> documents = new TreeMap<>();
 	
-	public record Token(String margin, String label, char delimiter) {
+	public record Token(String margin, String label, char delimiter,int line, int charInLine) {
+	  
+	  public String location() {
+	    return "Line: " + line + " Char: " + charInLine;
+	  }
+	  
+	  public boolean isEof() {
+	    return delimiter == ' ';
+	  }
 	}
 	
 	@Getter
@@ -45,6 +53,8 @@ public class Repository {
 	  private Token lastToken;
 	  private final Set<String> toRead = new TreeSet<>();
 	  private String reading;
+	  private int line = 1;
+	  private int charInLine = 0;
 	  
 	  Repository getRepository() {
 	    return Repository.this;
@@ -65,24 +75,31 @@ public class Repository {
 	    }
 	  }
 	  
-
+	  private int read(BufferedReader in) throws IOException {
+	    ++charInLine;
+	    return in.read();
+	  }
 	  
 	  String readUntilLineEnd(BufferedReader in, boolean skipTab) throws IOException {
 	    if (skipTab) {
-	      int c = (char)in.read();
-	      assert c == '\t';
+	      int c = (char)read(in);
+	      if (c != '\t') {
+	        throw new IOException("expected tab character but found [" + (char)c + "] at Line: " + line + " Char: " + charInLine);
+	      }
 	    }
 	    StringBuilder sb = new StringBuilder();
-	    int c = (char) in.read();
+	    int c = (char) read(in);
 	    // collect chars until end of line
 	    while (c != -1 && c != '\n' && c != '\r') {
 	      sb.append((char)c);
-	      c = in.read();
+	      c = read(in);
 	    }
 	    // ignore eol
 	    if (c == '\r') {
-	      in.read(); // skip eol
+	      read(in); // skip eol
 	    }
+	    ++line;
+	    charInLine=0;
 	    return sb.toString();
 	  }
 
@@ -92,18 +109,22 @@ public class Repository {
 	    }
 	    StringBuilder sb = new StringBuilder();
 	    String margin = null;
+	    int labelAtLine = line;
+	    int labelAtChar = charInLine;
 	    char c;
 	    loop: while (true) {
-	      c = (char) in.read();
+	      c = (char) read(in);
 	      if (c == -1 || c == 0xFFFF) {
 	        if (sb.isEmpty()) {
-	          return null;
+	          return new Token("","",' ',line,charInLine);
 	        }
 	        throw new IOException("unexpected end of file reached");
 	      }
-	      if (margin == null && !Character.isWhitespace(c)) {
+	      if (margin == null && c != '\t') {
 	        margin = sb.toString();
 	        sb.setLength(0);
+	        labelAtLine = line;
+	        labelAtChar = charInLine;
 	      }
 	      switch (c) {
 	      case '>': {
@@ -115,12 +136,12 @@ public class Repository {
 	      case ':':
 	      case '-': 
 	        break loop;
-	      default: 
+	      default:
 	        sb.append(c);
 	        break;
 	      }
 	    }
-	    return lastToken = new Token(margin, sb.toString(), c);
+	    return lastToken = new Token(margin, sb.toString(), c,labelAtLine,labelAtChar);
 	  }
 
 
@@ -451,5 +472,9 @@ public class Repository {
 	    }
 	  }
 	}
+
+  public void removeRoot(Document node) {
+    documents.remove(node.getFilename());
+  }
 	
 }

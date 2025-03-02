@@ -19,7 +19,9 @@ public class EntityJava extends JavaGenerator<Entity> {
     collectImports(entity);
     nl("package %s;",entity.getContainer().getPackageName());
     printImports();
+    nl();
     nl("public class %s extends %sGen {",entity.getName(),entity.getName());
+    nl();
     nl("}");
   }
 

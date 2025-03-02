@@ -57,8 +57,8 @@ public class MetaGenerator extends AbstractMojo {
       List<ConstraintViolation> problems = validator.getViolations();
       problems.forEach(violation -> {
         switch (violation.severity()) {
-        case ERROR: getLog().warn(violation.toString());
-        case WARNING: getLog().error(violation.toString());
+        case ERROR: getLog().error(violation.toString()); break;
+        case WARNING: getLog().warn(violation.toString()); break;
         }
       });
       if (problems.stream().noneMatch(problem -> problem.severity() == Severity.ERROR)) {
@@ -73,12 +73,16 @@ public class MetaGenerator extends AbstractMojo {
     }
   }
   
+  private File getSourceDirectory() {
+    return new File((String)project.getCompileSourceRoots().get(0));
+  }
+  
   @SuppressWarnings("unchecked")
   private <X extends Node<?>> void generateNode(File outputDirectory, X node) throws Exception {
     CodeGenerator<X>[] generators = (CodeGenerator<X>[])generatorConfig.getGenerators(node.getClass());
     for (CodeGenerator<X> generator: generators) {
       getLog().info("Generate " + generator.getClass().getSimpleName() + " with " + node);
-      generator.doGenerate(outputDirectory,node);
+      generator.doGenerate(outputDirectory,getSourceDirectory(),node);
     }
     ObjectConverter converter = (ObjectConverter)repository.getConverter(node.getClass());
     for (Property property: converter.getProperties()) {

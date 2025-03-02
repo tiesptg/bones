@@ -48,17 +48,24 @@ public abstract class CodeGenerator<X> {
   
   public abstract void config(X object);
   
-  public abstract void generate(X object);
+  public abstract void generate(X object) throws IOException;
   
-  public void doGenerate(File rootDir, X object) throws IOException {
+  public void doGenerate(File rootDir, File srcDir, X object) throws IOException {
     config(object);
-    File result = new File(rootDir,file);
-    if (!result.getParentFile().exists() && !result.getParentFile().mkdirs()) {
-      throw new IOException("Could not create parent directory of file " + file );
+    boolean generationAllowed = true;
+    if (isManualEditingAllowed()) {
+      File manualFile = new File(srcDir,file);
+      generationAllowed = !manualFile.exists();
     }
-    try (PrintWriter out = new PrintWriter(new FileWriter(result))) {
-      this.out = out;
-      generate(object);
+    if (generationAllowed) {
+      File result = new File(rootDir,file);
+      if (!result.getParentFile().exists() && !result.getParentFile().mkdirs()) {
+        throw new IOException("Could not create parent directory of file " + file );
+      }
+      try (PrintWriter out = new PrintWriter(new FileWriter(result))) {
+        this.out = out;
+        generate(object);
+      }
     }
   }
 }

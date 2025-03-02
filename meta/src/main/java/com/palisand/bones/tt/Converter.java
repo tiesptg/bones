@@ -42,7 +42,7 @@ public interface Converter<Y> {
 	}
 	
 	default boolean isEnd(Token token, String margin) {
-		return token == null || token.margin().length() < margin.length();
+		return token == null || token.isEof() || token.margin().length() < margin.length();
 	}
 	
 	default boolean isValueOnSameLine() {

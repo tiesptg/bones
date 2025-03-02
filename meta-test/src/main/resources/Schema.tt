@@ -20,10 +20,14 @@ entities:
 	members:
 	-	Attribute>
 		name:	name
+	-	ReferenceRole>
+		name:	fields
+		multiple:	true
+		pointerPattern:	../fields/.*
+	abstractEntity:	true
 	specialisations:
 	-	#/entities/ForeignKey
 	-	#/entities/PrimaryKey
-	abstractEntity:	true
 -	Entity>
 	name:	Table
 	members:
@@ -38,6 +42,7 @@ entities:
 	-	ContainerRole>
 		name:	primaryKey
 		entity:	#/entities/PrimaryKey
+		multiple:	false
 -	Entity>
 	name:	ForeignKey
 	members:

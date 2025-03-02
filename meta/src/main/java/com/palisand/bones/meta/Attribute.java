@@ -1,5 +1,7 @@
 package com.palisand.bones.meta;
 
+import java.io.IOException;
+
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.EnumRules;
@@ -45,4 +47,26 @@ public class Attribute extends Member {
 	private String before = null;
 	private String after = null;
 	private Link<Attribute,EnumType> enumType = Link.newLink(this,".*#/enumTypes/.*");
+	
+	public String getJavaType() throws IOException {
+	  switch (type) {
+	  case STRING: return "String";
+	  case INTEGER: return "Integer";
+	  case LONG: return "Long";
+	  case DOUBLE: return "Double";
+	  case FLOAT: return "Float";
+	  case TIMESTAMP: return "OffsetDateTime";
+	  case BOOLEAN: return "Boolean";
+	  case ENUM: return enumType.get().getName();
+	  case OBJECT: break;
+	  }
+	  throw new IOException("attribute " + getName() + " has unsupported type " + type);
+	}
+	
+	public String getJavaDefaultValue() {
+	  if (getDefaultValue() != null) {
+	    return getDefaultValue();
+	  }
+	  return "null";
+	}
 }

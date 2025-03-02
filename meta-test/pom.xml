@@ -41,6 +41,10 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>com.palisand.bones</groupId>
+			<artifactId>bones-meta</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<scope>test</scope>
