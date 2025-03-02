@@ -1,4 +1,4 @@
-package com.palisand.bones.ui;
+package com.palisand.bones.meta.ui;
 
 import java.awt.Component;
 import java.io.IOException;

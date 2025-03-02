@@ -1,4 +1,4 @@
-package com.palisand.bones.ui;
+package com.palisand.bones.meta.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -70,6 +70,7 @@ import javax.swing.tree.TreeSelectionModel;
 
 import com.palisand.bones.di.Classes;
 import com.palisand.bones.log.Logger;
+import com.palisand.bones.meta.ui.ListEditor.LinkListEditor;
 import com.palisand.bones.tt.CustomEditor;
 import com.palisand.bones.tt.Document;
 import com.palisand.bones.tt.Link;
@@ -81,7 +82,6 @@ import com.palisand.bones.tt.Repository;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ConstraintViolation;
 import com.palisand.bones.tt.Validator;
-import com.palisand.bones.ui.ListEditor.LinkListEditor;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

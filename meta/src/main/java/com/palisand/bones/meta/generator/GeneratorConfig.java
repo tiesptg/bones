@@ -1,4 +1,4 @@
-package com.palisand.meta.maven;
+package com.palisand.bones.meta.generator;
 
 import java.util.HashMap;
 import java.util.Map;

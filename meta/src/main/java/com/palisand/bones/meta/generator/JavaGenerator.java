@@ -1,4 +1,4 @@
-package com.palisand.meta.maven;
+package com.palisand.bones.meta.generator;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -32,6 +32,7 @@ public abstract class JavaGenerator<X> extends CodeGenerator<X> {
   public void setPackageAndClass(String packageName, String className) {
     this.packageName = packageName;
     this.className = className;
+    setFile(packageName.replace(".","/") + "/" + className + ".java");
   }
 
 }

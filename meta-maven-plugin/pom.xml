@@ -3,13 +3,13 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>com.palisand</groupId>
+		<groupId>com.palisand.bones</groupId>
 		<artifactId>bones-parent</artifactId>
 		<version>0.9</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>bones-generator</artifactId>
+	<artifactId>bones-meta-maven-plugin</artifactId>
 	<name>Bare bones Meta Generator</name>
     <packaging>maven-plugin</packaging>
 
@@ -17,10 +17,10 @@
 	<properties>
 		<maven.compiler.release>17</maven.compiler.release>
 	</properties>
-
+	
 	<dependencies>
 		<dependency>
-			<groupId>com.palisand</groupId>
+			<groupId>com.palisand.bones</groupId>
 			<artifactId>bones-meta</artifactId>
 		</dependency>
 		<dependency>
@@ -43,5 +43,11 @@
 	        <version>3.15.1</version>
 	        <scope>provided</scope>
 	    </dependency>
+	        <dependency>
+	        <groupId>org.apache.maven</groupId>
+	        <artifactId>maven-project</artifactId>
+	        <version>2.2.1</version>
+	    </dependency>
+
 	</dependencies>
 </project>

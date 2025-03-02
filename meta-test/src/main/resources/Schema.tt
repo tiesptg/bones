@@ -1,0 +1,61 @@
+com.palisand.bones.meta.Model>
+name:	Schema
+packageName:	com.palisand.bones.test
+entities:
+-	Entity>
+	name:	Field
+	members:
+	-	Attribute>
+		name:	name
+	-	Attribute>
+		name:	nullable
+		type:	BOOLEAN
+	-	Attribute>
+		name:	type
+		type:	ENUM
+		enumType:	#/enumTypes/DataType
+	entityContainer:	#/entities/Table/members/fields
+-	Entity>
+	name:	Key
+	members:
+	-	Attribute>
+		name:	name
+	specialisations:
+	-	#/entities/ForeignKey
+	-	#/entities/PrimaryKey
+	abstractEntity:	true
+-	Entity>
+	name:	Table
+	members:
+	-	ContainerRole>
+		name:	keys
+		entity:	#/entities/ForeignKey
+	-	ContainerRole>
+		name:	fields
+		entity:	#/entities/Field
+	-	Attribute>
+		name:	name
+	-	ContainerRole>
+		name:	primaryKey
+		entity:	#/entities/PrimaryKey
+-	Entity>
+	name:	ForeignKey
+	members:
+	-	Attribute>
+		name:	unique
+		type:	BOOLEAN
+		defaultValue:	false
+	entityContainer:	#/entities/Table/members/keys
+	superEntity:	#/entities/Key
+-	Entity>
+	name:	PrimaryKey
+	entityContainer:	#/entities/Table/members/primaryKey
+	superEntity:	#/entities/Key
+enumTypes:
+-	EnumType>
+	name:	DataType
+	values:
+	-	STRING
+	-	INTEGER
+	-	BOOLEAN
+	-	FLOAT

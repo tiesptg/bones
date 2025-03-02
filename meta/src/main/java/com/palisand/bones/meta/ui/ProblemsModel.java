@@ -1,4 +1,4 @@
-package com.palisand.bones.ui;
+package com.palisand.bones.meta.ui;
 
 import java.util.Collections;
 import java.util.List;

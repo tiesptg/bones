@@ -1,4 +1,4 @@
-package com.palisand.bones.ui;
+package com.palisand.bones.meta.ui;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;

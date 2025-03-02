@@ -1,4 +1,4 @@
-package com.palisand.meta.maven;
+package com.palisand.bones.meta.generator;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -50,10 +50,10 @@ public abstract class CodeGenerator<X> {
   
   public abstract void generate(X object);
   
-  public void doGenerate(X object) throws IOException {
+  public void doGenerate(File rootDir, X object) throws IOException {
     config(object);
-    File result = new File(file);
-    if (!result.getParentFile().mkdirs()) {
+    File result = new File(rootDir,file);
+    if (!result.getParentFile().exists() && !result.getParentFile().mkdirs()) {
       throw new IOException("Could not create parent directory of file " + file );
     }
     try (PrintWriter out = new PrintWriter(new FileWriter(result))) {
