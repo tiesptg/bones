@@ -14,6 +14,12 @@ import java.util.TreeMap;
 import com.palisand.bones.di.Classes;
 import com.palisand.bones.tt.Repository.Parser;
 import com.palisand.bones.tt.Repository.Token;
+import com.palisand.bones.tt.Rules.BooleanRules;
+import com.palisand.bones.tt.Rules.EnumRules;
+import com.palisand.bones.tt.Rules.LinkRules;
+import com.palisand.bones.tt.Rules.ListRules;
+import com.palisand.bones.tt.Rules.NumberRules;
+import com.palisand.bones.tt.Rules.StringRules;
 
 import lombok.Data;
 import lombok.Getter;
@@ -162,6 +168,30 @@ public class ObjectConverter implements Converter<Object> {
 		return false;
 	}
 	
+	private void initRules(Node<?> node, Property property) {
+	  Rules rules = node.getConstraint(property.getName());
+	  Class<?> type = property.getType();
+	  if (rules == null) {
+	    if (type == String.class) {
+	      rules = StringRules.builder().build();
+	    } else if (type == Integer.class || type == Double.class || type == int.class || type == double.class
+	        || type == Long.class || type == long.class || type == Float.class || type == float.class) {
+	      rules = NumberRules.builder().build();
+	    } else if (type == Boolean.class) {
+	      rules = BooleanRules.builder().build();
+	    } else if (type == List.class) {
+	      rules = ListRules.builder().build();
+	    } else if (type == Link.class) {
+	      rules = LinkRules.builder().build();
+	    } else if (type.isEnum()) {
+	      rules = EnumRules.builder().build();
+	    } else {
+	      rules = Rules.builder().build();
+	    }
+	  }
+	  property.setRules(rules);
+	}
+	
 	private ObjectConverter(Class<?> cls) {
 		Object object = newInstance(cls);
 		type = cls;
@@ -189,7 +219,7 @@ public class ObjectConverter implements Converter<Object> {
 				name.setCharAt(0, Character.toLowerCase(name.charAt(0)));
 				property.setName(name.toString());
 				if (object instanceof Node<?> node) {
-					property.setRules(node.getConstraint(name.toString()));
+				  initRules(node,property);
 				}
 				if (!Node.class.isAssignableFrom(property.getType()) && !Link.class.isAssignableFrom(property.getType())
 						&& !List.class.isAssignableFrom(property.getType())) {

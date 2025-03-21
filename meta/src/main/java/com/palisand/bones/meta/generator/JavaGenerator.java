@@ -14,7 +14,7 @@ public abstract class JavaGenerator<X> extends CodeGenerator<X> {
   private Set<String> imports = new TreeSet<>();
   
   public void addImport(Class<?> cls) {
-    addImport(cls.getName());
+    addImport(cls.getCanonicalName());
   }
   
   public void addImport(String className) {
@@ -23,6 +23,13 @@ public abstract class JavaGenerator<X> extends CodeGenerator<X> {
   
   public void addStaticImport(String fullName) {
     addImport("static " + fullName);
+  }
+  
+  protected void clear() {
+    super.clear();
+    className = null;
+    packageName = null;
+    imports.clear();
   }
   
   public void printImports() {

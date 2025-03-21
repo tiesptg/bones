@@ -21,6 +21,8 @@ public abstract class Member extends Item<Entity> {
   }
 
 	private boolean multiple;
+	private boolean notNull;
+  private String enabledWhen = null;
 	
 	public abstract Type getType();
 

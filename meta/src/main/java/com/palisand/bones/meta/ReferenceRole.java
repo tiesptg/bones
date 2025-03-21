@@ -16,6 +16,7 @@ public class ReferenceRole extends Member {
 
 	private String pointerPattern;
 	private boolean external = false;
+	private boolean notEmpty = false;
 	private final Link<ReferenceRole,ReferenceRole> opposite = Link.newLink(this,".*#/entities/.*/members/.*",role -> role.getOpposite());
 	private final Link<ReferenceRole,Entity> entity = Link.newLink(this,".*#/entities/.*");
 

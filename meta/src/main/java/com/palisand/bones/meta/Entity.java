@@ -24,8 +24,9 @@ import lombok.Setter;
 public class Entity extends Item<Model> {
 	private static final RulesMap RULES = Rules.map()
       .and("name",StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
-			.and("entityContainer",LinkRules.builder().noCycle(link -> ((ContainerRole)link.get()).getContainer().getEntityContainer()).build())
-			.and("idAttribute",LinkRules.builder().notNull(true).build());
+			.and("entityContainer",LinkRules.builder()
+			    .noCycle(link -> ((ContainerRole)link.get()).getContainer().getEntityContainer()).build())
+			.and("idAttribute",LinkRules.builder().enabled(entity -> !((Entity)entity).getSuperEntity().isPresent()).notNull(true).build());
 		
 	@Override
 	public Rules getConstraint(String field) {

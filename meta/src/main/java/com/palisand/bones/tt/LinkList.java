@@ -14,12 +14,18 @@ public class LinkList<C extends Node<?>,X extends Node<?>> implements AbstractLi
 	@Getter private final String pattern;
 	private final Function<X,AbstractLink<X,C>> oppositeGetter;
 	
-	public LinkList(C container, String pattern, Function<X,AbstractLink<X,C>> oppositeGetter) {
-		this.container = container;
-		this.pattern = pattern;
-		this.oppositeGetter = oppositeGetter;
-	}
-	
+  public LinkList(C container, String pattern, Function<X,AbstractLink<X,C>> oppositeGetter) {
+    this.container = container;
+    this.pattern = pattern;
+    this.oppositeGetter = oppositeGetter;
+  }
+  
+  public LinkList(C container, String pattern) {
+    this.container = container;
+    this.pattern = pattern;
+    this.oppositeGetter = null;
+  }
+  
 	public void add(X node) throws IOException {
 		add(node,true);
 	}

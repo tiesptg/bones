@@ -113,6 +113,10 @@ public abstract class Link<C extends Node<?>,X extends Node<?>> implements Abstr
 		this(container,pathPattern,null);
 	}
 	
+	public boolean isPresent() throws IOException {
+	  return get() != null;
+	}
+	
 	public abstract X get() throws IOException;
 	
 	public void set(X x) throws IOException {

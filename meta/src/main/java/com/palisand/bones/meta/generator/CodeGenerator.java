@@ -50,7 +50,11 @@ public abstract class CodeGenerator<X> {
   
   public abstract void generate(X object) throws IOException;
   
+  protected void clear() {
+  }
+  
   public void doGenerate(File rootDir, File srcDir, X object) throws IOException {
+    clear();
     config(object);
     boolean generationAllowed = true;
     if (isManualEditingAllowed()) {
@@ -67,5 +71,9 @@ public abstract class CodeGenerator<X> {
         generate(object);
       }
     }
+  }
+  
+  public static String cap(String name) {
+    return Character.toUpperCase(name.charAt(0)) + name.substring(1);
   }
 }

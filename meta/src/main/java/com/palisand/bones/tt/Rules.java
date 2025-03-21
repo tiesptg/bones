@@ -18,12 +18,17 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class Rules {
 	@Builder.Default
-	private Function<Node<?>,Boolean> enabled = null;
+	private EnabledChecker enabled = null;
 	@Builder.Default
 	private boolean notNull = false;
 	
 	public enum Severity {
 		ERROR, WARNING
+	}
+	
+	@FunctionalInterface
+	public interface EnabledChecker {
+	  boolean check(Node<?> node) throws IOException;
 	}
 	
   @FunctionalInterface
@@ -34,15 +39,15 @@ public class Rules {
 	
 	public record ConstraintViolation(Severity severity, Node<?> node, String field, String message, Exception exception) {}
 	
-	protected void doValidate(Validator validator,String field, Object value) {
+	protected void doValidate(Validator validator,String field, Object value) throws IOException {
 		if (notNull) {
 			validator.assertNotNull(field, value);
 		}
 	}
 	
-	public boolean isEnabled(Node<?> node) {
+	public boolean isEnabled(Node<?> node) throws IOException {
 		if (enabled != null) {
-			return enabled.apply(node);
+	    return enabled.check(node);
 		}
 		return true;
 	}
@@ -68,6 +73,11 @@ public class Rules {
 		return new RulesMap();
 	}
 	
+	@SuperBuilder
+	public static class BooleanRules extends Rules {
+	  
+	}
+	
 	@Getter
 	@Setter
 	@SuperBuilder
@@ -84,7 +94,7 @@ public class Rules {
 		private int scale = 0;
 		
 		@Override
-		protected void doValidate(Validator validator, String field, Object value) {
+		protected void doValidate(Validator validator, String field, Object value) throws IOException {
 			super.doValidate(validator, field, value);
 			if (value != null) {
 				Number number = (Number)value;
@@ -120,9 +130,12 @@ public class Rules {
 		private boolean notEmpty = false;
 		@Builder.Default
 		private String pattern = null;
+		@Builder.Default
+		private boolean multiLine = false;
+		
 		
 		@Override
-		protected void doValidate(Validator validator, String field, Object value) {
+		protected void doValidate(Validator validator, String field, Object value) throws IOException {
 			super.doValidate(validator, field, value);
 			String str = (String)value;
 			if (notEmpty && (str == null || str.isBlank())) {
@@ -138,6 +151,9 @@ public class Rules {
 				if (pattern != null && !str.matches(pattern)) {
 					validator.addViolation(field, "Value should match pattern: " + pattern);
 				}
+				if (!multiLine && str.contains("\n")) {
+				  validator.addViolation(field,"Value should not contain more than one line");
+				}
 			}
 		}
 	}
@@ -151,7 +167,7 @@ public class Rules {
 		private List<Object> notAllowed;
 		
 		@Override
-		protected void doValidate(Validator validator, String field, Object value) {
+		protected void doValidate(Validator validator, String field, Object value) throws IOException {
 			super.doValidate(validator, field, value);
 			if (value != null && notAllowed.contains(value)) {
 				validator.addViolation(field, "Value " + value + " is not allowed for field " + field);
@@ -168,7 +184,7 @@ public class Rules {
 		private boolean notEmpty = false;
 		
 		@Override
-		protected void doValidate(Validator validator, String field, Object value) {
+		protected void doValidate(Validator validator, String field, Object value) throws IOException {
 			super.doValidate(validator, field, value);
 			List<?> list = (List<?>)value;
 			if (notEmpty && list.isEmpty()) {
@@ -187,9 +203,12 @@ public class Rules {
     private NextGetter noCycle = null;
 	  
     @Override
-    protected void doValidate(Validator validator, String field, Object value) {
+    protected void doValidate(Validator validator, String field, Object value) throws IOException {
       super.doValidate(validator, field, value);
       Link<?,?> link = (Link<?,?>)value;
+      if (isNotNull()) {
+        validator.assertNotNull(field, link.get());
+      }
       try {
         if (noCycle != null && !noCycle(link)) {
           validator.addViolation(field, "Field " + field + " creates an invalid cycle of links");

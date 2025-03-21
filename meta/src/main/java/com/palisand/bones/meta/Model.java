@@ -21,6 +21,7 @@ import lombok.Setter;
 public class Model extends Document {
 	private static final RulesMap RULES = Rules.map()
       .and("name",StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
+      .and("description",StringRules.builder().multiLine(true).build())
 	    .and("entities", ListRules.builder().notEmpty(true).notNull(true).build())
 	    .and("packageName",StringRules.builder().notEmpty(true).pattern("[a-z0-9_]+(\\.[a-z0-9_]+)*").build());
 	
@@ -30,7 +31,9 @@ public class Model extends Document {
 	}
 	
 	private String name = "<NoName>";
+	private String description = null;
 	private String packageName = "";
+	
 
 	private List<Entity> entities = new ArrayList<>();
 	private List<EnumType> enumTypes = new ArrayList<>();

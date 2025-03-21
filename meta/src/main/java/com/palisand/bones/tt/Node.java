@@ -1,7 +1,6 @@
 package com.palisand.bones.tt;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -151,7 +150,7 @@ public abstract class Node<N extends Node<?>> {
 	  }
     if (getContainer() != null) {
       getContainer().removeChild(this);
-    } else if (this instanceof Document document){
+    } else if (this instanceof Document document && document.getRepository() != null) {
       getRepository().removeRoot(document);
     }
 	}

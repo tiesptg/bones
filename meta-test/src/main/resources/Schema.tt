@@ -15,6 +15,7 @@ entities:
 		type:	ENUM
 		enumType:	#/enumTypes/DataType
 	entityContainer:	#/entities/Table/members/fields
+	idAttribute:	members/name
 -	Entity>
 	name:	Key
 	members:
@@ -24,10 +25,12 @@ entities:
 		name:	fields
 		multiple:	true
 		pointerPattern:	../fields/.*
-	abstractEntity:	true
+		entity:	#/entities/Field
 	specialisations:
 	-	#/entities/ForeignKey
 	-	#/entities/PrimaryKey
+	abstractEntity:	true
+	idAttribute:	members/name
 -	Entity>
 	name:	Table
 	members:
@@ -43,6 +46,8 @@ entities:
 		name:	primaryKey
 		entity:	#/entities/PrimaryKey
 		multiple:	false
+	entityContainer:	#/entities/Schema/members/tables
+	idAttribute:	members/name
 -	Entity>
 	name:	ForeignKey
 	members:
@@ -56,6 +61,18 @@ entities:
 	name:	PrimaryKey
 	entityContainer:	#/entities/Table/members/primaryKey
 	superEntity:	#/entities/Key
+-	Entity>
+	name:	Schema
+	members:
+	-	Attribute>
+		name:	name
+	-	ContainerRole>
+		name:	tables
+		entity:	#/entities/Table
+	-	Attribute>
+		name:	info
+		multiple:	true
+	idAttribute:	members/name
 enumTypes:
 -	EnumType>
 	name:	DataType

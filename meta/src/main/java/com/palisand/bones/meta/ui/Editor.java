@@ -1,6 +1,7 @@
 package com.palisand.bones.meta.ui;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.ContainerOrderFocusTraversalPolicy;
 import java.awt.Dimension;
@@ -81,6 +82,7 @@ import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ConstraintViolation;
+import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.Validator;
 
 import lombok.AllArgsConstructor;
@@ -482,18 +484,22 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			setter.invoke(node,value);
 			afterChange(node,value);
 		} catch (Exception ex) {
-			ex.printStackTrace();
+			handleException(ex);
 		}
 	}
 	
 	private void afterChange(Node<?> node, Object value) {
-    if (value instanceof Node<?> child) {
-      repositoryModel.fireChildChanged(node,child);
-    } else {
-      repositoryModel.fireNodeChanged(tree.getSelectionPath());
-    }
-    validateProperties();
-    validateDocuments();
+	  try {
+      if (value instanceof Node<?> child) {
+        repositoryModel.fireChildChanged(node,child);
+      } else {
+        repositoryModel.fireNodeChanged(tree.getSelectionPath());
+      }
+      validateProperties();
+      validateDocuments();
+	  } catch (Exception ex) {
+	    handleException(ex);
+	  }
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -506,12 +512,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
 			TreePath path = repositoryModel.fireChildAdded(child);
 			SwingUtilities.invokeLater(() -> tree.setSelectionPath(path));
 		} catch (Exception ex) {
-			ex.printStackTrace();
+			handleException(ex);
 		}
 	}
 	
 	@SuppressWarnings("unchecked")
-	private <N extends Node<?>> void validateProperties() {
+	private <N extends Node<?>> void validateProperties() throws IOException {
 		for (JComponent component: propertyEditors) {
 			Rules rules = (Rules)component.getClientProperty(RULE);
 			if (rules != null) {
@@ -520,29 +526,37 @@ public class Editor extends JFrame implements TreeSelectionListener {
 		}
 	}
 	
-	private <N extends Node<?>> void makeStringComponent(JPanel panel,N node, String value, Property property) {
-		JTextField field = new JTextField(value);
-		field.setName(property.getName());
-		field.putClientProperty(RULE, property.getRules());
-		propertyEditors.add(field);
-		field.addFocusListener(new FocusAdapter() {
-			@Override
-			public void focusGained(FocusEvent e) {
-				field.selectAll();
-			}
-			
-		});
-		panel.add(field);
-		field.addKeyListener(new KeyAdapter() {
+  private <N extends Node<?>> void makeStringComponent(JPanel panel,N node, String value, Property property) {
+    JTextComponent field;
+    if (((StringRules)property.getRules()).isMultiLine()) {
+      field = new JTextArea(value,5,0);
+      ((JTextArea)field).setLineWrap(true);
+      ((JTextArea)field).setWrapStyleWord(true);
+      panel.add(new JScrollPane(field));
+    } else {
+      field = new JTextField(value);
+      panel.add(field);
+    }
+    field.setName(property.getName());
+    field.putClientProperty(RULE, property.getRules());
+    propertyEditors.add(field);
+    field.addFocusListener(new FocusAdapter() {
+      @Override
+      public void focusGained(FocusEvent e) {
+        field.selectAll();
+      }
+      
+    });
+    field.addKeyListener(new KeyAdapter() {
 
-			@Override
-			public void keyReleased(KeyEvent e) {
-				setValue(node,property.getSetter(),field.getText());
-			}
-			
-		});
-		field.addKeyListener(escListener);
-	}
+      @Override
+      public void keyReleased(KeyEvent e) {
+        setValue(node,property.getSetter(),field.getText());
+      }
+      
+    });
+    field.addKeyListener(escListener);
+  }
 
 	@SuppressWarnings("unchecked")
 	private <E extends Enum<E>> void makeEnumComponent(JPanel row, Node<?> node, Object value, Property property) {
@@ -926,7 +940,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
 				}
 			}
 		}
-		validateProperties();
+		try {
+		  validateProperties();
+		} catch (Exception ex) {
+		  handleException(ex);
+		}
 		JButton remove = new JButton("<html>" + deleteLabel);
 		remove.addKeyListener(escListener);
 		remove.addActionListener((e) -> deleteSelected());
