@@ -13,6 +13,7 @@
 		<module>meta</module>
 		<module>meta-maven-plugin</module>
 		<module>meta-test</module>
+		<module>persist</module>
 	</modules>
 
 	<dependencyManagement>

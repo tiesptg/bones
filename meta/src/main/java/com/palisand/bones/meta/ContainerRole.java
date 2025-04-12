@@ -2,7 +2,7 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.ListRules;
+import com.palisand.bones.tt.Rules.BooleanRules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
 
@@ -16,7 +16,7 @@ import lombok.Setter;
 public class ContainerRole extends Member {
   private static final RulesMap RULES = Rules.map()
       .and("name",StringRules.builder().notNull(true).pattern("[a-z]\\w+").build())
-      .and("notEmpty",ListRules.builder().enabled(object -> ((ContainerRole)object).isMultiple()).build());
+      .and("notEmpty",BooleanRules.builder().enabled(object -> ((ContainerRole)object).isMultiple()).build());
       
       @Override
       public Rules getConstraint(String field) {

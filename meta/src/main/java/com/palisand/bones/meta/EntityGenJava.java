@@ -3,6 +3,7 @@ package com.palisand.bones.meta;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.palisand.bones.meta.generator.JavaGenerator;
 import com.palisand.bones.tt.Document;
@@ -50,7 +51,29 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
   }
   
-  private void doRules(Member member) {
+  private String getRuleType(Member member) throws IOException {
+    switch (member.getType()) {
+      case STRING: return "String";
+      case BOOLEAN: return "Boolean";
+      case INTEGER: case DOUBLE: return "Number";
+      case ENUM: return "Enum";
+      case OBJECT: {
+        if (member instanceof ContainerRole role) {
+          if (role.isMultiple()) {
+            return "List";
+          }
+          return "";
+        }
+        if (member.isMultiple()) {
+          return "List";
+        }
+        return "Link";
+      }
+    }
+    throw new IOException("Member " + member + " has no supported rules type");
+  }
+  
+  private void doRules(Member member) throws IOException {
     List<String> rules = new ArrayList<>();
     if (member.isNotNull()) {
       rules.add(".isNotNull(true)");
@@ -70,6 +93,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
           rules.add(".notEmpty(true)");
         }
       }
+    }
+    if (!rules.isEmpty()) {
+      nl(".and(\"%s\",%sRules.builder()%s.build())",member.getName(),getRuleType(member),rules.stream().collect(Collectors.joining()));
     }
   }
   
