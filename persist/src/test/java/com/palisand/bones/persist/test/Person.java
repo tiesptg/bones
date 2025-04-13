@@ -20,8 +20,9 @@ public class Person extends Table {
   private LocalDate birthday;
   private Integer children;
   
-  @Relation(opposite="friends")
-  private List<Person> friends = new ArrayList<>();
+  @Relation(opposite="friends2")
+  private List<Person> friends1 = new ArrayList<>();
+  private List<Person> friends2 = new ArrayList<>();
   
   @Relation(opposite="residents")
   private House residence;
