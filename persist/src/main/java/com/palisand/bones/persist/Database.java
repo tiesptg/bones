@@ -195,6 +195,18 @@ public class Database {
         return getFirst().getOpposite();
       }
       
+      public Object get(Object owner) throws SQLException {
+        try {
+          return getter.invoke(owner);
+        } catch (Exception ex) {
+          if (ex.getCause() != null) {
+            ex = (Exception)ex.getCause();
+          }
+          throw new SQLException("Could not get value of field " + field);
+        }
+      }
+
+      
     }
     
     @Setter
@@ -218,8 +230,34 @@ public class Database {
       public Entity getEntity() {
         return Entity.this;
       }
+      
+      public boolean isGenerated() {
+        return id == null ? false : id.generated();
+      }
+      
+      public Object get(Object owner) throws SQLException {
+        try {
+          return getter.invoke(owner);
+        } catch (Exception ex) {
+          if (ex.getCause() != null) {
+            ex = (Exception)ex.getCause();
+          }
+          throw new SQLException("Could not get value of field " + field);
+        }
+      }
+      
+      public void set(Object owner,Object value) throws SQLException {
+        try {
+          setter.invoke(owner,value);
+        } catch (Exception ex) {
+          if (ex.getCause() != null) {
+            ex = (Exception)ex.getCause();
+          }
+          throw new SQLException("Could not get value of field " + field);
+        }
+      }
     }
-    
+  
     public Entity(Class<?> cls) throws SQLException {
       primaryKey.setUnique(true);
       type = cls;
@@ -377,9 +415,7 @@ public class Database {
       commands.createLinkTable(connection, role);
     }
     for (Role role: fks) {
-      if (!role.isMany()) {
-        commands.createForeignKey(connection, role);
-      }
+      commands.createForeignKey(connection, role);
     }
     
   }

@@ -4,10 +4,9 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
-import java.sql.SQLData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLInput;
-import java.sql.SQLOutput;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -25,33 +24,31 @@ import lombok.Setter;
 public class CommandScheme extends HashMap<String,Class<?>> {
   private Map<Class<?>,JDBCType> typeMap = new HashMap<>();
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
-  protected Map<String,Statements> statements = new HashMap<>();
+  protected Map<Entity,Statements> statements = new HashMap<>();
   
   @Getter
   @Setter
   private class Statements {
     private PreparedStatement insert;
+    private String insertSql;
     private PreparedStatement update;
+    private String updateSql;
     private PreparedStatement delete;
+    private String deleteSql;
     private PreparedStatement selectOne;
+    private String selectOneSql;
   }
   
-  private abstract class ObjectStreamer implements SQLData {
-    protected Entity type;
-
-    @Override
-    public String getSQLTypeName() throws SQLException {
-      return type.getName();
-    }
-
-    @Override
-    public void readSQL(SQLInput stream, String typeName) throws SQLException {
-    }
-
-    @Override
-    public void writeSQL(SQLOutput stream) throws SQLException {
-    }
+  private static class Comma {
+    boolean first = true;
     
+    public void next(StringBuilder sb) {
+      if (first) {
+        first = false;
+      } else {
+        sb.append(",");
+      }
+    }
   }
   
   public CommandScheme() {
@@ -73,10 +70,6 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     typeMap.put(Float.class,JDBCType.REAL);
   }
   
-  public void register(Entity entity) {
-    put(entity.getName(),new ObjectStreamer() {{type=entity;}}.getClass());
-  }
-  
   protected String typeName(JDBCType type) {
     return type.getName();
   }
@@ -86,11 +79,16 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return connection.createStatement().execute(sql);
   }
   
-  private String getType(Attribute attribute) throws SQLException {
-    JDBCType type = typeMap.get(attribute.getType());
+  private JDBCType getJDBCType(Class<?> cls) throws SQLException {
+    JDBCType type = typeMap.get(cls);
     if (type == null) {
-      throw new SQLException("Type " + attribute.getType() + " is not (yet) supported");
+      throw new SQLException("Type " + cls + " is not (yet) supported");
     }
+    return type;
+  }
+  
+  private String getType(Attribute attribute) throws SQLException {
+    JDBCType type = getJDBCType(attribute.getType());
     return typeName(type);
   }
   
@@ -110,22 +108,17 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(entity.getName());
     sql.append("(");
     for (Attribute attribute: entity.getFields()) {
-      if (attribute.getType().isPrimitive() && !attribute.getType().getName().startsWith("java")) {
-        appendField(sql,"",attribute,attribute.isNullable());
-        if (attribute.getId() != null && attribute.getId().generated()) {
-          sql.append(" GENERATED ALWAYS AS IDENTITY");
-        }
-        sql.append(",");
-      } else {
+      appendField(sql,"",attribute,attribute.isNullable());
+      if (attribute.getId() != null && attribute.getId().generated()) {
+        sql.append(" GENERATED ALWAYS AS IDENTITY");
       }
+      sql.append(",");
     }
     for (Role role: entity.getForeignKeys()) {
-      if (!role.isMany()) {
-        Entity fk = Database.getEntity(role.getType());
-        for (Attribute pkf: fk.getPrimaryKey().getFields()) {
-          appendField(sql,role.getName(),pkf,true);
-          sql.append(",");
-        }
+      Entity fk = Database.getEntity(role.getType());
+      for (Attribute pkf: fk.getPrimaryKey().getFields()) {
+        appendField(sql,role.getName(),pkf,true);
+        sql.append(",");
       }
     }
     sql.append("PRIMARY KEY(");
@@ -235,9 +228,81 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     execute(connection,sql.toString());
     
   }
+  
+  protected PreparedStatement getInsertStatement(Connection connection, Entity entity) throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
+    if (stmts.getInsert() == null) {
+      StringBuilder sql = new StringBuilder("INSERT INTO ");
+      StringBuilder params = new StringBuilder();
+      sql.append(entity.getName());
+      sql.append("(");
+      Comma sqlComma = new Comma();
+      Comma pComma = new Comma();
+      for (Attribute field: entity.getFields()) {
+        if (!field.isGenerated()) {
+          sqlComma.next(sql);
+          pComma.next(params);
+          sql.append(field.getName());
+          params.append("?");
+        }
+      }
+      for (Role role: entity.getForeignKeys()) {
+        Entity other = Database.getEntity(role.getType());
+        for (Attribute field: other.getPrimaryKey().getFields()) {
+          sqlComma.next(sql);
+          pComma.next(params);
+          sql.append(role.getName());
+          sql.append(field.getName());
+          
+          params.append("?");
+        }
+      }
+      sql.append(") VALUES (");
+      sql.append(params);
+      sql.append(")");
+      stmts.setInsert(connection.prepareStatement(sql.toString(),Statement.RETURN_GENERATED_KEYS));
+      stmts.setInsertSql(sql.toString());
+    }
+    System.out.println(stmts.getInsertSql());
+    return stmts.getInsert();
+  }
 
-  public void insert(Connection connection, Entity entity, Object object) {
-    
+  public void insert(Connection connection, Entity entity, Object object) throws SQLException {
+    PreparedStatement stmt = getInsertStatement(connection,entity);
+    int index = 1;
+    for (Attribute field: entity.getFields()) {
+      if (!field.isGenerated()) {
+        Object value = field.get(object);
+        if (value != null) {
+          stmt.setObject(index++,value);
+        } else {
+          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+        }
+      }
+    }
+    for (Role role: entity.getForeignKeys()) {
+      Object value = role.get(object);
+      Entity other = Database.getEntity(role.getType());
+      for (Attribute field: other.getPrimaryKey().getFields()) {
+        if (value != null) {
+          Object key =  field.get(value);
+          stmt.setObject(index++,key);
+        } else {
+          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+        }
+      }
+    }
+    if (stmt.execute()) {
+      ResultSet keys = stmt.getResultSet();
+      if (keys.next()) {
+        index = 1;
+        for (Attribute field: entity.getPrimaryKey().getFields()) {
+          if (field.isGenerated()) {
+            field.set(object,keys.getObject(index++));
+          }
+        }
+      }
+    }
   }
 
   public String getDatabaseName(Connection connection) throws SQLException {
