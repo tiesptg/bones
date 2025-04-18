@@ -2,6 +2,7 @@ package com.palisand.bones.persist;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -9,14 +10,21 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import com.palisand.bones.persist.CommandScheme.Metadata.Index;
+import com.palisand.bones.persist.CommandScheme.Metadata.Table;
 import com.palisand.bones.persist.Database.Entity;
 import com.palisand.bones.persist.Database.Entity.Attribute;
 import com.palisand.bones.persist.Database.Entity.Role;
+import com.palisand.bones.persist.Database.Entity.SearchPath;
 
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -28,7 +36,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   
   @Getter
   @Setter
-  private class Statements {
+  static private class Statements {
     private PreparedStatement insert;
     private String insertSql;
     private PreparedStatement update;
@@ -38,6 +46,80 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     private PreparedStatement selectOne;
     private String selectOneSql;
   }
+  
+  @Data
+  static class Metadata {
+    
+    @Data
+    static class Table {
+      private final String name;
+      private final Map<String,Field> fields = new TreeMap<>();
+      private Index primaryKey;
+      private final Map<String,Index> foreignKeys = new TreeMap<>();
+      private final Map<String,Index> indices = new TreeMap<>();
+    }
+    
+    @Data 
+    static class Field {
+      private final String name;
+      private final JDBCType type;
+      private final boolean nullable;
+    }
+    
+    @Data 
+    static class Index {
+      private final String name;
+      private final boolean unique;
+      private final List<Field> fields = new ArrayList<>();
+    }
+
+    private final Map<String,Table> tables = new TreeMap<>();
+    private String catalog;
+  }
+  
+  Metadata getMetadata(Connection connection) throws SQLException {
+    DatabaseMetaData dbmd = connection.getMetaData();
+    Metadata metadata = new Metadata();
+    ResultSet tables = dbmd.getTables(connection.getCatalog(),null,null,new String[] { "TABLE" });
+    while (tables.next()) {
+      Table table = new Table(tables.getString("TABLE_NAME"));
+      metadata.getTables().put(table.getName().toLowerCase(),table);
+      ResultSet fields = dbmd.getColumns(connection.getCatalog(),null,table.getName(),null);
+      while (fields.next()) {
+        Metadata.Field field = new Metadata.Field(fields.getString("COLUMN_NAME"),
+            JDBCType.valueOf(fields.getInt("DATA_TYPE")),fields.getBoolean("IS_NULLABLE"));
+        table.getFields().put(field.getName().toLowerCase(),field);
+      }
+      ResultSet pkeys = dbmd.getPrimaryKeys(connection.getCatalog(),null,table.getName());
+      Index pkey = new Index("pk",true);
+      table.setPrimaryKey(pkey);
+      while (pkeys.next()) {
+        pkey.getFields().add(table.getFields().get(pkeys.getString("COLUMN_NAME").toLowerCase()));
+      }
+      ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(),null,null,connection.getCatalog(),null,table.getName());
+      Metadata.Index fkey = null;
+      while (fkeys.next()) {
+        String name = fkeys.getString("FK_NAME");
+        if (fkey == null || fkey.getName().equals(name)) {
+          fkey = new Index(name,false);
+          table.getForeignKeys().put(name.toLowerCase(),fkey);
+        }
+        fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME").toLowerCase()));
+      }
+      ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),null,table.getName(),false,false);
+      Index index = null;
+      while (indices.next()) {
+        String name = indices.getString("INDEX_NAME");
+        if (index == null || index.getName().equals(name)) {
+          index = new Index(name,!indices.getBoolean("NON_UNIQUE"));
+          table.getIndices().put(name.toLowerCase(),index);
+        }
+        index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME").toLowerCase()));
+      }
+    }
+    return metadata;
+  }
+  
   
   private static class Comma {
     boolean first = true;
@@ -94,6 +176,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   
   private void appendField(StringBuilder sql, String prefix, Attribute attribute, boolean nullable) throws SQLException {
     sql.append(prefix);
+    appendField(sql,attribute,nullable);
+  }
+  
+  private void appendField(StringBuilder sql, Attribute attribute, boolean nullable) throws SQLException {
     sql.append(attribute.getName());
     sql.append(" ");
     sql.append(getType(attribute));
@@ -103,21 +189,30 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(" NULL");
   }
   
+  protected void upgradeTable(Connection connection, Table dbTable, Entity entity) throws SQLException {
+    if (dbTable == null) {
+      createTable(connection,entity);
+    } else {
+      // TODO: create and remove fields
+      // TODO: create and remove foreign keys
+      // TODO: create and remove indices
+    }
+  }
+  
   public void createTable(Connection connection, Entity entity) throws SQLException {
-    StringBuilder sql = new StringBuilder("CREATE TABLE ");
+    StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
     sql.append(entity.getName());
     sql.append("(");
     for (Attribute attribute: entity.getFields()) {
-      appendField(sql,"",attribute,attribute.isNullable());
+      appendField(sql,attribute,attribute.isNullable());
       if (attribute.getId() != null && attribute.getId().generated()) {
         sql.append(" GENERATED ALWAYS AS IDENTITY");
       }
       sql.append(",");
     }
     for (Role role: entity.getForeignKeys()) {
-      Entity fk = Database.getEntity(role.getType());
-      for (Attribute pkf: fk.getPrimaryKey().getFields()) {
-        appendField(sql,role.getName(),pkf,true);
+      for (Attribute field: role.getForeignKey().getFields()) {
+        appendField(sql,field,true);
         sql.append(",");
       }
     }
@@ -127,13 +222,13 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     execute(connection, sql.toString());
   }
   
-  public void createLinkTable(Connection connection, Role first) throws SQLException {
+  public String createLinkTable(Connection connection, Table table, Role first) throws SQLException {
     Role second = first.getOpposite();
+    String name = null;
     if (second != null) {
-      StringBuilder sql = new StringBuilder("CREATE TABLE ");
-      sql.append(first.getName());
-      Entity entity = Database.getEntity(first.getType());
-      sql.append(entity.getName());
+      StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
+      name = first.getTablename();
+      sql.append(name);
       sql.append("(");
       Entity fk = Database.getEntity(first.getType());
       boolean comma = false;
@@ -183,11 +278,12 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append("))");
       execute(connection,sql.toString());
     }
+    return name;
   }
   
-  public void dropTable(Connection connection, Entity entity) throws SQLException {
+  public void dropTable(Connection connection, String name) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP TABLE IF EXISTS ");
-    sql.append(entity.getName());
+    sql.append(name);
     execute(connection,sql.toString());
   }
 
@@ -226,7 +322,6 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(fk.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
     sql.append(")");
     execute(connection,sql.toString());
-    
   }
   
   protected PreparedStatement getInsertStatement(Connection connection, Entity entity) throws SQLException {
@@ -307,6 +402,25 @@ public class CommandScheme extends HashMap<String,Class<?>> {
 
   public String getDatabaseName(Connection connection) throws SQLException {
     return connection.getCatalog();
+  }
+
+  public void createIndex(Connection connection, SearchPath path) throws SQLException {
+    StringBuilder sql = new StringBuilder("CREATE ");
+    if (path.isUnique()) {
+      sql.append("UNIQUE ");
+    }
+    sql.append("INDEX ");
+    sql.append(path.getName());
+    sql.append(" ON ");
+    sql.append(path.getEntity().getName());
+    sql.append("(");
+    Comma comma = new Comma();
+    for (Attribute field: path.getFields()) {
+      comma.next(sql);
+      sql.append(field.getName());
+    }
+    sql.append(")");
+    execute(connection,sql.toString());
   }
  
 }

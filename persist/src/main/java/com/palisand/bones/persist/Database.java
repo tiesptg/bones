@@ -24,10 +24,13 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import com.palisand.bones.persist.CommandScheme.Metadata;
 import com.palisand.bones.persist.Database.Entity.Role;
 
 import lombok.Getter;
@@ -143,6 +146,22 @@ public class Database {
         return Collection.class.isAssignableFrom(field.getType());
       }
       
+      public SearchPath getForeignKey() throws SQLException {
+        if (foreignKey == null && !isMany()) {
+          Entity entity = Database.getEntity(type);
+          foreignKey = new SearchPath();
+          foreignKey.setName(CommandScheme.FOREIGN_KEY_PREFIX + field.getName());
+          foreignKey.setUnique(false);
+          entity.getPrimaryKey().getFields().forEach(field -> {
+            ForeignKeyAttribute copy = new ForeignKeyAttribute();
+            copy.setName(getName() + field.getName());
+            copy.setType(field.getType());
+            foreignKey.getFields().add(copy); 
+          });
+        }
+        return foreignKey;
+      }
+      
       public Role getOpposite() throws SQLException {
         if (opposite == null) {
           Relation relation = getRelation();
@@ -179,6 +198,11 @@ public class Database {
           }
         }
         return opposite;
+      }
+      
+      public String getTablename() throws SQLException {
+        Entity entity = Database.getEntity(getType());
+        return getName() + entity.getName();
       }
 
       public Role getFirst() throws SQLException {
@@ -257,6 +281,16 @@ public class Database {
         }
       }
     }
+    
+    @Getter
+    @Setter
+    @RequiredArgsConstructor
+    public class ForeignKeyAttribute extends Attribute {
+      private String name;
+      private Class<?> type;
+    }
+    
+
   
     public Entity(Class<?> cls) throws SQLException {
       primaryKey.setUnique(true);
@@ -306,6 +340,7 @@ public class Database {
               SearchPath path = indices.get(index.value());
               if (path == null) {
                 path = new SearchPath();
+                path.setName(index.value());
                 indices.put(index.value(),path);
               }
               path.fields.add(attribute);
@@ -401,9 +436,12 @@ public class Database {
     CommandScheme commands = getCommands(connection);
     HashSet<Role> m2m = new HashSet<>();
     HashSet<Role> fks = new HashSet<>();
+    Metadata metadata = commands.getMetadata(connection);
+    TreeSet<String> tablesRemoved = new TreeSet<>(metadata.getTables().keySet());
     for (Class<?> type: types) {
       Entity entity = getEntity(type);
-      commands.createTable(connection,entity);
+      commands.upgradeTable(connection, metadata.getTables().get(entity.getName().toLowerCase()), entity);
+      tablesRemoved.remove(entity.getName());
       for (Role role: entity.getLinks()) {
         if (role.getOpposite() != null && role.getOpposite().isMany()) {
           m2m.add(role.getFirst());
@@ -412,10 +450,18 @@ public class Database {
       fks.addAll(entity.getForeignKeys());
     }
     for (Role role: m2m) {
-      commands.createLinkTable(connection, role);
+      Metadata.Table table = metadata.getTables().get(role.getTablename().toLowerCase());
+      String tableName = commands.createLinkTable(connection, table, role);
+      if (tableName != null) {
+        tablesRemoved.remove(tableName);
+      }
     }
     for (Role role: fks) {
       commands.createForeignKey(connection, role);
+      commands.createIndex(connection,role.getForeignKey());
+    }
+    for (String name: tablesRemoved) {
+      commands.dropTable(connection,name);
     }
     
   }
@@ -436,7 +482,7 @@ public class Database {
       }
     }
     for (Entity entity: entities) {
-      commands.dropTable(connection,entity);
+      commands.dropTable(connection,entity.getName());
     }
   }
   

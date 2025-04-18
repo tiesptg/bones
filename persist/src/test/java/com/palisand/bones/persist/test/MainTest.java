@@ -15,7 +15,7 @@ public class MainTest {
       connection.setAutoCommit(false);
       Database database = new Database(() -> new PostgresqlCommands());
       System.out.println("Connected succesfully to " + database.getDatabaseName(connection));
-      database.drop(connection,Person.class,House.class,Apartment.class);
+      //database.drop(connection,Person.class,House.class,Apartment.class);
       database.upgrade(connection,Person.class,House.class,Apartment.class);
       Person person = new Person();
       person.setName("Ties P");
