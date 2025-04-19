@@ -151,7 +151,7 @@ public class Database {
         if (foreignKey == null && !isMany()) {
           DbClass entity = Database.getEntity(type);
           foreignKey = new DbSearchMethod();
-          foreignKey.setName(CommandScheme.FOREIGN_KEY_PREFIX + field.getName());
+          foreignKey.setName(CommandScheme.FOREIGN_KEY_PREFIX + getEntity().getName() + '_' + field.getName());
           foreignKey.setUnique(false);
           entity.getPrimaryKey().getFields().forEach(field -> {
             ForeignKeyAttribute copy = new ForeignKeyAttribute();
@@ -341,7 +341,7 @@ public class Database {
               DbSearchMethod path = indices.get(index.value());
               if (path == null) {
                 path = new DbSearchMethod();
-                path.setName(index.value());
+                path.setName(getName() + '_' + index.value());
                 indices.put(index.value(),path);
               }
               path.fields.add(attribute);
@@ -452,9 +452,11 @@ public class Database {
     }
     for (DbRole role: m2m) {
       Metadata.DbTable table = metadata.getTables().get(role.getTablename().toLowerCase());
-      String tableName = commands.createLinkTable(connection, table, role);
+      String tableName = role.getTablename();
       if (tableName != null) {
-        tablesRemoved.remove(tableName);
+        if (!tablesRemoved.remove(tableName)) {
+          commands.createLinkTable(connection,table,role);
+        }
       }
     }
     for (DbRole role: fks) {

@@ -111,12 +111,22 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),null,table.getName(),false,false);
       DbIndex index = null;
       while (indices.next()) {
-        String name = indices.getString("INDEX_NAME");
-        if (index == null || index.getName().equals(name)) {
+        String name = indices.getString("INDEX_NAME").toLowerCase();
+        if (index == null || !index.getName().equalsIgnoreCase(name)) {
           index = new DbIndex(name,!indices.getBoolean("NON_UNIQUE"));
           table.getIndices().put(name.toLowerCase(),index);
         }
         index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME").toLowerCase()));
+      }
+      String key = null;
+      for (Entry<String,DbIndex> entry: table.getIndices().entrySet()) {
+        if (entry.getValue().getFields().equals(table.getPrimaryKey().getFields())) {
+          key = entry.getKey();
+          break;
+        }
+      }
+      if (key != null) {
+        table.getIndices().remove(key);
       }
     }
     return metadata;
@@ -203,6 +213,14 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         addFieldToTable(connection, entity, attribute);
       }
     }
+    for (DbRole role: entity.getForeignKeys()) {
+      for (DbAttribute attribute: role.getForeignKey().getFields()) {
+        String name = attribute.getName().toLowerCase();
+        if (!fieldsToRemove.remove(name)) {
+          addFieldToTable(connection,entity,attribute);
+        }
+      }
+    }
     for (String name: fieldsToRemove) {
       removeFieldFromTable(connection,entity,name);
     }
@@ -223,10 +241,12 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       DbSearchMethod index = role.getForeignKey();
       String name = index.getName().toLowerCase();
       if (!indicesToRemove.remove(name)) {
+        createForeignKey(connection,role);
         createIndex(connection, index);
       }
     }
     for (String name: indicesToRemove) {
+      dropContraint(connection,entity.getName(),name);
       dropIndex(connection,entity,name);
     }
   }
@@ -243,7 +263,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName) throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
-    sql.append(" REMOVE ");
+    sql.append(" DROP COLUMN ");
     sql.append(columnName);
     execute(connection,sql.toString());
   }
@@ -277,6 +297,9 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(entity.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
     sql.append("))");
     execute(connection, sql.toString());
+    for (DbSearchMethod method: entity.getIndices().values()) {
+      createIndex(connection,method);
+    }
   }
   
   public String createLinkTable(Connection connection, DbTable table, DbRole first) throws SQLException {
