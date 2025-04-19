@@ -24,14 +24,15 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import com.palisand.bones.persist.CommandScheme.Metadata;
-import com.palisand.bones.persist.Database.Entity.Role;
+import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
+import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
+import com.palisand.bones.persist.Database.DbClass.DbRole;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -97,36 +98,36 @@ public class Database {
   
   @Setter
   @Getter
-  public static class Entity {
+  public static class DbClass {
     private final Class<?> type;
-    private final List<Attribute> fields = new ArrayList<>();
-    private final SearchPath primaryKey = new SearchPath();
-    private final Map<String,SearchPath> indices = new TreeMap<>();
-    private final List<Role> foreignKeys = new ArrayList<>();
-    private final List<Role> links = new ArrayList<>();
+    private final List<DbAttribute> fields = new ArrayList<>();
+    private final DbSearchMethod primaryKey = new DbSearchMethod();
+    private final Map<String,DbSearchMethod> indices = new TreeMap<>();
+    private final List<DbRole> foreignKeys = new ArrayList<>();
+    private final List<DbRole> links = new ArrayList<>();
     private final boolean mapped;
 
     @Setter
     @Getter
     @RequiredArgsConstructor
-    public class SearchPath {
+    public class DbSearchMethod {
       private String name;
-      private List<Attribute> fields = new ArrayList<>();
+      private List<DbAttribute> fields = new ArrayList<>();
       private boolean unique = false;
 
-      public Entity getEntity() {
-        return Entity.this;
+      public DbClass getEntity() {
+        return DbClass.this;
       }
     }
     
     @Setter
     @Getter
     @RequiredArgsConstructor
-    public class Role {
+    public class DbRole {
       private Field field;
-      private SearchPath foreignKey;
+      private DbSearchMethod foreignKey;
       private Class<?> type;
-      private Role opposite;
+      private DbRole opposite;
       private Method getter;
       private Method setter;
       
@@ -134,8 +135,8 @@ public class Database {
         return field.getName();
       }
       
-      public Entity getEntity() {
-        return Entity.this;
+      public DbClass getEntity() {
+        return DbClass.this;
       }
 
       public Relation getRelation() {
@@ -146,15 +147,15 @@ public class Database {
         return Collection.class.isAssignableFrom(field.getType());
       }
       
-      public SearchPath getForeignKey() throws SQLException {
+      public DbSearchMethod getForeignKey() throws SQLException {
         if (foreignKey == null && !isMany()) {
-          Entity entity = Database.getEntity(type);
-          foreignKey = new SearchPath();
+          DbClass entity = Database.getEntity(type);
+          foreignKey = new DbSearchMethod();
           foreignKey.setName(CommandScheme.FOREIGN_KEY_PREFIX + field.getName());
           foreignKey.setUnique(false);
           entity.getPrimaryKey().getFields().forEach(field -> {
             ForeignKeyAttribute copy = new ForeignKeyAttribute();
-            copy.setName(getName() + field.getName());
+            copy.setName(getName() + '_' + field.getName());
             copy.setType(field.getType());
             foreignKey.getFields().add(copy); 
           });
@@ -162,33 +163,33 @@ public class Database {
         return foreignKey;
       }
       
-      public Role getOpposite() throws SQLException {
+      public DbRole getOpposite() throws SQLException {
         if (opposite == null) {
           Relation relation = getRelation();
-          Entity other = Database.getEntity(type);
+          DbClass other = Database.getEntity(type);
           if (other != null) {
             if (relation != null) {
-              for (Role role: other.getForeignKeys()) {
+              for (DbRole role: other.getForeignKeys()) {
                 if (role.getName().equals(relation.opposite())) {
                   opposite = role;
                   break;
                 }
               }
-              for (Role role: other.getLinks()) {
+              for (DbRole role: other.getLinks()) {
                 if (role.getName().equals(relation.opposite())) {
                   opposite = role;
                   break;
                 }
               }
             } else {
-              for (Role role: other.getForeignKeys()) {
+              for (DbRole role: other.getForeignKeys()) {
                 relation = role.getRelation();
                 if (relation != null && relation.opposite().equals(getName())) {
                   opposite = role;
                   break;
                 }
               }
-              for (Role role: other.getLinks()) {
+              for (DbRole role: other.getLinks()) {
                 if (role.getName().equals(relation.opposite())) {
                   opposite = role;
                   break;
@@ -201,12 +202,12 @@ public class Database {
       }
       
       public String getTablename() throws SQLException {
-        Entity entity = Database.getEntity(getType());
-        return getName() + entity.getName();
+        DbClass entity = Database.getEntity(getType());
+        return getName() + '_' + entity.getName();
       }
 
-      public Role getFirst() throws SQLException {
-        Role opposite = getOpposite();
+      public DbRole getFirst() throws SQLException {
+        DbRole opposite = getOpposite();
         if (opposite != null) {
           if (getName().compareTo(opposite.getName()) > 0) {
             return opposite;
@@ -215,7 +216,7 @@ public class Database {
         return this;
       }
       
-      public Role getSecond() throws SQLException {
+      public DbRole getSecond() throws SQLException {
         return getFirst().getOpposite();
       }
       
@@ -236,7 +237,7 @@ public class Database {
     @Setter
     @Getter
     @RequiredArgsConstructor
-    public class Attribute {
+    public class DbAttribute {
       private Field field;
       private Method getter;
       private Method setter;
@@ -251,8 +252,8 @@ public class Database {
         return getter.getReturnType();
       }
       
-      public Entity getEntity() {
-        return Entity.this;
+      public DbClass getEntity() {
+        return DbClass.this;
       }
       
       public boolean isGenerated() {
@@ -285,18 +286,18 @@ public class Database {
     @Getter
     @Setter
     @RequiredArgsConstructor
-    public class ForeignKeyAttribute extends Attribute {
+    public class ForeignKeyAttribute extends DbAttribute {
       private String name;
       private Class<?> type;
     }
     
 
   
-    public Entity(Class<?> cls) throws SQLException {
+    public DbClass(Class<?> cls) throws SQLException {
       primaryKey.setUnique(true);
       type = cls;
       if (cls.getSuperclass() != Object.class) {
-        Entity parent = Database.getEntity(cls.getSuperclass());
+        DbClass parent = Database.getEntity(cls.getSuperclass());
         if (parent.isMapped()) {
           fields.addAll(parent.getFields());
           indices.putAll(parent.getIndices());
@@ -310,21 +311,21 @@ public class Database {
       for (Field field: cls.getDeclaredFields()) {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
-            Role role = new Role();
+            DbRole role = new DbRole();
             role.setType(getGenericType(field.getGenericType(),0));
             role.setField(field);
             role.setGetter(getGetter(cls,field));
             role.setSetter(getSetter(cls,field));
             links.add(role);
           } else if (!field.getType().isPrimitive() && !field.getType().getName().startsWith("java")) {
-            Role role = new Role();
+            DbRole role = new DbRole();
             role.setType(field.getType());
             role.setField(field);
             role.setGetter(getGetter(cls,field));
             role.setSetter(getSetter(cls,field));
             foreignKeys.add(role);
           } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
-            Attribute attribute = new Attribute();
+            DbAttribute attribute = new DbAttribute();
             attribute.setField(field);
             attribute.setGetter(getGetter(cls,field));
             attribute.setSetter(getSetter(cls,field));
@@ -337,9 +338,9 @@ public class Database {
             }
             Index[] all = field.getAnnotationsByType(Index.class);
             for (Index index: all) {
-              SearchPath path = indices.get(index.value());
+              DbSearchMethod path = indices.get(index.value());
               if (path == null) {
-                path = new SearchPath();
+                path = new DbSearchMethod();
                 path.setName(index.value());
                 indices.put(index.value(),path);
               }
@@ -384,7 +385,7 @@ public class Database {
     
   }
   
-  private static final Map<Class<?>,Entity> ENTITIES = new ConcurrentHashMap<>();
+  private static final Map<Class<?>,DbClass> ENTITIES = new ConcurrentHashMap<>();
   private final Supplier<CommandScheme> commandsCreator;
   
   public Database() {
@@ -404,16 +405,16 @@ public class Database {
     return (CommandScheme)result;
   }
   
-  synchronized static Entity getEntity(Class<?> cls) throws SQLException {
-    Entity entity = ENTITIES.get(cls);
+  synchronized static DbClass getEntity(Class<?> cls) throws SQLException {
+    DbClass entity = ENTITIES.get(cls);
     if (entity == null) {
-      entity = new Entity(cls);
+      entity = new DbClass(cls);
       ENTITIES.put(cls,entity);
     }
     return entity;
   }
   
-  private List<Entity> entitiesInTransaction = null;
+  private List<DbClass> entitiesInTransaction = null;
   
   public void startTransaction(Connection connection) throws SQLException {
     if (entitiesInTransaction != null) {
@@ -434,29 +435,29 @@ public class Database {
   
   public void upgrade(Connection connection, Class<?>...types) throws SQLException {
     CommandScheme commands = getCommands(connection);
-    HashSet<Role> m2m = new HashSet<>();
-    HashSet<Role> fks = new HashSet<>();
+    HashSet<DbRole> m2m = new HashSet<>();
+    HashSet<DbRole> fks = new HashSet<>();
     Metadata metadata = commands.getMetadata(connection);
     TreeSet<String> tablesRemoved = new TreeSet<>(metadata.getTables().keySet());
     for (Class<?> type: types) {
-      Entity entity = getEntity(type);
+      DbClass entity = getEntity(type);
       commands.upgradeTable(connection, metadata.getTables().get(entity.getName().toLowerCase()), entity);
       tablesRemoved.remove(entity.getName());
-      for (Role role: entity.getLinks()) {
+      for (DbRole role: entity.getLinks()) {
         if (role.getOpposite() != null && role.getOpposite().isMany()) {
           m2m.add(role.getFirst());
         }
       }
       fks.addAll(entity.getForeignKeys());
     }
-    for (Role role: m2m) {
-      Metadata.Table table = metadata.getTables().get(role.getTablename().toLowerCase());
+    for (DbRole role: m2m) {
+      Metadata.DbTable table = metadata.getTables().get(role.getTablename().toLowerCase());
       String tableName = commands.createLinkTable(connection, table, role);
       if (tableName != null) {
         tablesRemoved.remove(tableName);
       }
     }
-    for (Role role: fks) {
+    for (DbRole role: fks) {
       commands.createForeignKey(connection, role);
       commands.createIndex(connection,role.getForeignKey());
     }
@@ -466,30 +467,23 @@ public class Database {
     
   }
   
-  public void drop(Connection connection, Class<?>...types) throws SQLException {
+  public void dropAll(Connection connection) throws SQLException {
     CommandScheme commands = getCommands(connection);
-    List<Entity> entities = new ArrayList<>();
-    for (Class<?> type: types) {
-      Entity entity = getEntity(type);
-      entities.add(entity);
-      for (Role role: entity.getForeignKeys()) {
-        commands.dropContraint(connection, entity,role);
-      }
-      for (Role role: entity.getLinks()) {
-        if (role.getOpposite() != null && role.getOpposite().isMany()) {
-          commands.dropTable(connection, role);
-        }
+    Metadata md = commands.getMetadata(connection);
+    for (DbTable table: md.getTables().values()) {
+      for (DbIndex fk: table.getForeignKeys().values()) {
+        commands.dropContraint(connection,table.getName(),fk.getName());
       }
     }
-    for (Entity entity: entities) {
-      commands.dropTable(connection,entity.getName());
+    for (DbTable table: md.getTables().values()) {
+      commands.dropTable(connection,table.getName());
     }
   }
   
   public void insert(Connection connection, Object...objects) throws SQLException {
     CommandScheme commands = getCommands(connection);
     for (Object object: objects) {
-      Entity entity = getEntity(object.getClass());
+      DbClass entity = getEntity(object.getClass());
       commands.insert(connection, entity, object);
     }
   }

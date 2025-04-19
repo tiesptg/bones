@@ -15,14 +15,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import com.palisand.bones.persist.CommandScheme.Metadata.Index;
-import com.palisand.bones.persist.CommandScheme.Metadata.Table;
-import com.palisand.bones.persist.Database.Entity;
-import com.palisand.bones.persist.Database.Entity.Attribute;
-import com.palisand.bones.persist.Database.Entity.Role;
-import com.palisand.bones.persist.Database.Entity.SearchPath;
+import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
+import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
+import com.palisand.bones.persist.Database.DbClass;
+import com.palisand.bones.persist.Database.DbClass.DbAttribute;
+import com.palisand.bones.persist.Database.DbClass.DbRole;
+import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 
 import lombok.Data;
 import lombok.Getter;
@@ -32,7 +34,7 @@ import lombok.Setter;
 public class CommandScheme extends HashMap<String,Class<?>> {
   private Map<Class<?>,JDBCType> typeMap = new HashMap<>();
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
-  protected Map<Entity,Statements> statements = new HashMap<>();
+  protected Map<DbClass,Statements> statements = new HashMap<>();
   
   @Getter
   @Setter
@@ -51,29 +53,29 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   static class Metadata {
     
     @Data
-    static class Table {
+    static class DbTable {
       private final String name;
-      private final Map<String,Field> fields = new TreeMap<>();
-      private Index primaryKey;
-      private final Map<String,Index> foreignKeys = new TreeMap<>();
-      private final Map<String,Index> indices = new TreeMap<>();
+      private final Map<String,DbColumn> fields = new TreeMap<>();
+      private DbIndex primaryKey;
+      private final Map<String,DbIndex> foreignKeys = new TreeMap<>();
+      private final Map<String,DbIndex> indices = new TreeMap<>();
     }
     
     @Data 
-    static class Field {
+    static class DbColumn {
       private final String name;
       private final JDBCType type;
       private final boolean nullable;
     }
     
     @Data 
-    static class Index {
+    static class DbIndex {
       private final String name;
       private final boolean unique;
-      private final List<Field> fields = new ArrayList<>();
+      private final List<DbColumn> fields = new ArrayList<>();
     }
 
-    private final Map<String,Table> tables = new TreeMap<>();
+    private final Map<String,DbTable> tables = new TreeMap<>();
     private String catalog;
   }
   
@@ -82,36 +84,36 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     Metadata metadata = new Metadata();
     ResultSet tables = dbmd.getTables(connection.getCatalog(),null,null,new String[] { "TABLE" });
     while (tables.next()) {
-      Table table = new Table(tables.getString("TABLE_NAME"));
+      DbTable table = new DbTable(tables.getString("TABLE_NAME"));
       metadata.getTables().put(table.getName().toLowerCase(),table);
       ResultSet fields = dbmd.getColumns(connection.getCatalog(),null,table.getName(),null);
       while (fields.next()) {
-        Metadata.Field field = new Metadata.Field(fields.getString("COLUMN_NAME"),
+        Metadata.DbColumn field = new Metadata.DbColumn(fields.getString("COLUMN_NAME"),
             JDBCType.valueOf(fields.getInt("DATA_TYPE")),fields.getBoolean("IS_NULLABLE"));
         table.getFields().put(field.getName().toLowerCase(),field);
       }
       ResultSet pkeys = dbmd.getPrimaryKeys(connection.getCatalog(),null,table.getName());
-      Index pkey = new Index("pk",true);
+      DbIndex pkey = new DbIndex("pk",true);
       table.setPrimaryKey(pkey);
       while (pkeys.next()) {
         pkey.getFields().add(table.getFields().get(pkeys.getString("COLUMN_NAME").toLowerCase()));
       }
       ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(),null,null,connection.getCatalog(),null,table.getName());
-      Metadata.Index fkey = null;
+      Metadata.DbIndex fkey = null;
       while (fkeys.next()) {
         String name = fkeys.getString("FK_NAME");
         if (fkey == null || fkey.getName().equals(name)) {
-          fkey = new Index(name,false);
+          fkey = new DbIndex(name,false);
           table.getForeignKeys().put(name.toLowerCase(),fkey);
         }
         fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME").toLowerCase()));
       }
       ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),null,table.getName(),false,false);
-      Index index = null;
+      DbIndex index = null;
       while (indices.next()) {
         String name = indices.getString("INDEX_NAME");
         if (index == null || index.getName().equals(name)) {
-          index = new Index(name,!indices.getBoolean("NON_UNIQUE"));
+          index = new DbIndex(name,!indices.getBoolean("NON_UNIQUE"));
           table.getIndices().put(name.toLowerCase(),index);
         }
         index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME").toLowerCase()));
@@ -169,17 +171,20 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return type;
   }
   
-  private String getType(Attribute attribute) throws SQLException {
+  private String getType(DbAttribute attribute) throws SQLException {
     JDBCType type = getJDBCType(attribute.getType());
     return typeName(type);
   }
   
-  private void appendField(StringBuilder sql, String prefix, Attribute attribute, boolean nullable) throws SQLException {
-    sql.append(prefix);
-    appendField(sql,attribute,nullable);
+  private void appendColumn(StringBuilder sql, String prefix, DbAttribute attribute, boolean nullable) throws SQLException {
+    if (!prefix.isEmpty()) {
+      sql.append(prefix);
+      sql.append('_');
+    }
+    appendColumn(sql,attribute,nullable);
   }
   
-  private void appendField(StringBuilder sql, Attribute attribute, boolean nullable) throws SQLException {
+  private void appendColumn(StringBuilder sql, DbAttribute attribute, boolean nullable) throws SQLException {
     sql.append(attribute.getName());
     sql.append(" ");
     sql.append(getType(attribute));
@@ -189,30 +194,82 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(" NULL");
   }
   
-  protected void upgradeTable(Connection connection, Table dbTable, Entity entity) throws SQLException {
-    if (dbTable == null) {
-      createTable(connection,entity);
-    } else {
-      // TODO: create and remove fields
-      // TODO: create and remove foreign keys
-      // TODO: create and remove indices
+  protected void upgradeColumns(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
+    TreeSet<String> fieldsToRemove = new TreeSet<String>(
+        dbTable.getFields().keySet().stream().map(name -> name.toLowerCase()).toList());
+    for (DbAttribute attribute: entity.getFields()) {
+      String name = attribute.getName().toLowerCase();
+      if (!fieldsToRemove.remove(name)) {
+        addFieldToTable(connection, entity, attribute);
+      }
+    }
+    for (String name: fieldsToRemove) {
+      removeFieldFromTable(connection,entity,name);
     }
   }
   
-  public void createTable(Connection connection, Entity entity) throws SQLException {
-    StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
+  protected void upgradeIndices(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
+    TreeSet<String> indicesToRemove = new TreeSet<String>(
+        Stream.concat(
+            dbTable.getIndices().keySet().stream(),
+            dbTable.getForeignKeys().keySet().stream()).map(name -> name.toLowerCase()).toList());
+    for (DbSearchMethod index: entity.getIndices().values()) {
+      String name = index.getName().toLowerCase();
+      if (!indicesToRemove.remove(name)) {
+        createIndex(connection, index);
+      }
+    }
+    for (DbRole role: entity.getForeignKeys()) {
+      DbSearchMethod index = role.getForeignKey();
+      String name = index.getName().toLowerCase();
+      if (!indicesToRemove.remove(name)) {
+        createIndex(connection, index);
+      }
+    }
+    for (String name: indicesToRemove) {
+      dropIndex(connection,entity,name);
+    }
+  }
+  
+  protected void upgradeTable(Connection connection, DbTable dbTable, DbClass entity) throws SQLException {
+    if (dbTable == null) {
+      createTable(connection,entity);
+    } else {
+      upgradeColumns(connection,dbTable,entity);
+      upgradeIndices(connection,dbTable,entity);
+    }
+  }
+  
+  protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName) throws SQLException {
+    StringBuilder sql = new StringBuilder("ALTER TABLE ");
+    sql.append(entity.getName());
+    sql.append(" REMOVE ");
+    sql.append(columnName);
+    execute(connection,sql.toString());
+  }
+  
+  protected void addFieldToTable(Connection connection, DbClass entity, DbAttribute attribute) throws SQLException {
+    StringBuilder sql = new StringBuilder("ALTER TABLE ");
+    sql.append(entity.getName());
+    sql.append(" ADD ");
+    appendColumn(sql,attribute,attribute.isNullable());
+    execute(connection,sql.toString());
+  }
+  
+  public void createTable(Connection connection, DbClass entity) throws SQLException {
+    StringBuilder sql = new StringBuilder("CREATE TABLE ");
     sql.append(entity.getName());
     sql.append("(");
-    for (Attribute attribute: entity.getFields()) {
-      appendField(sql,attribute,attribute.isNullable());
+    for (DbAttribute attribute: entity.getFields()) {
+      appendColumn(sql,attribute,attribute.isNullable());
       if (attribute.getId() != null && attribute.getId().generated()) {
         sql.append(" GENERATED ALWAYS AS IDENTITY");
       }
       sql.append(",");
     }
-    for (Role role: entity.getForeignKeys()) {
-      for (Attribute field: role.getForeignKey().getFields()) {
-        appendField(sql,field,true);
+    for (DbRole role: entity.getForeignKeys()) {
+      for (DbAttribute field: role.getForeignKey().getFields()) {
+        appendColumn(sql,field,true);
         sql.append(",");
       }
     }
@@ -222,44 +279,38 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     execute(connection, sql.toString());
   }
   
-  public String createLinkTable(Connection connection, Table table, Role first) throws SQLException {
-    Role second = first.getOpposite();
+  public String createLinkTable(Connection connection, DbTable table, DbRole first) throws SQLException {
+    DbRole second = first.getOpposite();
     String name = null;
     if (second != null) {
-      StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
+      StringBuilder sql = new StringBuilder("CREATE TABLE ");
       name = first.getTablename();
       sql.append(name);
       sql.append("(");
-      Entity fk = Database.getEntity(first.getType());
-      boolean comma = false;
+      DbClass fk = Database.getEntity(first.getType());
+      Comma sqlComma = new Comma();
+      Comma pkComma = new Comma();
+      Comma ffkComma = new Comma();
       StringBuilder pk = new StringBuilder();
       StringBuilder ffk = new StringBuilder();
-      for (Attribute pkf: fk.getPrimaryKey().getFields()) {
-        if (comma) {
-          sql.append(",");
-          pk.append(",");
-          ffk.append(",");
-        } else {
-          comma = true;
-        }
-        appendField(sql,first.getName(),pkf,false);
-        pk.append(first.getName() + pkf.getName());
-        ffk.append(first.getName() + pkf.getName());
+      for (DbAttribute pkf: fk.getPrimaryKey().getFields()) {
+        sqlComma.next(sql);
+        pkComma.next(pk);
+        ffkComma.next(ffk);
+        appendColumn(sql,first.getName(),pkf,false);
+        pk.append(first.getName() + '_' + pkf.getName());
+        ffk.append(first.getName() + '_' + pkf.getName());
       }
-      Entity sk = Database.getEntity(second.getType());
-      comma = false;
+      DbClass sk = Database.getEntity(second.getType());
+      Comma sfkComma = new Comma();
       StringBuilder sfk = new StringBuilder();
-      for (Attribute pkf: sk.getPrimaryKey().getFields()) {
-        sql.append(",");
-        pk.append(",");
-        if (comma) {
-          sfk.append(",");
-        } else {
-          comma = true;
-        }
-        appendField(sql,second.getName(),pkf,false);
-        pk.append(second.getName() + pkf.getName());
-        sfk.append(second.getName() + pkf.getName());
+      for (DbAttribute pkf: sk.getPrimaryKey().getFields()) {
+        sqlComma.next(sql);
+        pkComma.next(pk);
+        sfkComma.next(sfk);
+        appendColumn(sql,second.getName(),pkf,false);
+        pk.append(second.getName() + '_' + pkf.getName());
+        sfk.append(second.getName() + '_' + pkf.getName());
       }
       sql.append(",PRIMARY KEY(");
       sql.append(pk.toString());
@@ -282,40 +333,37 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   }
   
   public void dropTable(Connection connection, String name) throws SQLException {
-    StringBuilder sql = new StringBuilder("DROP TABLE IF EXISTS ");
+    StringBuilder sql = new StringBuilder("DROP TABLE ");
     sql.append(name);
     execute(connection,sql.toString());
   }
+  
+  protected void dropIndex(Connection connection, DbClass entity, String indexName) throws SQLException {
+    StringBuilder sql = new StringBuilder("DROP INDEX ");
+    sql.append(indexName);
+    execute(connection, sql.toString());
+  }
 
-  public void dropContraint(Connection connection, Entity entity, Role role) throws SQLException {
-    StringBuilder sql = new StringBuilder("ALTER TABLE IF EXISTS ");
-    sql.append(entity.getName());
-    sql.append(" DROP CONSTRAINT IF EXISTS ");
-    sql.append(FOREIGN_KEY_PREFIX);
-    sql.append(role.getName());
+  public void dropContraint(Connection connection, String tableName, String constraintName) throws SQLException {
+    StringBuilder sql = new StringBuilder("ALTER TABLE ");
+    sql.append(tableName);
+    sql.append(" DROP CONSTRAINT ");
+    sql.append(constraintName);
     execute(connection,sql.toString());
   }
 
-  public void dropTable(Connection connection, Role first) throws SQLException {
-    Role second = first.getOpposite();
-    if (second != null) {
-      StringBuilder sql = new StringBuilder("DROP TABLE IF EXISTS ");
-      sql.append(first.getName());
-      Entity entity = Database.getEntity(first.getType());
-      sql.append(entity.getName());
-      execute(connection,sql.toString());
-    }
-  }
-
-  public void createForeignKey(Connection connection, Role role) throws SQLException {
-    StringBuilder sql = new StringBuilder("ALTER TABLE IF EXISTS ");
+  public void createForeignKey(Connection connection, DbRole role) throws SQLException {
+    StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(role.getEntity().getName());
     sql.append(" ADD CONSTRAINT ");
     sql.append(FOREIGN_KEY_PREFIX);
-    Entity fk = Database.getEntity(role.getType());
+    DbClass fk = Database.getEntity(role.getType());
+    sql.append(role.getEntity().getName());
+    sql.append('_');
     sql.append(role.getName());
     sql.append(" FOREIGN KEY(");
-    sql.append(fk.getPrimaryKey().getFields().stream().map(a -> role.getName() + a.getName()).collect(Collectors.joining(",")));
+    sql.append(fk.getPrimaryKey().getFields().stream()
+        .map(a -> role.getName() + '_' + a.getName()).collect(Collectors.joining(",")));
     sql.append(") REFERENCES ");
     sql.append(fk.getName());
     sql.append("(");
@@ -324,7 +372,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     execute(connection,sql.toString());
   }
   
-  protected PreparedStatement getInsertStatement(Connection connection, Entity entity) throws SQLException {
+  protected PreparedStatement getInsertStatement(Connection connection, DbClass entity) throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
     if (stmts.getInsert() == null) {
       StringBuilder sql = new StringBuilder("INSERT INTO ");
@@ -333,7 +381,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append("(");
       Comma sqlComma = new Comma();
       Comma pComma = new Comma();
-      for (Attribute field: entity.getFields()) {
+      for (DbAttribute field: entity.getFields()) {
         if (!field.isGenerated()) {
           sqlComma.next(sql);
           pComma.next(params);
@@ -341,12 +389,13 @@ public class CommandScheme extends HashMap<String,Class<?>> {
           params.append("?");
         }
       }
-      for (Role role: entity.getForeignKeys()) {
-        Entity other = Database.getEntity(role.getType());
-        for (Attribute field: other.getPrimaryKey().getFields()) {
+      for (DbRole role: entity.getForeignKeys()) {
+        DbClass other = Database.getEntity(role.getType());
+        for (DbAttribute field: other.getPrimaryKey().getFields()) {
           sqlComma.next(sql);
           pComma.next(params);
           sql.append(role.getName());
+          sql.append('_');
           sql.append(field.getName());
           
           params.append("?");
@@ -362,10 +411,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return stmts.getInsert();
   }
 
-  public void insert(Connection connection, Entity entity, Object object) throws SQLException {
+  public void insert(Connection connection, DbClass entity, Object object) throws SQLException {
     PreparedStatement stmt = getInsertStatement(connection,entity);
     int index = 1;
-    for (Attribute field: entity.getFields()) {
+    for (DbAttribute field: entity.getFields()) {
       if (!field.isGenerated()) {
         Object value = field.get(object);
         if (value != null) {
@@ -375,10 +424,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         }
       }
     }
-    for (Role role: entity.getForeignKeys()) {
+    for (DbRole role: entity.getForeignKeys()) {
       Object value = role.get(object);
-      Entity other = Database.getEntity(role.getType());
-      for (Attribute field: other.getPrimaryKey().getFields()) {
+      DbClass other = Database.getEntity(role.getType());
+      for (DbAttribute field: other.getPrimaryKey().getFields()) {
         if (value != null) {
           Object key =  field.get(value);
           stmt.setObject(index++,key);
@@ -391,7 +440,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       ResultSet keys = stmt.getResultSet();
       if (keys.next()) {
         index = 1;
-        for (Attribute field: entity.getPrimaryKey().getFields()) {
+        for (DbAttribute field: entity.getPrimaryKey().getFields()) {
           if (field.isGenerated()) {
             field.set(object,keys.getObject(index++));
           }
@@ -404,7 +453,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return connection.getCatalog();
   }
 
-  public void createIndex(Connection connection, SearchPath path) throws SQLException {
+  public void createIndex(Connection connection, DbSearchMethod path) throws SQLException {
     StringBuilder sql = new StringBuilder("CREATE ");
     if (path.isUnique()) {
       sql.append("UNIQUE ");
@@ -415,7 +464,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(path.getEntity().getName());
     sql.append("(");
     Comma comma = new Comma();
-    for (Attribute field: path.getFields()) {
+    for (DbAttribute field: path.getFields()) {
       comma.next(sql);
       sql.append(field.getName());
     }
