@@ -21,6 +21,9 @@ public class Version1 {
 
     @Id(generated = true)
     private long oid;
+    
+    @Version
+    private int oversion;
 
   }
 
