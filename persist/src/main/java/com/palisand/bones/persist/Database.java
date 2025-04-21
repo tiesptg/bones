@@ -103,19 +103,20 @@ public class Database {
   public static class DbClass {
     private final Class<?> type;
     private final DbClass superClass;
-    private final List<DbAttribute> fields = new ArrayList<>();
+    private final List<DbField> fields = new ArrayList<>();
     private final DbSearchMethod primaryKey = new DbSearchMethod();
     private final Map<String,DbSearchMethod> indices = new TreeMap<>();
     private final List<DbRole> foreignKeys = new ArrayList<>();
     private final List<DbRole> links = new ArrayList<>();
     private final boolean mapped;
+    private final DbField version;
 
     @Setter
     @Getter
     @RequiredArgsConstructor
     public class DbSearchMethod {
       private String name;
-      private List<DbAttribute> fields = new ArrayList<>();
+      private List<DbField> fields = new ArrayList<>();
       private boolean unique = false;
 
       public DbClass getEntity() {
@@ -243,15 +244,16 @@ public class Database {
     @Setter
     @Getter
     @RequiredArgsConstructor
-    public class DbAttribute {
+    public class DbField {
       private Field field;
       private Method getter;
       private Method setter;
       private boolean nullable = true;
       private Id id;
+      private Version version;
 
       public String getName() {
-        return field.getName().toLowerCase();
+        return field.getName();
       }
       
       public Class<?> getType() {
@@ -264,6 +266,10 @@ public class Database {
       
       public boolean isGenerated() {
         return id == null ? false : id.generated();
+      }
+      
+      public boolean isVersion() {
+      	return version != null;
       }
       
       public Object get(Object owner) throws SQLException {
@@ -292,7 +298,7 @@ public class Database {
     @Getter
     @Setter
     @RequiredArgsConstructor
-    public class DbForeignKeyAttribute extends DbAttribute {
+    public class DbForeignKeyAttribute extends DbField {
       private String name;
       private Class<?> type;
     }
@@ -320,6 +326,7 @@ public class Database {
         superClass = null;
       }
       mapped = cls.getAnnotation(Mapped.class) != null;
+      DbField dbVersion = null;
       for (Field field: cls.getDeclaredFields()) {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
@@ -337,7 +344,7 @@ public class Database {
             role.setSetter(getSetter(cls,field));
             foreignKeys.add(role);
           } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
-            DbAttribute attribute = new DbAttribute();
+            DbField attribute = new DbField();
             attribute.setField(field);
             attribute.setGetter(getGetter(cls,field));
             attribute.setSetter(getSetter(cls,field));
@@ -348,12 +355,19 @@ public class Database {
               primaryKey.fields.add(attribute);
               attribute.setId(id);
             }
+            Version version = field.getAnnotation(Version.class);
+            if (version != null) {
+            	attribute.setVersion(version);
+            	dbVersion = attribute;
+            } else {
+            	dbVersion = null;
+            }
             Index[] all = field.getAnnotationsByType(Index.class);
             for (Index index: all) {
               DbSearchMethod path = indices.get(index.value());
               if (path == null) {
                 path = new DbSearchMethod();
-                path.setName(getName() + '_' + index.value().toLowerCase());
+                path.setName(getName() + '_' + index.value());
                 indices.put(index.value(),path);
               }
               path.fields.add(attribute);
@@ -363,11 +377,12 @@ public class Database {
           }
         }
       }
+      this.version = dbVersion;
       ENTITIES.put(cls,this);
     }
     
     public String getName() {
-      return type.getSimpleName().toLowerCase();
+      return type.getSimpleName();
     }
     
     private boolean isSupported(Class<?> cls) {
@@ -416,6 +431,7 @@ public class Database {
     if (result == null || !(result instanceof CommandScheme)) {
       result = commandsCreator.get();
       connection.setTypeMap(result);
+      connection.setAutoCommit(false);
     }
     return (CommandScheme)result;
   }
@@ -445,13 +461,14 @@ public class Database {
     HashSet<DbRole> m2m = new HashSet<>();
     HashSet<DbRole> fks = new HashSet<>();
     List<DbClass> withParents = new ArrayList<>();
-    Set<String> tableNames = new TreeSet<>();
+    Set<String> tableNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     for (Class<?> type: types) {
       DbClass dbc = Database.getDbClass(type);
       tableNames.add(dbc.getName());
     }
     Metadata metadata = commands.getMetadata(connection);
-    TreeSet<String> tablesRemoved = new TreeSet<>(metadata.getTables().keySet());
+    TreeSet<String> tablesRemoved = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    tablesRemoved.addAll(metadata.getTables().keySet());
     for (DbTable table: metadata.getTables().values()) {
       for (DbIndex fk: table.getForeignKeys().values()) {
         if (!tableNames.contains(fk.getReferences().getName())) {
@@ -464,7 +481,7 @@ public class Database {
       if (entity.getSuperClass() != null) {
         withParents.add(entity);
       }
-      commands.upgradeTable(connection, metadata.getTables().get(entity.getName().toLowerCase()), entity);
+      commands.upgradeTable(connection, metadata.getTables().get(entity.getName()), entity);
       tablesRemoved.remove(entity.getName());
       for (DbRole role: entity.getLinks()) {
         if (role.getOpposite() != null && role.getOpposite().isMany()) {
@@ -478,8 +495,8 @@ public class Database {
       commands.upgradeParent(connection, table, cls);
     }
     for (DbRole role: m2m) {
-      Metadata.DbTable table = metadata.getTables().get(role.getTablename().toLowerCase());
-      String tableName = role.getTablename().toLowerCase();
+      Metadata.DbTable table = metadata.getTables().get(role.getTablename());
+      String tableName = role.getTablename();
       if (tableName != null) {
         if (!tablesRemoved.remove(tableName)) {
           commands.createLinkTable(connection,table,role);
@@ -514,6 +531,14 @@ public class Database {
     for (Object object: objects) {
       DbClass entity = getDbClass(object.getClass());
       commands.insert(connection, entity, object);
+    }
+  }
+  
+  public void update(Connection connection, Object...objects) throws SQLException {
+    CommandScheme commands = getCommands(connection);
+    for (Object object: objects) {
+      DbClass entity = getDbClass(object.getClass());
+      commands.update(connection, entity, object);
     }
   }
   

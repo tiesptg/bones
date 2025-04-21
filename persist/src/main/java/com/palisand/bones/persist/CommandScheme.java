@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
 import com.palisand.bones.persist.Database.DbClass;
-import com.palisand.bones.persist.Database.DbClass.DbAttribute;
+import com.palisand.bones.persist.Database.DbClass.DbField;
 import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 
@@ -57,10 +57,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     @Data
     static class DbTable {
       private final String name;
-      private final Map<String,DbColumn> fields = new TreeMap<>();
+      private final Map<String,DbColumn> fields = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
       private DbIndex primaryKey;
-      private final Map<String,DbIndex> foreignKeys = new TreeMap<>();
-      private final Map<String,DbIndex> indices = new TreeMap<>();
+      private final Map<String,DbIndex> foreignKeys = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      private final Map<String,DbIndex> indices = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     }
     
     @Data 
@@ -78,50 +78,38 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       private final List<DbColumn> fields = new ArrayList<>();
     }
 
-    private final Map<String,DbTable> tables = new TreeMap<>();
+    private final Map<String,DbTable> tables = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private String catalog;
   }
   
   Metadata getMetadata(Connection connection) throws SQLException {
     DatabaseMetaData dbmd = connection.getMetaData();
     Metadata metadata = new Metadata();
-    ResultSet tables = dbmd.getTables(connection.getCatalog(),null,null,new String[] { "TABLE" });
-    List<Object[]> tempFks = new ArrayList<>();
+    ResultSet tables = dbmd.getTables(connection.getCatalog(),connection.getSchema(),null,new String[] { "TABLE" });
     while (tables.next()) {
-      DbTable table = new DbTable(tables.getString("TABLE_NAME").toLowerCase());
+      DbTable table = new DbTable(tables.getString("TABLE_NAME"));
       metadata.getTables().put(table.getName(),table);
-      ResultSet fields = dbmd.getColumns(connection.getCatalog(),null,table.getName(),null);
+      ResultSet fields = dbmd.getColumns(connection.getCatalog(),connection.getSchema(),table.getName(),null);
       while (fields.next()) {
-        Metadata.DbColumn field = new Metadata.DbColumn(fields.getString("COLUMN_NAME").toLowerCase(),
+        Metadata.DbColumn field = new Metadata.DbColumn(fields.getString("COLUMN_NAME"),
             JDBCType.valueOf(fields.getInt("DATA_TYPE")),fields.getBoolean("IS_NULLABLE"));
         table.getFields().put(field.getName(),field);
       }
-      ResultSet pkeys = dbmd.getPrimaryKeys(connection.getCatalog(),null,table.getName());
+      ResultSet pkeys = dbmd.getPrimaryKeys(connection.getCatalog(),connection.getSchema(),table.getName());
       DbIndex pkey = new DbIndex("pk",true);
       table.setPrimaryKey(pkey);
       while (pkeys.next()) {
-        pkey.getFields().add(table.getFields().get(pkeys.getString("COLUMN_NAME").toLowerCase()));
+        pkey.getFields().add(table.getFields().get(pkeys.getString("COLUMN_NAME")));
       }
-      ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(),null,null,connection.getCatalog(),null,table.getName());
-      Metadata.DbIndex fkey = null;
-      while (fkeys.next()) {
-        String name = fkeys.getString("FK_NAME").toLowerCase();
-        if (fkey == null || fkey.getName().equals(name)) {
-          fkey = new DbIndex(name,false);
-          table.getForeignKeys().put(name,fkey);
-          tempFks.add(new Object[] {fkey,fkeys.getString("PKTABLE_NAME").toLowerCase()});
-        }
-        fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME").toLowerCase()));
-      }
-      ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),null,table.getName(),false,false);
+      ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),connection.getSchema(),table.getName(),false,false);
       DbIndex index = null;
       while (indices.next()) {
-        String name = indices.getString("INDEX_NAME").toLowerCase();
+        String name = indices.getString("INDEX_NAME");
         if (index == null || !index.getName().equalsIgnoreCase(name)) {
           index = new DbIndex(name,!indices.getBoolean("NON_UNIQUE"));
           table.getIndices().put(name,index);
         }
-        index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME").toLowerCase()));
+        index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME")));
       }
       String key = null;
       for (Entry<String,DbIndex> entry: table.getIndices().entrySet()) {
@@ -134,17 +122,36 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         table.getIndices().remove(key);
       }
     }
-    for (Object[] refs: tempFks) {
-      DbIndex index = (DbIndex)refs[0];
-      DbTable table = metadata.getTables().get(refs[1]);
-      index.setReferences(table);
+    for (DbTable table: metadata.getTables().values()) {
+    	for (DbTable other: metadata.getTables().values()) {
+	      ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(),connection.getSchema(),other.getName(),connection.getCatalog(),connection.getSchema(),table.getName());
+	      Metadata.DbIndex fkey = null;
+	      while (fkeys.next()) {
+	        String name = fkeys.getString("FK_NAME");
+	        if (fkey == null || fkey.getName().equals(name)) {
+	          fkey = new DbIndex(name,false);
+	          table.getForeignKeys().put(name,fkey);
+	          fkey.setReferences(other);
+	        }
+	        fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME")));
+	      }
+    	}
     }
     return metadata;
   }
   
   
-  private static class Comma {
+  private static class Separator {
+  	final String token;
     boolean first = true;
+    
+    Separator() {
+    	token = ",";
+    }
+    
+    Separator(String token) {
+    	this.token = token;
+    }
     
     public void next(StringBuilder sb) {
       if (first) {
@@ -200,12 +207,12 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return type;
   }
   
-  private String getType(DbAttribute attribute) throws SQLException {
+  private String getType(DbField attribute) throws SQLException {
     JDBCType type = getJDBCType(attribute.getType());
     return typeName(type);
   }
   
-  private void appendColumn(StringBuilder sql, String prefix, DbAttribute attribute, boolean nullable) throws SQLException {
+  private void appendColumn(StringBuilder sql, String prefix, DbField attribute, boolean nullable) throws SQLException {
     if (!prefix.isEmpty()) {
       sql.append(prefix);
       sql.append('_');
@@ -213,7 +220,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     appendColumn(sql,attribute,nullable);
   }
   
-  private void appendColumn(StringBuilder sql, DbAttribute attribute, boolean nullable) throws SQLException {
+  private void appendColumn(StringBuilder sql, DbField attribute, boolean nullable) throws SQLException {
     sql.append(attribute.getName());
     sql.append(" ");
     sql.append(getType(attribute));
@@ -224,18 +231,16 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   }
   
   protected void upgradeColumns(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
-    TreeSet<String> fieldsToRemove = new TreeSet<String>(
-        dbTable.getFields().keySet().stream().map(name -> name.toLowerCase()).toList());
-    for (DbAttribute attribute: entity.getFields()) {
-      String name = attribute.getName().toLowerCase();
-      if (!fieldsToRemove.remove(name)) {
+    TreeSet<String> fieldsToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+    fieldsToRemove.addAll(dbTable.getFields().keySet());
+    for (DbField attribute: entity.getFields()) {
+      if (!fieldsToRemove.remove(attribute.getName())) {
         addFieldToTable(connection, entity, attribute);
       }
     }
     for (DbRole role: entity.getForeignKeys()) {
-      for (DbAttribute attribute: role.getForeignKey().getFields()) {
-        String name = attribute.getName().toLowerCase();
-        if (!fieldsToRemove.remove(name)) {
+      for (DbField attribute: role.getForeignKey().getFields()) {
+        if (!fieldsToRemove.remove(attribute.getName())) {
           addFieldToTable(connection,entity,attribute);
         }
       }
@@ -246,10 +251,9 @@ public class CommandScheme extends HashMap<String,Class<?>> {
   }
   
   protected void upgradeIndices(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
-    TreeSet<String> indicesToRemove = new TreeSet<String>(
-        Stream.concat(
-            dbTable.getIndices().keySet().stream(),
-            dbTable.getForeignKeys().keySet().stream()).map(name -> name.toLowerCase()).toList());
+    TreeSet<String> indicesToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+    indicesToRemove.addAll(dbTable.getIndices().keySet());
+    indicesToRemove.addAll(dbTable.getForeignKeys().keySet());
     if (entity.getSuperClass() != null) {
       String name = FOREIGN_KEY_PREFIX + entity.getName() + "_parent";
       if (!indicesToRemove.remove(name)) {
@@ -257,15 +261,13 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       }
     }
     for (DbSearchMethod index: entity.getIndices().values()) {
-      String name = index.getName().toLowerCase();
-      if (!indicesToRemove.remove(name)) {
+      if (!indicesToRemove.remove(index.getName())) {
         createIndex(connection, index);
       }
     }
     for (DbRole role: entity.getForeignKeys()) {
       DbSearchMethod index = role.getForeignKey();
-      String name = index.getName().toLowerCase();
-      if (!indicesToRemove.remove(name)) {
+      if (!indicesToRemove.remove(index.getName())) {
         createIndex(connection, index);
       }
     }
@@ -303,7 +305,7 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     execute(connection,sql.toString());
   }
   
-  protected void addFieldToTable(Connection connection, DbClass entity, DbAttribute attribute) throws SQLException {
+  protected void addFieldToTable(Connection connection, DbClass entity, DbField attribute) throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
     sql.append(" ADD ");
@@ -315,15 +317,15 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     StringBuilder sql = new StringBuilder("CREATE TABLE ");
     sql.append(entity.getName());
     sql.append("(");
-    for (DbAttribute attribute: entity.getFields()) {
+    for (DbField attribute: entity.getFields()) {
       appendColumn(sql,attribute,attribute.isNullable());
-      if (attribute.getId() != null && attribute.getId().generated() && entity.getSuperClass() == null) {
+      if (attribute.getId() != null && attribute.isGenerated() && entity.getSuperClass() == null) {
         sql.append(" GENERATED ALWAYS AS IDENTITY");
       }
       sql.append(",");
     }
     for (DbRole role: entity.getForeignKeys()) {
-      for (DbAttribute field: role.getForeignKey().getFields()) {
+      for (DbField field: role.getForeignKey().getFields()) {
         appendColumn(sql,field,true);
         sql.append(",");
       }
@@ -346,12 +348,12 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append(name);
       sql.append("(");
       DbClass fk = Database.getDbClass(first.getType());
-      Comma sqlComma = new Comma();
-      Comma pkComma = new Comma();
-      Comma ffkComma = new Comma();
+      Separator sqlComma = new Separator();
+      Separator pkComma = new Separator();
+      Separator ffkComma = new Separator();
       StringBuilder pk = new StringBuilder();
       StringBuilder ffk = new StringBuilder();
-      for (DbAttribute pkf: fk.getPrimaryKey().getFields()) {
+      for (DbField pkf: fk.getPrimaryKey().getFields()) {
         sqlComma.next(sql);
         pkComma.next(pk);
         ffkComma.next(ffk);
@@ -360,9 +362,9 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         ffk.append(first.getName() + '_' + pkf.getName());
       }
       DbClass sk = Database.getDbClass(second.getType());
-      Comma sfkComma = new Comma();
+      Separator sfkComma = new Separator();
       StringBuilder sfk = new StringBuilder();
-      for (DbAttribute pkf: sk.getPrimaryKey().getFields()) {
+      for (DbField pkf: sk.getPrimaryKey().getFields()) {
         sqlComma.next(sql);
         pkComma.next(pk);
         sfkComma.next(sfk);
@@ -446,10 +448,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       StringBuilder params = new StringBuilder();
       sql.append(entity.getName());
       sql.append("(");
-      Comma sqlComma = new Comma();
-      Comma pComma = new Comma();
-      for (DbAttribute field: entity.getFields()) {
-        if (!field.isGenerated()) {
+      Separator sqlComma = new Separator();
+      Separator pComma = new Separator();
+      for (DbField field: entity.getFields()) {
+        if (!field.isGenerated() || entity.getSuperClass() != null) {
           sqlComma.next(sql);
           pComma.next(params);
           sql.append(field.getName());
@@ -457,14 +459,10 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         }
       }
       for (DbRole role: entity.getForeignKeys()) {
-        DbClass other = Database.getDbClass(role.getType());
-        for (DbAttribute field: other.getPrimaryKey().getFields()) {
+        for (DbField field: role.getForeignKey().getFields()) {
           sqlComma.next(sql);
           pComma.next(params);
-          sql.append(role.getName());
-          sql.append('_');
           sql.append(field.getName());
-          
           params.append("?");
         }
       }
@@ -477,12 +475,70 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     return stmts;
   }
   
+  protected Statements getUpdateStatement(Connection connection, DbClass entity) throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
+    if (stmts.getUpdate() == null) {
+      StringBuilder sql = new StringBuilder("UPDATE ");
+      sql.append(entity.getName());
+      sql.append(" SET ");
+      Separator sqlComma = new Separator();
+      for (DbField field: entity.getFields()) {
+      	if (field.isVersion()) {
+          sqlComma.next(sql);
+          sql.append(field.getName());
+          sql.append('=');
+          sql.append(field.getName());
+          sql.append("+1");
+      	} else if (!entity.getPrimaryKey().getFields().contains(field)) {
+          sqlComma.next(sql);
+          sql.append(field.getName());
+          sql.append("=?");
+        }
+      }
+      for (DbRole role: entity.getForeignKeys()) {
+        for (DbField field: role.getForeignKey().getFields()) {
+          sqlComma.next(sql);
+          sql.append(field.getName());
+          sql.append("=?");
+        }
+      }
+      sql.append(" WHERE ");
+      Separator and = new Separator(" AND ");
+      for (DbField field: entity.getPrimaryKey().getFields()) {
+      	and.next(sql);
+      	sql.append(field.getName());
+      	sql.append("=?");
+      }
+      if (entity.getVersion() != null) {
+      	and.next(sql);
+      	sql.append(entity.getVersion().getName());
+      	sql.append("=?");
+      }
+      stmts.setUpdate(connection.prepareStatement(sql.toString(),Statement.RETURN_GENERATED_KEYS));
+      stmts.setUpdateSql(sql.toString());
+    }
+    return stmts;
+  }
+  
   private void nextValue(StringBuilder sql, Object value) {
     if (sql != null) {
+    	String literal = getLiteral(value);
       int pos = sql.indexOf("?");
-      sql.replace(pos,pos+1,value.toString());
+      sql.replace(pos,pos+1,literal);
     }
   }
+  
+  public String getLiteral(Object value) {
+  	if (value == null) {
+  		return "null";
+  	}
+  	if (value.getClass() == String.class || value.getClass().getName().startsWith("java.time")) {
+    	return '\'' + value.toString() + '\'';
+  	}
+		return value.toString();
+  }
+  
+
 
   public void insert(Connection connection, DbClass entity, Object object) throws SQLException {
     if (entity.getSuperClass() != null) {
@@ -495,45 +551,95 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql = new StringBuilder(stmts.getInsertSql());
     }
     int index = 1;
-    for (DbAttribute field: entity.getFields()) {
-      if (!field.isGenerated()) {
+    for (DbField field: entity.getFields()) {
+      if (!field.isGenerated() || entity.getSuperClass() != null) {
         Object value = field.get(object);
         if (value != null) {
           stmt.setObject(index++,value);
-          nextValue(sql,value);
         } else {
           stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
-          nextValue(sql,"null");
         }
+        nextValue(sql,value);
       }
     }
     for (DbRole role: entity.getForeignKeys()) {
-      Object value = role.get(object);
-      DbClass other = Database.getDbClass(role.getType());
-      for (DbAttribute field: other.getPrimaryKey().getFields()) {
+      Object child = role.get(object);
+      DbClass cls = Database.getDbClass(role.getType());
+      for (DbField field: cls.getPrimaryKey().getFields()) {
+      	Object value = child == null ? null : field.get(child);
         if (value != null) {
-          Object key =  field.get(value);
-          stmt.setObject(index++,key);
-          nextValue(sql,value);
+          stmt.setObject(index++,value);
         } else {
           stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
-          nextValue(sql,"null");
         }
+        nextValue(sql,value);
       }
     }
     if (logger != null) {
       logger.accept(sql.toString());
     }
-    if (stmt.execute()) {
-      ResultSet keys = stmt.getResultSet();
+    if (stmt.executeUpdate() != 0 && entity.getSuperClass() == null) {
+      ResultSet keys = stmt.getGeneratedKeys();
       if (keys.next()) {
         index = 1;
-        for (DbAttribute field: entity.getPrimaryKey().getFields()) {
+        for (DbField field: entity.getPrimaryKey().getFields()) {
           if (field.isGenerated()) {
             field.set(object,keys.getObject(index++));
           }
         }
       }
+    }
+  }
+
+  public void update(Connection connection, DbClass entity, Object object) throws SQLException {    if (entity.getSuperClass() != null) {
+      update(connection,entity.getSuperClass(),object);
+    }
+    Statements stmts = getUpdateStatement(connection,entity);
+    PreparedStatement stmt = stmts.getUpdate();
+    StringBuilder sql = null;
+    if (logger != null) {
+      sql = new StringBuilder(stmts.getUpdateSql());
+    }
+    int index = 1;
+    for (DbField field: entity.getFields()) {
+      if (!entity.getPrimaryKey().getFields().contains(field) && !field.isVersion()) {
+        Object value = field.get(object);
+        if (value != null) {
+          stmt.setObject(index++,value);
+        } else {
+          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+        }
+        nextValue(sql,value);
+      }
+    }
+    for (DbRole role: entity.getForeignKeys()) {
+      Object child = role.get(object);
+      DbClass cls = Database.getDbClass(role.getType());
+      for (DbField field: cls.getPrimaryKey().getFields()) {
+      	Object value = child == null ? null : field.get(child);
+        if (value != null) {
+          stmt.setObject(index++,value);
+        } else {
+          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+        }
+        nextValue(sql,value);
+      }
+    }
+    for (DbField field: entity.getPrimaryKey().getFields()) {
+    	Object value = field.get(object);
+    	stmt.setObject(index++, value);
+    	nextValue(sql,value);
+    }
+    if (entity.getVersion() != null) {
+    	Object value = entity.getVersion().get(object);
+    	stmt.setObject(index++, value);
+    	nextValue(sql,value);
+    }
+    if (logger != null) {
+      logger.accept(sql.toString());
+    }
+    if (stmt.executeUpdate() != 1) {
+    	throw new StaleObjectException(object + " is out of date.");
     }
   }
 
@@ -551,8 +657,8 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(" ON ");
     sql.append(path.getEntity().getName());
     sql.append("(");
-    Comma comma = new Comma();
-    for (DbAttribute field: path.getFields()) {
+    Separator comma = new Separator();
+    for (DbField field: path.getFields()) {
       comma.next(sql);
       sql.append(field.getName());
     }
