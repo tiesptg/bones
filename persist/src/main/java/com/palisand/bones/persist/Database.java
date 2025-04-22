@@ -154,6 +154,28 @@ public class Database {
         return Collection.class.isAssignableFrom(field.getType());
       }
       
+      public Object get(Object owner) throws SQLException {
+        try {
+          return getter.invoke(owner);
+        } catch (Exception ex) {
+          if (ex.getCause() != null) {
+            ex = (Exception)ex.getCause();
+          }
+          throw new SQLException("Could not get value of field " + field);
+        }
+      }
+      
+      public void set(Object owner,Object value) throws SQLException {
+        try {
+          setter.invoke(owner,value);
+        } catch (Exception ex) {
+          if (ex.getCause() != null) {
+            ex = (Exception)ex.getCause();
+          }
+          throw new SQLException("Could not set value of field " + field);
+        }
+      }
+
       public DbSearchMethod getForeignKey() throws SQLException {
         if (foreignKey == null && !isMany()) {
           DbClass entity = Database.getDbClass(type);
@@ -226,18 +248,6 @@ public class Database {
       public DbRole getSecond() throws SQLException {
         return getFirst().getOpposite();
       }
-      
-      public Object get(Object owner) throws SQLException {
-        try {
-          return getter.invoke(owner);
-        } catch (Exception ex) {
-          if (ex.getCause() != null) {
-            ex = (Exception)ex.getCause();
-          }
-          throw new SQLException("Could not get value of field " + field);
-        }
-      }
-
       
     }
     
@@ -408,6 +418,17 @@ public class Database {
       } catch (NoSuchMethodException | SecurityException ex) {
         return null;
       }
+    }
+    
+    public Object newInstance() throws SQLException {
+    	try {
+    		return getType().getConstructor().newInstance();
+    	} catch (Exception ex) {
+    		if (ex.getCause() != null) {
+    			throw new SQLException(ex.getCause());
+    		}
+    		throw new SQLException(ex);
+    	}
     }
     
   }

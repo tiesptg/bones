@@ -47,8 +47,8 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     private String updateSql;
     private PreparedStatement delete;
     private String deleteSql;
-    private PreparedStatement selectOne;
-    private String selectOneSql;
+    private PreparedStatement refresh;
+    private String refreshSql;
   }
   
   @Data
@@ -514,8 +514,40 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       	sql.append(entity.getVersion().getName());
       	sql.append("=?");
       }
-      stmts.setUpdate(connection.prepareStatement(sql.toString(),Statement.RETURN_GENERATED_KEYS));
+      stmts.setUpdate(connection.prepareStatement(sql.toString()));
       stmts.setUpdateSql(sql.toString());
+    }
+    return stmts;
+  }
+  
+  protected Statements getRefreshStatement(Connection connection, DbClass entity) throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
+    if (stmts.getUpdate() == null) {
+      StringBuilder sql = new StringBuilder("SELECT ");
+      Separator sqlComma = new Separator();
+      for (DbField field: entity.getFields()) {
+      	if (!entity.getPrimaryKey().getFields().contains(field)) {
+          sqlComma.next(sql);
+          sql.append(field.getName());
+        }
+      }
+      for (DbRole role: entity.getForeignKeys()) {
+        for (DbField field: role.getForeignKey().getFields()) {
+          sqlComma.next(sql);
+          sql.append(field.getName());
+        }
+      }
+      sql.append(" FROM ");
+      sql.append(entity.getName());
+      sql.append(" WHERE ");
+      Separator and = new Separator(" AND ");
+      for (DbField field: entity.getPrimaryKey().getFields()) {
+      	and.next(sql);
+      	sql.append(field.getName());
+      	sql.append("=?");
+      }
+      stmts.setRefresh(connection.prepareStatement(sql.toString()));
+      stmts.setRefreshSql(sql.toString());
     }
     return stmts;
   }
@@ -641,6 +673,58 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     if (stmt.executeUpdate() != 1) {
     	throw new StaleObjectException(object + " is out of date.");
     }
+  }
+
+  public void refresh(Connection connection, DbClass entity, Object object) throws SQLException {    
+	  if (entity.getSuperClass() != null) {
+	    refresh(connection,entity.getSuperClass(),object);
+	  }
+	  Statements stmts = getRefreshStatement(connection,entity);
+	  PreparedStatement stmt = stmts.getUpdate();
+	  StringBuilder sql = null;
+	  if (logger != null) {
+	    sql = new StringBuilder(stmts.getRefreshSql());
+	  }
+	  int index = 1;
+	  for (DbField field: entity.getPrimaryKey().getFields()) {
+	  	Object value = field.get(object);
+	  	stmt.setObject(index++, value);
+	  	nextValue(sql,value);
+	  }
+	  if (logger != null) {
+	    logger.accept(sql.toString());
+	  }
+	  ResultSet rs = stmt.executeQuery();
+	  while (rs.next()) {
+	  	setValues(rs,entity,object,1);
+	  }
+	}
+  
+  protected int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
+  	for (DbField field: cls.getFields()) {
+	    if (!cls.getPrimaryKey().getFields().contains(field) && !field.isVersion()) {
+	    	Object value = rs.getObject(index++,field.getType());
+	    	if (rs.wasNull()) {
+	    		value = null;
+	    	}
+	    	field.set(object, value);
+	    }
+  	}
+    for (DbRole role: cls.getForeignKeys()) {
+    	DbClass otherCls = Database.getDbClass(role.getType());
+    	Object other = null;
+      for (DbField field: otherCls.getPrimaryKey().getFields()) {
+      	Object key = rs.getObject(index++,field.getType());
+      	if (rs.wasNull()) {
+      		break;
+      	} else if (other == null) {
+      		other = otherCls.newInstance();
+      	}
+      	field.set(other, object);
+      }
+      role.set(object,other);
+    }
+  	return index;
   }
 
   public String getDatabaseName(Connection connection) throws SQLException {
