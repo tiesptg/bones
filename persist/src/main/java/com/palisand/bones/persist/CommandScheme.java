@@ -14,30 +14,29 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
 import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
-
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-@SuppressWarnings("serial")
-public class CommandScheme extends HashMap<String,Class<?>> {
-  private Map<Class<?>,JDBCType> typeMap = new HashMap<>();
+public class CommandScheme {
+  private Map<Class<?>, JDBCType> typeMap = new HashMap<>();
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
-  protected Map<DbClass,Statements> statements = new HashMap<>();
+  protected static final String SUBTYPE_FIELD = "subtype";
+  protected Map<DbClass, Statements> statements = new HashMap<>();
   private Consumer<String> logger = null;
-  
+  private final Map<String, Map<String, Object>> cache = new TreeMap<>();
+
   @Getter
   @Setter
   static private class Statements {
@@ -50,27 +49,27 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     private PreparedStatement refresh;
     private String refreshSql;
   }
-  
+
   @Data
   static class Metadata {
-    
+
     @Data
     static class DbTable {
       private final String name;
-      private final Map<String,DbColumn> fields = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      private final Map<String, DbColumn> fields = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
       private DbIndex primaryKey;
-      private final Map<String,DbIndex> foreignKeys = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-      private final Map<String,DbIndex> indices = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      private final Map<String, DbIndex> foreignKeys = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+      private final Map<String, DbIndex> indices = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     }
-    
-    @Data 
+
+    @Data
     static class DbColumn {
       private final String name;
       private final JDBCType type;
       private final boolean nullable;
     }
-    
-    @Data 
+
+    @Data
     static class DbIndex {
       private final String name;
       private final boolean unique;
@@ -78,41 +77,45 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       private final List<DbColumn> fields = new ArrayList<>();
     }
 
-    private final Map<String,DbTable> tables = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, DbTable> tables = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private String catalog;
   }
-  
+
   Metadata getMetadata(Connection connection) throws SQLException {
     DatabaseMetaData dbmd = connection.getMetaData();
     Metadata metadata = new Metadata();
-    ResultSet tables = dbmd.getTables(connection.getCatalog(),connection.getSchema(),null,new String[] { "TABLE" });
+    ResultSet tables = dbmd.getTables(connection.getCatalog(), connection.getSchema(), null,
+        new String[] {"TABLE"});
     while (tables.next()) {
       DbTable table = new DbTable(tables.getString("TABLE_NAME"));
-      metadata.getTables().put(table.getName(),table);
-      ResultSet fields = dbmd.getColumns(connection.getCatalog(),connection.getSchema(),table.getName(),null);
+      metadata.getTables().put(table.getName(), table);
+      ResultSet fields =
+          dbmd.getColumns(connection.getCatalog(), connection.getSchema(), table.getName(), null);
       while (fields.next()) {
         Metadata.DbColumn field = new Metadata.DbColumn(fields.getString("COLUMN_NAME"),
-            JDBCType.valueOf(fields.getInt("DATA_TYPE")),fields.getBoolean("IS_NULLABLE"));
-        table.getFields().put(field.getName(),field);
+            JDBCType.valueOf(fields.getInt("DATA_TYPE")), fields.getBoolean("IS_NULLABLE"));
+        table.getFields().put(field.getName(), field);
       }
-      ResultSet pkeys = dbmd.getPrimaryKeys(connection.getCatalog(),connection.getSchema(),table.getName());
-      DbIndex pkey = new DbIndex("pk",true);
+      ResultSet pkeys =
+          dbmd.getPrimaryKeys(connection.getCatalog(), connection.getSchema(), table.getName());
+      DbIndex pkey = new DbIndex("pk", true);
       table.setPrimaryKey(pkey);
       while (pkeys.next()) {
         pkey.getFields().add(table.getFields().get(pkeys.getString("COLUMN_NAME")));
       }
-      ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(),connection.getSchema(),table.getName(),false,false);
+      ResultSet indices = dbmd.getIndexInfo(connection.getCatalog(), connection.getSchema(),
+          table.getName(), false, false);
       DbIndex index = null;
       while (indices.next()) {
         String name = indices.getString("INDEX_NAME");
         if (index == null || !index.getName().equalsIgnoreCase(name)) {
-          index = new DbIndex(name,!indices.getBoolean("NON_UNIQUE"));
-          table.getIndices().put(name,index);
+          index = new DbIndex(name, !indices.getBoolean("NON_UNIQUE"));
+          table.getIndices().put(name, index);
         }
         index.getFields().add(table.getFields().get(indices.getString("COLUMN_NAME")));
       }
       String key = null;
-      for (Entry<String,DbIndex> entry: table.getIndices().entrySet()) {
+      for (Entry<String, DbIndex> entry : table.getIndices().entrySet()) {
         if (entry.getValue().getFields().equals(table.getPrimaryKey().getFields())) {
           key = entry.getKey();
           break;
@@ -122,83 +125,112 @@ public class CommandScheme extends HashMap<String,Class<?>> {
         table.getIndices().remove(key);
       }
     }
-    for (DbTable table: metadata.getTables().values()) {
-    	for (DbTable other: metadata.getTables().values()) {
-	      ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(),connection.getSchema(),other.getName(),connection.getCatalog(),connection.getSchema(),table.getName());
-	      Metadata.DbIndex fkey = null;
-	      while (fkeys.next()) {
-	        String name = fkeys.getString("FK_NAME");
-	        if (fkey == null || fkey.getName().equals(name)) {
-	          fkey = new DbIndex(name,false);
-	          table.getForeignKeys().put(name,fkey);
-	          fkey.setReferences(other);
-	        }
-	        fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME")));
-	      }
-    	}
+    for (DbTable table : metadata.getTables().values()) {
+      for (DbTable other : metadata.getTables().values()) {
+        ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(), connection.getSchema(),
+            other.getName(), connection.getCatalog(), connection.getSchema(), table.getName());
+        Metadata.DbIndex fkey = null;
+        while (fkeys.next()) {
+          String name = fkeys.getString("FK_NAME");
+          if (fkey == null || fkey.getName().equals(name)) {
+            fkey = new DbIndex(name, false);
+            table.getForeignKeys().put(name, fkey);
+            fkey.setReferences(other);
+          }
+          fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME")));
+        }
+      }
     }
     return metadata;
   }
-  
-  
+
+
   private static class Separator {
-  	final String token;
+    final String token;
     boolean first = true;
-    
+
     Separator() {
-    	token = ",";
+      token = ",";
     }
-    
+
     Separator(String token) {
-    	this.token = token;
+      this.token = token;
     }
-    
+
     public void next(StringBuilder sb) {
       if (first) {
         first = false;
       } else {
-        sb.append(",");
+        sb.append(token);
       }
     }
   }
-  
+
   public CommandScheme() {
-    typeMap.put(short.class,JDBCType.SMALLINT);
-    typeMap.put(Short.class,JDBCType.SMALLINT);
-    typeMap.put(int.class,JDBCType.INTEGER);
-    typeMap.put(Integer.class,JDBCType.INTEGER);
-    typeMap.put(long.class,JDBCType.BIGINT);
-    typeMap.put(Long.class,JDBCType.BIGINT);
-    typeMap.put(boolean.class,JDBCType.BOOLEAN);
-    typeMap.put(Boolean.class,JDBCType.BOOLEAN);
-    typeMap.put(String.class,JDBCType.VARCHAR);
-    typeMap.put(OffsetDateTime.class,JDBCType.TIME_WITH_TIMEZONE);
-    typeMap.put(LocalDate.class,JDBCType.DATE);
-    typeMap.put(BigDecimal.class,JDBCType.DECIMAL);
-    typeMap.put(double.class,JDBCType.DOUBLE);
-    typeMap.put(Double.class,JDBCType.DOUBLE);
-    typeMap.put(float.class,JDBCType.REAL);
-    typeMap.put(Float.class,JDBCType.REAL);
+    typeMap.put(short.class, JDBCType.SMALLINT);
+    typeMap.put(Short.class, JDBCType.SMALLINT);
+    typeMap.put(int.class, JDBCType.INTEGER);
+    typeMap.put(Integer.class, JDBCType.INTEGER);
+    typeMap.put(long.class, JDBCType.BIGINT);
+    typeMap.put(Long.class, JDBCType.BIGINT);
+    typeMap.put(boolean.class, JDBCType.BOOLEAN);
+    typeMap.put(Boolean.class, JDBCType.BOOLEAN);
+    typeMap.put(String.class, JDBCType.VARCHAR);
+    typeMap.put(OffsetDateTime.class, JDBCType.TIME_WITH_TIMEZONE);
+    typeMap.put(LocalDate.class, JDBCType.DATE);
+    typeMap.put(BigDecimal.class, JDBCType.DECIMAL);
+    typeMap.put(double.class, JDBCType.DOUBLE);
+    typeMap.put(Double.class, JDBCType.DOUBLE);
+    typeMap.put(float.class, JDBCType.REAL);
+    typeMap.put(Float.class, JDBCType.REAL);
   }
-  
+
   public CommandScheme logger(Consumer<String> logger) {
     this.logger = logger;
     return this;
   }
-  
+
+  public Consumer<String> getLogger() {
+    return logger;
+  }
+
   protected void log(String str) {
     this.logger.accept(str);
   }
-  
+
+  protected void cache(DbClass entity, Object object) throws SQLException {
+    entity = entity.getRoot();
+    Map<String, Object> typeCache = cache.get(entity.getName());
+    if (typeCache == null) {
+      typeCache = new TreeMap<>();
+      cache.put(entity.getName(), typeCache);
+    }
+    typeCache.put(entity.getPrimaryKeyAsString(object), object);
+  }
+
+  protected Object getFromCache(DbClass entity, Object object) throws SQLException {
+    entity = entity.getRoot();
+    String key = entity.getPrimaryKeyAsString(object);
+    Map<String, Object> typeCache = cache.get(entity.getName());
+    if (typeCache != null) {
+      typeCache.get(key);
+    }
+    return null;
+  }
+
+  public void clearCache() {
+    cache.clear();
+  }
+
   protected String typeName(JDBCType type) {
     return type.getName();
   }
-  
+
   protected boolean execute(Connection connection, String sql) throws SQLException {
     log(sql);
     return connection.createStatement().execute(sql);
   }
-  
+
   private JDBCType getJDBCType(Class<?> cls) throws SQLException {
     JDBCType type = typeMap.get(cls);
     if (type == null) {
@@ -206,21 +238,23 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     }
     return type;
   }
-  
+
   private String getType(DbField attribute) throws SQLException {
     JDBCType type = getJDBCType(attribute.getType());
     return typeName(type);
   }
-  
-  private void appendColumn(StringBuilder sql, String prefix, DbField attribute, boolean nullable) throws SQLException {
+
+  private void appendColumn(StringBuilder sql, String prefix, DbField attribute, boolean nullable)
+      throws SQLException {
     if (!prefix.isEmpty()) {
       sql.append(prefix);
       sql.append('_');
     }
-    appendColumn(sql,attribute,nullable);
+    appendColumn(sql, attribute, nullable);
   }
-  
-  private void appendColumn(StringBuilder sql, DbField attribute, boolean nullable) throws SQLException {
+
+  private void appendColumn(StringBuilder sql, DbField attribute, boolean nullable)
+      throws SQLException {
     sql.append(attribute.getName());
     sql.append(" ");
     sql.append(getType(attribute));
@@ -229,117 +263,141 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     }
     sql.append(" NULL");
   }
-  
-  protected void upgradeColumns(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
+
+  protected void upgradeColumns(Connection connection, DbTable dbTable, DbClass entity)
+      throws SQLException {
     TreeSet<String> fieldsToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
     fieldsToRemove.addAll(dbTable.getFields().keySet());
-    for (DbField attribute: entity.getFields()) {
+    if (entity.hasSubTypeField()) {
+      if (!fieldsToRemove.remove(SUBTYPE_FIELD)) {
+        addFieldToTable(connection, entity, SUBTYPE_FIELD + " VARCHAR(4) NOT NULL");
+      }
+    }
+    for (DbField attribute : entity.getFields()) {
       if (!fieldsToRemove.remove(attribute.getName())) {
         addFieldToTable(connection, entity, attribute);
       }
     }
-    for (DbRole role: entity.getForeignKeys()) {
-      for (DbField attribute: role.getForeignKey().getFields()) {
+    for (DbRole role : entity.getForeignKeys()) {
+      for (DbField attribute : role.getForeignKey().getFields()) {
         if (!fieldsToRemove.remove(attribute.getName())) {
-          addFieldToTable(connection,entity,attribute);
+          addFieldToTable(connection, entity, attribute);
         }
       }
     }
-    for (String name: fieldsToRemove) {
-      removeFieldFromTable(connection,entity,name);
+    for (String name : fieldsToRemove) {
+      removeFieldFromTable(connection, entity, name);
     }
   }
-  
-  protected void upgradeIndices(Connection connection,DbTable dbTable, DbClass entity) throws SQLException {
+
+  protected void upgradeIndices(Connection connection, DbTable dbTable, DbClass entity)
+      throws SQLException {
     TreeSet<String> indicesToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
     indicesToRemove.addAll(dbTable.getIndices().keySet());
     indicesToRemove.addAll(dbTable.getForeignKeys().keySet());
     if (entity.getSuperClass() != null) {
       String name = FOREIGN_KEY_PREFIX + entity.getName() + "_parent";
       if (!indicesToRemove.remove(name)) {
-        createParentKey(connection,entity);
+        createParentKey(connection, entity);
       }
     }
-    for (DbSearchMethod index: entity.getIndices().values()) {
+    for (DbSearchMethod index : entity.getIndices().values()) {
       if (!indicesToRemove.remove(index.getName())) {
         createIndex(connection, index);
       }
     }
-    for (DbRole role: entity.getForeignKeys()) {
+    for (DbRole role : entity.getForeignKeys()) {
       DbSearchMethod index = role.getForeignKey();
       if (!indicesToRemove.remove(index.getName())) {
         createIndex(connection, index);
       }
     }
-    for (String name: indicesToRemove) {
-      dropContraint(connection,entity.getName(),name);
-      dropIndex(connection,entity,name);
+    for (String name : indicesToRemove) {
+      dropContraint(connection, entity.getName(), name);
+      dropIndex(connection, entity, name);
     }
   }
-  
-  protected void upgradeTable(Connection connection, DbTable dbTable, DbClass entity) throws SQLException {
+
+  protected void upgradeTable(Connection connection, DbTable dbTable, DbClass entity)
+      throws SQLException {
     if (dbTable == null) {
-      createTable(connection,entity);
+      createTable(connection, entity);
     } else {
-      upgradeColumns(connection,dbTable,entity);
-      upgradeIndices(connection,dbTable,entity);
+      upgradeColumns(connection, dbTable, entity);
+      upgradeIndices(connection, dbTable, entity);
     }
   }
-  
-  public void upgradeForeignKey(Connection connection, DbTable table, DbRole role) throws SQLException {
+
+  public void upgradeForeignKey(Connection connection, DbTable table, DbRole role)
+      throws SQLException {
     DbIndex fk = null;
     if (table != null) {
       fk = table.getForeignKeys().get(role.getForeignKey().getName());
     }
     if (fk == null) {
-      createForeignKey(connection,role);
-      createIndex(connection,role.getForeignKey());
+      createForeignKey(connection, role);
+      createIndex(connection, role.getForeignKey());
     }
   }
-  
-  protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName) throws SQLException {
+
+  protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName)
+      throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
     sql.append(" DROP COLUMN ");
     sql.append(columnName);
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
-  
-  protected void addFieldToTable(Connection connection, DbClass entity, DbField attribute) throws SQLException {
+
+  protected void addFieldToTable(Connection connection, DbClass entity, DbField attribute)
+      throws SQLException {
+    StringBuilder sql = new StringBuilder();
+    appendColumn(sql, attribute, attribute.isNullable());
+    addFieldToTable(connection, entity, sql.toString());
+  }
+
+  protected void addFieldToTable(Connection connection, DbClass entity, String column)
+      throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
     sql.append(" ADD ");
-    appendColumn(sql,attribute,attribute.isNullable());
-    execute(connection,sql.toString());
+    sql.append(column);
+    execute(connection, sql.toString());
   }
-  
+
   public void createTable(Connection connection, DbClass entity) throws SQLException {
     StringBuilder sql = new StringBuilder("CREATE TABLE ");
     sql.append(entity.getName());
     sql.append("(");
-    for (DbField attribute: entity.getFields()) {
-      appendColumn(sql,attribute,attribute.isNullable());
+    for (DbField attribute : entity.getFields()) {
+      appendColumn(sql, attribute, attribute.isNullable());
       if (attribute.getId() != null && attribute.isGenerated() && entity.getSuperClass() == null) {
         sql.append(" GENERATED ALWAYS AS IDENTITY");
       }
       sql.append(",");
     }
-    for (DbRole role: entity.getForeignKeys()) {
-      for (DbField field: role.getForeignKey().getFields()) {
-        appendColumn(sql,field,true);
+    if (entity.getSuperClass() == null && !entity.getSubClasses().isEmpty()) {
+      sql.append(SUBTYPE_FIELD);
+      sql.append(" VARCHAR(4) NOT NULL,");
+    }
+    for (DbRole role : entity.getForeignKeys()) {
+      for (DbField field : role.getForeignKey().getFields()) {
+        appendColumn(sql, field, true);
         sql.append(",");
       }
     }
     sql.append("PRIMARY KEY(");
-    sql.append(entity.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+    sql.append(entity.getPrimaryKey().getFields().stream().map(a -> a.getName())
+        .collect(Collectors.joining(",")));
     sql.append("))");
     execute(connection, sql.toString());
-    for (DbSearchMethod method: entity.getIndices().values()) {
-      createIndex(connection,method);
+    for (DbSearchMethod method : entity.getIndices().values()) {
+      createIndex(connection, method);
     }
   }
-  
-  public String createLinkTable(Connection connection, DbTable table, DbRole first) throws SQLException {
+
+  public String createLinkTable(Connection connection, DbTable table, DbRole first)
+      throws SQLException {
     DbRole second = first.getOpposite();
     String name = null;
     if (second != null) {
@@ -353,22 +411,22 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       Separator ffkComma = new Separator();
       StringBuilder pk = new StringBuilder();
       StringBuilder ffk = new StringBuilder();
-      for (DbField pkf: fk.getPrimaryKey().getFields()) {
+      for (DbField pkf : fk.getPrimaryKey().getFields()) {
         sqlComma.next(sql);
         pkComma.next(pk);
         ffkComma.next(ffk);
-        appendColumn(sql,first.getName(),pkf,false);
+        appendColumn(sql, first.getName(), pkf, false);
         pk.append(first.getName() + '_' + pkf.getName());
         ffk.append(first.getName() + '_' + pkf.getName());
       }
       DbClass sk = Database.getDbClass(second.getType());
       Separator sfkComma = new Separator();
       StringBuilder sfk = new StringBuilder();
-      for (DbField pkf: sk.getPrimaryKey().getFields()) {
+      for (DbField pkf : sk.getPrimaryKey().getFields()) {
         sqlComma.next(sql);
         pkComma.next(pk);
         sfkComma.next(sfk);
-        appendColumn(sql,second.getName(),pkf,false);
+        appendColumn(sql, second.getName(), pkf, false);
         pk.append(second.getName() + '_' + pkf.getName());
         sfk.append(second.getName() + '_' + pkf.getName());
       }
@@ -384,7 +442,8 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append(") REFERENCES ");
       sql.append(fk.getName());
       sql.append("(");
-      sql.append(fk.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+      sql.append(fk.getPrimaryKey().getFields().stream().map(a -> a.getName())
+          .collect(Collectors.joining(",")));
       sql.append("),CONSTRAINT ");
       sql.append(FOREIGN_KEY_PREFIX);
       sql.append(first.getTablename());
@@ -395,31 +454,34 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append(") REFERENCES ");
       sql.append(sk.getName());
       sql.append("(");
-      sql.append(sk.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+      sql.append(sk.getPrimaryKey().getFields().stream().map(a -> a.getName())
+          .collect(Collectors.joining(",")));
       sql.append("))");
-      execute(connection,sql.toString());
+      execute(connection, sql.toString());
     }
     return name;
   }
-  
+
   public void dropTable(Connection connection, String name) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP TABLE ");
     sql.append(name);
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
-  
-  protected void dropIndex(Connection connection, DbClass entity, String indexName) throws SQLException {
+
+  protected void dropIndex(Connection connection, DbClass entity, String indexName)
+      throws SQLException {
     StringBuilder sql = new StringBuilder("DROP INDEX IF EXISTS ");
     sql.append(indexName);
     execute(connection, sql.toString());
   }
 
-  public void dropContraint(Connection connection, String tableName, String constraintName) throws SQLException {
+  public void dropContraint(Connection connection, String tableName, String constraintName)
+      throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(tableName);
     sql.append(" DROP CONSTRAINT IF EXISTS ");
     sql.append(constraintName);
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
 
   public void createForeignKey(Connection connection, DbRole role) throws SQLException {
@@ -432,17 +494,20 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append('_');
     sql.append(role.getName());
     sql.append(" FOREIGN KEY(");
-    sql.append(role.getForeignKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+    sql.append(role.getForeignKey().getFields().stream().map(a -> a.getName())
+        .collect(Collectors.joining(",")));
     sql.append(") REFERENCES ");
     sql.append(fk.getName());
     sql.append("(");
-    sql.append(fk.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+    sql.append(fk.getPrimaryKey().getFields().stream().map(a -> a.getName())
+        .collect(Collectors.joining(",")));
     sql.append(")");
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
-  
-  protected Statements getInsertStatement(Connection connection, DbClass entity) throws SQLException {
-    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
+
+  protected Statements getInsertStatement(Connection connection, DbClass entity)
+      throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getInsert() == null) {
       StringBuilder sql = new StringBuilder("INSERT INTO ");
       StringBuilder params = new StringBuilder();
@@ -450,7 +515,13 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append("(");
       Separator sqlComma = new Separator();
       Separator pComma = new Separator();
-      for (DbField field: entity.getFields()) {
+      if (entity.hasSubTypeField()) {
+        sqlComma.next(sql);
+        pComma.next(params);
+        sql.append(SUBTYPE_FIELD);
+        params.append('?');
+      }
+      for (DbField field : entity.getFields()) {
         if (!field.isGenerated() || entity.getSuperClass() != null) {
           sqlComma.next(sql);
           pComma.next(params);
@@ -458,8 +529,8 @@ public class CommandScheme extends HashMap<String,Class<?>> {
           params.append("?");
         }
       }
-      for (DbRole role: entity.getForeignKeys()) {
-        for (DbField field: role.getForeignKey().getFields()) {
+      for (DbRole role : entity.getForeignKeys()) {
+        for (DbField field : role.getForeignKey().getFields()) {
           sqlComma.next(sql);
           pComma.next(params);
           sql.append(field.getName());
@@ -469,34 +540,35 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       sql.append(") VALUES (");
       sql.append(params);
       sql.append(")");
-      stmts.setInsert(connection.prepareStatement(sql.toString(),Statement.RETURN_GENERATED_KEYS));
+      stmts.setInsert(connection.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS));
       stmts.setInsertSql(sql.toString());
     }
     return stmts;
   }
-  
-  protected Statements getUpdateStatement(Connection connection, DbClass entity) throws SQLException {
-    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
+
+  protected Statements getUpdateStatement(Connection connection, DbClass entity)
+      throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getUpdate() == null) {
       StringBuilder sql = new StringBuilder("UPDATE ");
       sql.append(entity.getName());
       sql.append(" SET ");
       Separator sqlComma = new Separator();
-      for (DbField field: entity.getFields()) {
-      	if (field.isVersion()) {
+      for (DbField field : entity.getFields()) {
+        if (field.isVersion()) {
           sqlComma.next(sql);
           sql.append(field.getName());
           sql.append('=');
           sql.append(field.getName());
           sql.append("+1");
-      	} else if (!entity.getPrimaryKey().getFields().contains(field)) {
+        } else if (!entity.getPrimaryKey().getFields().contains(field)) {
           sqlComma.next(sql);
           sql.append(field.getName());
           sql.append("=?");
         }
       }
-      for (DbRole role: entity.getForeignKeys()) {
-        for (DbField field: role.getForeignKey().getFields()) {
+      for (DbRole role : entity.getForeignKeys()) {
+        for (DbField field : role.getForeignKey().getFields()) {
           sqlComma.next(sql);
           sql.append(field.getName());
           sql.append("=?");
@@ -504,227 +576,300 @@ public class CommandScheme extends HashMap<String,Class<?>> {
       }
       sql.append(" WHERE ");
       Separator and = new Separator(" AND ");
-      for (DbField field: entity.getPrimaryKey().getFields()) {
-      	and.next(sql);
-      	sql.append(field.getName());
-      	sql.append("=?");
+      for (DbField field : entity.getPrimaryKey().getFields()) {
+        and.next(sql);
+        sql.append(field.getName());
+        sql.append("=?");
       }
       if (entity.getVersion() != null) {
-      	and.next(sql);
-      	sql.append(entity.getVersion().getName());
-      	sql.append("=?");
+        and.next(sql);
+        sql.append(entity.getVersion().getName());
+        sql.append("=?");
       }
       stmts.setUpdate(connection.prepareStatement(sql.toString()));
       stmts.setUpdateSql(sql.toString());
     }
     return stmts;
   }
-  
-  protected Statements getRefreshStatement(Connection connection, DbClass entity) throws SQLException {
-    Statements stmts = statements.computeIfAbsent(entity,e -> new Statements());
-    if (stmts.getUpdate() == null) {
+
+  protected Statements getRefreshStatement(Connection connection, DbClass entity)
+      throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
+    if (stmts.getRefresh() == null) {
+      List<DbClass> types = new ArrayList<>();
+      types.add(entity);
+      while (entity.getSuperClass() != null) {
+        entity = entity.getSuperClass();
+        types.add(0, entity);
+      }
       StringBuilder sql = new StringBuilder("SELECT ");
       Separator sqlComma = new Separator();
-      for (DbField field: entity.getFields()) {
-      	if (!entity.getPrimaryKey().getFields().contains(field)) {
-          sqlComma.next(sql);
-          sql.append(field.getName());
-        }
+      if (entity.hasSubTypeField()) {
+        sqlComma.next(sql);
+        sql.append(entity.getName());
+        sql.append('.');
+        sql.append(SUBTYPE_FIELD);
       }
-      for (DbRole role: entity.getForeignKeys()) {
-        for (DbField field: role.getForeignKey().getFields()) {
-          sqlComma.next(sql);
-          sql.append(field.getName());
+      for (DbClass c : types) {
+        for (DbField field : c.getFields()) {
+          if (!c.getPrimaryKey().getFields().contains(field)) {
+            sqlComma.next(sql);
+            sql.append(c.getName());
+            sql.append('.');
+            sql.append(field.getName());
+          }
+        }
+        for (DbRole role : c.getForeignKeys()) {
+          for (DbField field : role.getForeignKey().getFields()) {
+            sqlComma.next(sql);
+            sql.append(c.getName());
+            sql.append('.');
+            sql.append(field.getName());
+          }
         }
       }
       sql.append(" FROM ");
-      sql.append(entity.getName());
+      boolean first = true;
+      for (DbClass c : types) {
+        if (!first) {
+          sql.append(" JOIN ");
+        }
+        sql.append(c.getName());
+        if (first) {
+          first = false;
+        } else {
+          sql.append(" ON ");
+          Separator and = new Separator(" AND ");
+          for (DbField field : entity.getPrimaryKey().getFields()) {
+            and.next(sql);
+            sql.append(entity.getName());
+            sql.append('.');
+            sql.append(field.getName());
+            sql.append('=');
+            sql.append(c.getName());
+            sql.append('.');
+            sql.append(field.getName());
+          }
+        }
+      }
       sql.append(" WHERE ");
       Separator and = new Separator(" AND ");
-      for (DbField field: entity.getPrimaryKey().getFields()) {
-      	and.next(sql);
-      	sql.append(field.getName());
-      	sql.append("=?");
+      for (DbField field : entity.getPrimaryKey().getFields()) {
+        and.next(sql);
+        sql.append(entity.getName());
+        sql.append('.');
+        sql.append(field.getName());
+        sql.append("=?");
       }
       stmts.setRefresh(connection.prepareStatement(sql.toString()));
       stmts.setRefreshSql(sql.toString());
     }
     return stmts;
   }
-  
+
   private void nextValue(StringBuilder sql, Object value) {
     if (sql != null) {
-    	String literal = getLiteral(value);
+      String literal = getLiteral(value);
       int pos = sql.indexOf("?");
-      sql.replace(pos,pos+1,literal);
+      sql.replace(pos, pos + 1, literal);
     }
   }
-  
+
   public String getLiteral(Object value) {
-  	if (value == null) {
-  		return "null";
-  	}
-  	if (value.getClass() == String.class || value.getClass().getName().startsWith("java.time")) {
-    	return '\'' + value.toString() + '\'';
-  	}
-		return value.toString();
-  }
-  
-
-
-  public void insert(Connection connection, DbClass entity, Object object) throws SQLException {
-    if (entity.getSuperClass() != null) {
-      insert(connection,entity.getSuperClass(),object);
+    if (value == null) {
+      return "null";
     }
-    Statements stmts = getInsertStatement(connection,entity);
+    if (value.getClass() == String.class || value.getClass().getName().startsWith("java.time")) {
+      return '\'' + value.toString() + '\'';
+    }
+    return value.toString();
+  }
+
+
+  public void insert(Connection connection, DbClass entity, String label, Object object)
+      throws SQLException {
+    if (entity.getSuperClass() != null) {
+      insert(connection, entity.getSuperClass(), label, object);
+    }
+    Statements stmts = getInsertStatement(connection, entity);
     PreparedStatement stmt = stmts.getInsert();
     StringBuilder sql = null;
     if (logger != null) {
       sql = new StringBuilder(stmts.getInsertSql());
     }
     int index = 1;
-    for (DbField field: entity.getFields()) {
+    if (entity.hasSubTypeField()) {
+      stmt.setString(index++, label);
+      nextValue(sql, label);
+    }
+    for (DbField field : entity.getFields()) {
       if (!field.isGenerated() || entity.getSuperClass() != null) {
         Object value = field.get(object);
         if (value != null) {
-          stmt.setObject(index++,value);
+          stmt.setObject(index++, value);
         } else {
-          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
-        nextValue(sql,value);
+        nextValue(sql, value);
       }
     }
-    for (DbRole role: entity.getForeignKeys()) {
+    for (DbRole role : entity.getForeignKeys()) {
       Object child = role.get(object);
       DbClass cls = Database.getDbClass(role.getType());
-      for (DbField field: cls.getPrimaryKey().getFields()) {
-      	Object value = child == null ? null : field.get(child);
+      for (DbField field : cls.getPrimaryKey().getFields()) {
+        Object value = child == null ? null : field.get(child);
         if (value != null) {
-          stmt.setObject(index++,value);
+          stmt.setObject(index++, value);
         } else {
-          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
-        nextValue(sql,value);
+        nextValue(sql, value);
       }
     }
     if (logger != null) {
       logger.accept(sql.toString());
     }
     if (stmt.executeUpdate() != 0 && entity.getSuperClass() == null) {
-      ResultSet keys = stmt.getGeneratedKeys();
-      if (keys.next()) {
-        index = 1;
-        for (DbField field: entity.getPrimaryKey().getFields()) {
-          if (field.isGenerated()) {
-            field.set(object,keys.getObject(index++));
+      try (ResultSet keys = stmt.getGeneratedKeys()) {
+        if (keys.next()) {
+          index = 1;
+          for (DbField field : entity.getPrimaryKey().getFields()) {
+            if (field.isGenerated()) {
+              field.set(object, keys.getObject(index++));
+            }
           }
         }
       }
     }
+    cache(entity, object);
   }
 
-  public void update(Connection connection, DbClass entity, Object object) throws SQLException {    if (entity.getSuperClass() != null) {
-      update(connection,entity.getSuperClass(),object);
+  public void update(Connection connection, DbClass entity, Object object) throws SQLException {
+    if (entity.getSuperClass() != null) {
+      update(connection, entity.getSuperClass(), object);
     }
-    Statements stmts = getUpdateStatement(connection,entity);
+    Statements stmts = getUpdateStatement(connection, entity);
     PreparedStatement stmt = stmts.getUpdate();
     StringBuilder sql = null;
     if (logger != null) {
       sql = new StringBuilder(stmts.getUpdateSql());
     }
     int index = 1;
-    for (DbField field: entity.getFields()) {
+    for (DbField field : entity.getFields()) {
       if (!entity.getPrimaryKey().getFields().contains(field) && !field.isVersion()) {
         Object value = field.get(object);
         if (value != null) {
-          stmt.setObject(index++,value);
+          field.stmtSet(stmt, index++, value);
         } else {
-          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
-        nextValue(sql,value);
+        nextValue(sql, value);
       }
     }
-    for (DbRole role: entity.getForeignKeys()) {
+    for (DbRole role : entity.getForeignKeys()) {
       Object child = role.get(object);
       DbClass cls = Database.getDbClass(role.getType());
-      for (DbField field: cls.getPrimaryKey().getFields()) {
-      	Object value = child == null ? null : field.get(child);
+      for (DbField field : cls.getPrimaryKey().getFields()) {
+        Object value = child == null ? null : field.get(child);
         if (value != null) {
-          stmt.setObject(index++,value);
+          stmt.setObject(index++, value);
         } else {
-          stmt.setNull(index++,getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
-        nextValue(sql,value);
+        nextValue(sql, value);
       }
     }
-    for (DbField field: entity.getPrimaryKey().getFields()) {
-    	Object value = field.get(object);
-    	stmt.setObject(index++, value);
-    	nextValue(sql,value);
+    for (DbField field : entity.getPrimaryKey().getFields()) {
+      Object value = field.get(object);
+      stmt.setObject(index++, value);
+      nextValue(sql, value);
     }
     if (entity.getVersion() != null) {
-    	Object value = entity.getVersion().get(object);
-    	stmt.setObject(index++, value);
-    	nextValue(sql,value);
+      Object value = entity.getVersion().get(object);
+      stmt.setObject(index++, value);
+      nextValue(sql, value);
     }
     if (logger != null) {
       logger.accept(sql.toString());
     }
     if (stmt.executeUpdate() != 1) {
-    	throw new StaleObjectException(object + " is out of date.");
+      throw new StaleObjectException(object + " is out of date.");
     }
+    cache(entity, object);
   }
 
-  public void refresh(Connection connection, DbClass entity, Object object) throws SQLException {    
-	  if (entity.getSuperClass() != null) {
-	    refresh(connection,entity.getSuperClass(),object);
-	  }
-	  Statements stmts = getRefreshStatement(connection,entity);
-	  PreparedStatement stmt = stmts.getUpdate();
-	  StringBuilder sql = null;
-	  if (logger != null) {
-	    sql = new StringBuilder(stmts.getRefreshSql());
-	  }
-	  int index = 1;
-	  for (DbField field: entity.getPrimaryKey().getFields()) {
-	  	Object value = field.get(object);
-	  	stmt.setObject(index++, value);
-	  	nextValue(sql,value);
-	  }
-	  if (logger != null) {
-	    logger.accept(sql.toString());
-	  }
-	  ResultSet rs = stmt.executeQuery();
-	  while (rs.next()) {
-	  	setValues(rs,entity,object,1);
-	  }
-	}
-  
-  protected int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
-  	for (DbField field: cls.getFields()) {
-	    if (!cls.getPrimaryKey().getFields().contains(field) && !field.isVersion()) {
-	    	Object value = rs.getObject(index++,field.getType());
-	    	if (rs.wasNull()) {
-	    		value = null;
-	    	}
-	    	field.set(object, value);
-	    }
-  	}
-    for (DbRole role: cls.getForeignKeys()) {
-    	DbClass otherCls = Database.getDbClass(role.getType());
-    	Object other = null;
-      for (DbField field: otherCls.getPrimaryKey().getFields()) {
-      	Object key = rs.getObject(index++,field.getType());
-      	if (rs.wasNull()) {
-      		break;
-      	} else if (other == null) {
-      		other = otherCls.newInstance();
-      	}
-      	field.set(other, object);
-      }
-      role.set(object,other);
+  public Object refresh(Connection connection, DbClass entity, Object object) throws SQLException {
+    Statements stmts = getRefreshStatement(connection, entity);
+    PreparedStatement stmt = stmts.getRefresh();
+    StringBuilder sql = null;
+    if (logger != null) {
+      sql = new StringBuilder(stmts.getRefreshSql());
     }
-  	return index;
+    String currentSubtype = entity.getLabel();
+    List<DbClass> types = new ArrayList<>();
+    types.add(entity);
+    while (entity.getSuperClass() != null) {
+      entity = entity.getSuperClass();
+      types.add(0, entity);
+    }
+    int index = 1;
+    for (DbField field : entity.getPrimaryKey().getFields()) {
+      Object value = field.get(object);
+      field.stmtSet(stmt, index++, value);
+      nextValue(sql, value);
+    }
+    if (logger != null) {
+      logger.accept(sql.toString());
+    }
+    try (ResultSet rs = stmt.executeQuery()) {
+      if (rs.next()) {
+        index = 1;
+        String subtype = null;
+        if (entity.hasSubTypeField()) {
+          subtype = rs.getString(index++);
+          if (!subtype.equals(currentSubtype)) {
+            DbClass newClass = entity.getSubClasses().get(subtype);
+            Object newObject = newClass.newInstance();
+            for (DbField field : entity.getPrimaryKey().getFields()) {
+              field.set(newObject, field.get(newObject));
+            }
+            return refresh(connection, newClass, newObject);
+          }
+        }
+        for (DbClass c : types) {
+          index = setValues(rs, c, object, index);
+        }
+      }
+    }
+    return object;
+  }
+
+  protected int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
+    for (DbField field : cls.getFields()) {
+      if (!cls.getPrimaryKey().getFields().contains(field)) {
+        Object value = field.rsGet(rs, index++);
+        if (rs.wasNull()) {
+          value = null;
+        }
+        field.set(object, value);
+      }
+    }
+    for (DbRole role : cls.getForeignKeys()) {
+      DbClass otherCls = Database.getDbClass(role.getType());
+      Object other = null;
+      for (DbField field : otherCls.getPrimaryKey().getFields()) {
+        Object key = field.rsGet(rs, index++);
+        if (rs.wasNull()) {
+          break;
+        } else if (other == null) {
+          other = otherCls.newInstance();
+          field.set(other, key);
+        }
+      }
+      other = refresh(rs.getStatement().getConnection(), otherCls, other);
+      role.set(object, other);
+    }
+    return index;
   }
 
   public String getDatabaseName(Connection connection) throws SQLException {
@@ -742,12 +887,12 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(path.getEntity().getName());
     sql.append("(");
     Separator comma = new Separator();
-    for (DbField field: path.getFields()) {
+    for (DbField field : path.getFields()) {
       comma.next(sql);
       sql.append(field.getName());
     }
     sql.append(")");
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
 
   protected void createParentKey(Connection connection, DbClass cls) throws SQLException {
@@ -758,20 +903,22 @@ public class CommandScheme extends HashMap<String,Class<?>> {
     sql.append(cls.getName());
     sql.append("_parent");
     sql.append(" FOREIGN KEY(");
-    sql.append(cls.getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+    sql.append(cls.getPrimaryKey().getFields().stream().map(a -> a.getName())
+        .collect(Collectors.joining(",")));
     sql.append(") REFERENCES ");
     sql.append(cls.getSuperClass().getName());
     sql.append("(");
-    sql.append(cls.getSuperClass().getPrimaryKey().getFields().stream().map(a -> a.getName()).collect(Collectors.joining(",")));
+    sql.append(cls.getSuperClass().getPrimaryKey().getFields().stream().map(a -> a.getName())
+        .collect(Collectors.joining(",")));
     sql.append(")");
-    execute(connection,sql.toString());
+    execute(connection, sql.toString());
   }
-  
+
   public void upgradeParent(Connection connection, DbTable table, DbClass cls) throws SQLException {
     String name = FOREIGN_KEY_PREFIX + cls.getName() + "_parent";
     if (table == null || table.getForeignKeys().get(name) == null) {
-      createParentKey(connection,cls);
+      createParentKey(connection, cls);
     }
   }
- 
+
 }
