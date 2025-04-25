@@ -39,11 +39,13 @@ class UpgradeTest {
     return null;
   }
 
-  @SuppressWarnings("incomplete-switch")
   Database newDatabase() {
     switch (type) {
       case PG:
         return new Database(() -> new PostgresqlCommands().logger(str -> System.out.println(str)));
+      case H2:
+        return new Database(() -> new CommandScheme() // .indexForFkNeeded(false)
+            .logger(str -> System.out.println(str)));
     }
     return new Database(() -> new CommandScheme().logger(str -> System.out.println(str)));
   }

@@ -32,10 +32,12 @@ import lombok.Setter;
 public class CommandScheme {
   private Map<Class<?>, JDBCType> typeMap = new HashMap<>();
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
+  protected static final String INDEX_PREFIX = "idx_";
   protected static final String SUBTYPE_FIELD = "subtype";
   protected Map<DbClass, Statements> statements = new HashMap<>();
   private Consumer<String> logger = null;
   private final Map<String, Map<String, Object>> cache = new TreeMap<>();
+  private boolean indexForFkNeeded = true;
 
   @Getter
   @Setter
@@ -198,6 +200,15 @@ public class CommandScheme {
     this.logger.accept(str);
   }
 
+  public CommandScheme indexForFkNeeded(boolean value) {
+    indexForFkNeeded = value;
+    return this;
+  }
+
+  protected boolean isIndexForFkNeeded() {
+    return indexForFkNeeded;
+  }
+
   protected void cache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
@@ -294,27 +305,23 @@ public class CommandScheme {
       throws SQLException {
     TreeSet<String> indicesToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
     indicesToRemove.addAll(dbTable.getIndices().keySet());
-    indicesToRemove.addAll(dbTable.getForeignKeys().keySet());
-    if (entity.getSuperClass() != null) {
-      String name = FOREIGN_KEY_PREFIX + entity.getName() + "_parent";
-      if (!indicesToRemove.remove(name)) {
-        createParentKey(connection, entity);
-      }
-    }
     for (DbSearchMethod index : entity.getIndices().values()) {
-      if (!indicesToRemove.remove(index.getName())) {
+      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName())) {
         createIndex(connection, index);
       }
     }
     for (DbRole role : entity.getForeignKeys()) {
       DbSearchMethod index = role.getForeignKey();
-      if (!indicesToRemove.remove(index.getName())) {
-        createIndex(connection, index);
+      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName())) {
+        if (isIndexForFkNeeded()) {
+          createIndex(connection, index);
+        }
       }
     }
     for (String name : indicesToRemove) {
-      dropContraint(connection, entity.getName(), name);
-      dropIndex(connection, entity, name);
+      if (isIndexForFkNeeded()) {
+        dropIndex(connection, entity, name);
+      }
     }
   }
 
@@ -332,11 +339,10 @@ public class CommandScheme {
       throws SQLException {
     DbIndex fk = null;
     if (table != null) {
-      fk = table.getForeignKeys().get(role.getForeignKey().getName());
+      fk = table.getForeignKeys().get(FOREIGN_KEY_PREFIX + role.getForeignKey().getName());
     }
     if (fk == null) {
       createForeignKey(connection, role);
-      createIndex(connection, role.getForeignKey());
     }
   }
 
@@ -391,6 +397,9 @@ public class CommandScheme {
         .collect(Collectors.joining(",")));
     sql.append("))");
     execute(connection, sql.toString());
+    for (DbRole role : entity.getForeignKeys()) {
+      createIndex(connection, role.getForeignKey());
+    }
     for (DbSearchMethod method : entity.getIndices().values()) {
       createIndex(connection, method);
     }
@@ -430,13 +439,13 @@ public class CommandScheme {
         pk.append(second.getName() + '_' + pkf.getName());
         sfk.append(second.getName() + '_' + pkf.getName());
       }
+      String firstName = first.getTablename() + "_" + first.getName();
+      String secondName = first.getTablename() + '_' + second.getName();
       sql.append(",PRIMARY KEY(");
       sql.append(pk.toString());
       sql.append("),CONSTRAINT ");
       sql.append(FOREIGN_KEY_PREFIX);
-      sql.append(first.getTablename());
-      sql.append('_');
-      sql.append(first.getName());
+      sql.append(firstName);
       sql.append(" FOREIGN KEY(");
       sql.append(ffk.toString());
       sql.append(") REFERENCES ");
@@ -446,9 +455,7 @@ public class CommandScheme {
           .collect(Collectors.joining(",")));
       sql.append("),CONSTRAINT ");
       sql.append(FOREIGN_KEY_PREFIX);
-      sql.append(first.getTablename());
-      sql.append('_');
-      sql.append(second.getName());
+      sql.append(secondName);
       sql.append(" FOREIGN KEY(");
       sql.append(sfk.toString());
       sql.append(") REFERENCES ");
@@ -458,6 +465,8 @@ public class CommandScheme {
           .collect(Collectors.joining(",")));
       sql.append("))");
       execute(connection, sql.toString());
+      createIndex(connection, name, firstName, ffk.toString(), false);
+      createIndex(connection, name, secondName, sfk.toString(), false);
     }
     return name;
   }
@@ -877,20 +886,24 @@ public class CommandScheme {
   }
 
   public void createIndex(Connection connection, DbSearchMethod path) throws SQLException {
+    String fields =
+        path.getFields().stream().map(f -> f.getName()).collect(Collectors.joining(","));
+    createIndex(connection, path.getEntity().getName(), path.getName(), fields, path.isUnique());
+  }
+
+  public void createIndex(Connection connection, String tableName, String indexName, String fields,
+      boolean unique) throws SQLException {
     StringBuilder sql = new StringBuilder("CREATE ");
-    if (path.isUnique()) {
+    if (unique) {
       sql.append("UNIQUE ");
     }
     sql.append("INDEX IF NOT EXISTS ");
-    sql.append(path.getName());
+    sql.append(INDEX_PREFIX);
+    sql.append(indexName);
     sql.append(" ON ");
-    sql.append(path.getEntity().getName());
+    sql.append(tableName);
     sql.append("(");
-    Separator comma = new Separator();
-    for (DbField field : path.getFields()) {
-      comma.next(sql);
-      sql.append(field.getName());
-    }
+    sql.append(fields);
     sql.append(")");
     execute(connection, sql.toString());
   }
@@ -915,8 +928,8 @@ public class CommandScheme {
   }
 
   public void upgradeParent(Connection connection, DbTable table, DbClass cls) throws SQLException {
-    String name = FOREIGN_KEY_PREFIX + cls.getName() + "_parent";
-    if (table == null || table.getForeignKeys().get(name) == null) {
+    String name = cls.getName() + "_parent";
+    if (table == null || table.getForeignKeys().get(FOREIGN_KEY_PREFIX + name) == null) {
       createParentKey(connection, cls);
     }
   }

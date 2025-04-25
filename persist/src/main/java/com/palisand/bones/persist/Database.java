@@ -219,11 +219,10 @@ public class Database {
       }
 
       public DbSearchMethod getForeignKey() throws SQLException {
-        if (foreignKey == null && !isMany()) {
+        if (foreignKey == null) {
           DbClass entity = Database.getDbClass(type);
           foreignKey = new DbSearchMethod();
-          foreignKey
-              .setName(CommandScheme.FOREIGN_KEY_PREFIX + getEntity().getName() + '_' + getName());
+          foreignKey.setName(getEntity().getName() + '_' + getName());
           foreignKey.setUnique(false);
           entity.getPrimaryKey().getFields().forEach(field -> {
             DbForeignKeyAttribute copy = new DbForeignKeyAttribute();
