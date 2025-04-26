@@ -2,7 +2,6 @@ package com.palisand.bones.persist;
 
 import java.sql.JDBCType;
 
-@SuppressWarnings("serial")
 public class PostgresqlCommands extends CommandScheme {
 
   @Override
@@ -12,6 +11,6 @@ public class PostgresqlCommands extends CommandScheme {
     }
     return super.typeName(type);
   }
-  
+
 
 }

@@ -33,6 +33,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import com.palisand.bones.persist.CommandScheme.Metadata;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
@@ -60,6 +61,7 @@ public class Database {
           Calendar.class, Date.class, OffsetDateTime.class};
   private static Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
   private static Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
+  private static Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
   private static Map<Connection, CommandScheme> COMMAND_SCHEMES = new HashMap<>();
 
   static {
@@ -83,6 +85,14 @@ public class Database {
     STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
     RS_GETTERS.put(LocalDate.class, (rs, pos) -> rs.getObject(pos, LocalDate.class));
     STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, (LocalDate) value));
+    INCREMENTERS.put(int.class, i -> (Integer) i + 1);
+    INCREMENTERS.put(Integer.class, i -> (Integer) i + 1);
+    INCREMENTERS.put(long.class, i -> (Long) i + 1);
+    INCREMENTERS.put(Long.class, i -> (Long) i + 1);
+    INCREMENTERS.put(short.class, i -> (Short) i + 1);
+    INCREMENTERS.put(Short.class, i -> (Short) i + 1);
+    INCREMENTERS.put(byte.class, i -> (Byte) i + 1);
+    INCREMENTERS.put(Byte.class, i -> (Byte) i + 1);
   }
 
 
@@ -150,7 +160,7 @@ public class Database {
     private final List<DbRole> foreignKeys = new ArrayList<>();
     private final List<DbRole> links = new ArrayList<>();
     private final boolean mapped;
-    private final DbField version;
+    private DbField version;
     private String label;
 
     @Setter
@@ -207,9 +217,16 @@ public class Database {
         }
       }
 
+      @SuppressWarnings("unchecked")
       public void set(Object owner, Object value) throws SQLException {
         try {
-          setter.invoke(owner, value);
+          if (isMany()) {
+            Collection<Object> col = (Collection<Object>) getter.invoke(owner);
+            col.clear();
+            col.addAll((Collection<Object>) value);
+          } else {
+            setter.invoke(owner, value);
+          }
         } catch (Exception ex) {
           if (ex.getCause() != null) {
             ex = (Exception) ex.getCause();
@@ -305,6 +322,7 @@ public class Database {
       private Version version;
       private RsGetter rsGetter;
       private StmtSetter stmtSetter;
+      private Function<Object, Object> incrementer = null;
 
       public String getName() {
         return field.getName();
@@ -335,6 +353,12 @@ public class Database {
           }
           throw new SQLException("Could not get value of field " + field);
         }
+      }
+
+      public Object inc(Object owner) throws SQLException {
+        Object oldVersion = get(owner);
+        set(owner, incrementer.apply(oldVersion));
+        return oldVersion;
       }
 
       public void set(Object owner, Object value) throws SQLException {
@@ -373,6 +397,7 @@ public class Database {
           fields.addAll(parent.getFields());
           indices.putAll(parent.getIndices());
           foreignKeys.addAll(parent.getForeignKeys());
+          version = parent.getVersion();
           DbClass indirectParent = parent.getSuperClass();
           while (indirectParent != null && indirectParent.isMapped()) {
             indirectParent = indirectParent.getSuperClass();
@@ -410,11 +435,14 @@ public class Database {
       attribute.setRsGetter(RS_GETTERS.get(field.getType()));
       attribute.setStmtSetter(STMT_SETTERS.get(field.getType()));
       attribute.setNullable(!field.getType().isPrimitive());
-      fields.add(attribute);
       Id id = field.getAnnotation(Id.class);
       if (id != null) {
+        // make sure primary key fields are the first
+        fields.add(primaryKey.getFields().size(), attribute);
         primaryKey.fields.add(attribute);
         attribute.setId(id);
+      } else {
+        fields.add(attribute);
       }
       Index[] all = field.getAnnotationsByType(Index.class);
       for (Index index : all) {
@@ -432,6 +460,7 @@ public class Database {
     private DbField initVersion(DbField field) {
       Version version = field.getField().getAnnotation(Version.class);
       if (version != null) {
+        field.setIncrementer(INCREMENTERS.get(field.getType()));
         field.setVersion(version);
         return field;
       }
@@ -498,7 +527,6 @@ public class Database {
       type = cls;
       superClass = registerSuperClass();
       mapped = cls.getAnnotation(Mapped.class) != null;
-      DbField dbVersion = null;
       for (Field field : cls.getDeclaredFields()) {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
@@ -509,7 +537,9 @@ public class Database {
           } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
             DbField attribute = newAttribute(field);
             DbField withVersion = initVersion(attribute);
-            dbVersion = withVersion != null ? withVersion : null;
+            if (withVersion != null) {
+              version = withVersion;
+            }
           } else {
             throw new SQLException(
                 "Field " + field.getName() + " has unsupported type " + field.getType());
@@ -517,7 +547,6 @@ public class Database {
         }
       }
       registerSubclasses();
-      this.version = dbVersion;
       ENTITIES.put(cls, this);
     }
 
@@ -724,20 +753,16 @@ public class Database {
     }
   }
 
-  public void insert(Connection connection, Object... objects) throws SQLException {
+  public Object insert(Connection connection, Object object) throws SQLException {
     CommandScheme commands = getCommands(connection);
-    for (Object object : objects) {
-      DbClass entity = getDbClass(object.getClass());
-      commands.insert(connection, entity, entity.getLabel(), object);
-    }
+    DbClass entity = getDbClass(object.getClass());
+    return commands.insert(connection, entity, entity.getLabel(), object);
   }
 
-  public void update(Connection connection, Object... objects) throws SQLException {
+  public Object update(Connection connection, Object object) throws SQLException {
     CommandScheme commands = getCommands(connection);
-    for (Object object : objects) {
-      DbClass entity = getDbClass(object.getClass());
-      commands.update(connection, entity, object);
-    }
+    DbClass entity = getDbClass(object.getClass());
+    return commands.update(connection, entity, object);
   }
 
   @SuppressWarnings("unchecked")
@@ -750,6 +775,11 @@ public class Database {
   public String getDatabaseName(Connection connection) throws SQLException {
     CommandScheme commands = getCommands(connection);
     return commands.getDatabaseName(connection);
+  }
+
+  public <X> Query<X> newQuery(Connection connection, Class<X> queryType) throws SQLException {
+    CommandScheme commands = getCommands(connection);
+    return new Query<X>(connection, commands, queryType);
   }
 
 }

@@ -1,6 +1,7 @@
 package com.palisand.bones.persist.test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import java.sql.Connection;
@@ -11,9 +12,11 @@ import org.junit.jupiter.api.Test;
 import com.palisand.bones.persist.CommandScheme;
 import com.palisand.bones.persist.Database;
 import com.palisand.bones.persist.PostgresqlCommands;
+import com.palisand.bones.persist.Query;
+import com.palisand.bones.persist.StaleObjectException;
 
 class UpgradeTest {
-  private DB type = DB.H2;
+  private DB type = DB.PG;
 
   public enum DB {
     H2, PG
@@ -76,12 +79,14 @@ class UpgradeTest {
       apartment1.setAddress("Ergens");
       apartment1.setFloor(1);
       apartment1.setLiftAvailable(true);
-      database.insert(connection, person1, apartment1);
+      database.insert(connection, person1);
+      database.insert(connection, apartment1);
       database.commit(connection);
       person1.setName("Ties Pull ter Gunne");
       apartment1.setLiftAvailable(false);
       person1.setResidence(apartment1);
-      database.update(connection, person1, apartment1);
+      database.update(connection, person1);
+      database.update(connection, apartment1);
       database.commit(connection);
       Version1.Person person2 = new Version1.Person();
       person2.setOid(person1.getOid());
@@ -96,6 +101,61 @@ class UpgradeTest {
           Version2.Apartment.class, Version2.Address.class));
       database.commit(connection);
       System.out.println("after upgrade without changes");
+    } catch (Exception ex) {
+      ex.printStackTrace();
+      fail();
+    }
+  }
+
+  @Test
+  void testQuery() {
+    try (Connection connection = getConnection()) {
+      Database database = newDatabase();
+      System.out.println("Connected succesfully to " + database.getDatabaseName(connection));
+      if (!database.verify(connection, Version2.Person.class, Version2.House.class,
+          Version2.Apartment.class, Version2.Address.class)) {
+        database.upgrade(connection, Version2.Person.class, Version2.House.class,
+            Version2.Apartment.class, Version2.Address.class);
+        for (int i = 0; i < 10; ++i) {
+          Version2.Person person = new Version2.Person();
+          person.setName("Person" + i);
+          person.setBirthday(LocalDate.of(2000, i + 1, i + 1));
+          person.setChildren(i);
+          person.setWealth(99.09);
+          database.insert(connection, person);
+        }
+        database.commit(connection);
+      }
+      Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
+      query.selectFrom(Version2.Person.class);
+      query.setRowsPerPage(4);
+      Version2.Person last = null;
+      for (query.execute(); !query.isLastPage(); query.nextPage()) {
+        for (Version2.Person person = query.next(); person != null; person = query.next()) {
+          System.out.println(person);
+          last = person;
+        }
+      }
+      Version2.Person p2 = new Version2.Person();
+      p2.setOid(last.getOid());
+      p2 = database.refresh(connection, p2);
+      assertTrue(last == p2);
+      p2 = new Version2.Person();
+      p2.setOid(last.getOid());
+      p2.setOversion(last.getOversion());
+      p2.setName("Other name");
+      p2.setChildren(4);
+      p2.setWealth(55.555);
+      p2.setBirthday(LocalDate.of(1977, 8, 9));
+      p2 = (Version2.Person) database.update(connection, p2);
+      assertTrue(last == p2);
+      System.out.println(p2);
+      p2.setOversion(0);
+      Version2.Person p3 = p2;
+      Exception exception =
+          assertThrows(StaleObjectException.class, () -> database.update(connection, p3));
+      System.out.println("Expected exception: " + exception);
+      database.commit(connection);
     } catch (Exception ex) {
       ex.printStackTrace();
       fail();

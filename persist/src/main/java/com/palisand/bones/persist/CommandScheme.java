@@ -147,7 +147,7 @@ public class CommandScheme {
   }
 
 
-  private static class Separator {
+  static class Separator {
     final String token;
     boolean first = true;
 
@@ -209,24 +209,20 @@ public class CommandScheme {
     return indexForFkNeeded;
   }
 
-  protected void cache(DbClass entity, Object object) throws SQLException {
+  protected Object cache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
     if (typeCache == null) {
       typeCache = new TreeMap<>();
       cache.put(entity.getName(), typeCache);
+    } else {
+      Object result = typeCache.get(entity.getPrimaryKeyAsString(object));
+      if (result != null) {
+        return result;
+      }
     }
     typeCache.put(entity.getPrimaryKeyAsString(object), object);
-  }
-
-  protected Object getFromCache(DbClass entity, Object object) throws SQLException {
-    entity = entity.getRoot();
-    String key = entity.getPrimaryKeyAsString(object);
-    Map<String, Object> typeCache = cache.get(entity.getName());
-    if (typeCache != null) {
-      typeCache.get(key);
-    }
-    return null;
+    return object;
   }
 
   public void clearCache() {
@@ -564,13 +560,7 @@ public class CommandScheme {
       sql.append(" SET ");
       Separator sqlComma = new Separator();
       for (DbField field : entity.getFields()) {
-        if (field.isVersion()) {
-          sqlComma.next(sql);
-          sql.append(field.getName());
-          sql.append('=');
-          sql.append(field.getName());
-          sql.append("+1");
-        } else if (!entity.getPrimaryKey().getFields().contains(field)) {
+        if (!entity.getPrimaryKey().getFields().contains(field)) {
           sqlComma.next(sql);
           sql.append(field.getName());
           sql.append("=?");
@@ -695,7 +685,7 @@ public class CommandScheme {
   }
 
 
-  public void insert(Connection connection, DbClass entity, String label, Object object)
+  public Object insert(Connection connection, DbClass entity, String label, Object object)
       throws SQLException {
     if (entity.getSuperClass() != null) {
       insert(connection, entity.getSuperClass(), label, object);
@@ -750,10 +740,33 @@ public class CommandScheme {
         }
       }
     }
-    cache(entity, object);
+    return cache(entity, object);
   }
 
-  public void update(Connection connection, DbClass entity, Object object) throws SQLException {
+  private void copy(DbClass cls, Object dest, Object src) throws SQLException {
+    for (DbField field : cls.getFields()) {
+      field.set(dest, field.get(src));
+    }
+    for (DbRole role : cls.getForeignKeys()) {
+      role.set(dest, role.get(src));
+    }
+    for (DbRole role : cls.getLinks()) {
+      role.set(dest, role.get(src));
+    }
+  }
+
+
+
+  public Object update(Connection connection, DbClass entity, Object object) throws SQLException {
+    Object oldObject = object;
+    object = cache(entity, object);
+    Object oldVersion = null;
+    if (object != oldObject) {
+      copy(entity, object, oldObject);
+    }
+    if (entity.getVersion() != null) {
+      oldVersion = entity.getVersion().inc(object);
+    }
     if (entity.getSuperClass() != null) {
       update(connection, entity.getSuperClass(), object);
     }
@@ -765,7 +778,7 @@ public class CommandScheme {
     }
     int index = 1;
     for (DbField field : entity.getFields()) {
-      if (!entity.getPrimaryKey().getFields().contains(field) && !field.isVersion()) {
+      if (!entity.getPrimaryKey().getFields().contains(field)) {
         Object value = field.get(object);
         if (value != null) {
           field.stmtSet(stmt, index++, value);
@@ -794,9 +807,8 @@ public class CommandScheme {
       nextValue(sql, value);
     }
     if (entity.getVersion() != null) {
-      Object value = entity.getVersion().get(object);
-      stmt.setObject(index++, value);
-      nextValue(sql, value);
+      stmt.setObject(index++, oldVersion);
+      nextValue(sql, oldVersion);
     }
     if (logger != null) {
       logger.accept(sql.toString());
@@ -804,7 +816,8 @@ public class CommandScheme {
     if (stmt.executeUpdate() != 1) {
       throw new StaleObjectException(object + " is out of date.");
     }
-    cache(entity, object);
+    // update oversion & check on oversion in where clause
+    return object;
   }
 
   public Object refresh(Connection connection, DbClass entity, Object object) throws SQLException {
@@ -814,6 +827,7 @@ public class CommandScheme {
     if (logger != null) {
       sql = new StringBuilder(stmts.getRefreshSql());
     }
+    object = cache(entity, object);
     String currentSubtype = entity.getLabel();
     List<DbClass> types = new ArrayList<>();
     types.add(entity);
@@ -853,6 +867,18 @@ public class CommandScheme {
     return object;
   }
 
+  protected int setPrimaryKey(ResultSet rs, DbClass cls, Object object, int index)
+      throws SQLException {
+    for (DbField field : cls.getPrimaryKey().getFields()) {
+      Object value = field.rsGet(rs, index++);
+      if (rs.wasNull()) {
+        value = null;
+      }
+      field.set(object, value);
+    }
+    return index;
+  }
+
   protected int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
     for (DbField field : cls.getFields()) {
       if (!cls.getPrimaryKey().getFields().contains(field)) {
@@ -875,7 +901,6 @@ public class CommandScheme {
           field.set(other, key);
         }
       }
-      other = refresh(rs.getStatement().getConnection(), otherCls, other);
       role.set(object, other);
     }
     return index;
