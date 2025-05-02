@@ -1,6 +1,7 @@
 package com.palisand.bones.persist;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -78,8 +79,8 @@ public class Query<X> {
     return this;
   }
 
-  public Query<X> where(String clause) {
-    add(" WHERE ", clause);
+  public Query<X> where(String path, String operator, Object value) {
+    add(" WHERE ", path + operator + '?');
     return this;
   }
 
@@ -88,22 +89,43 @@ public class Query<X> {
     from.append(rest);
   }
 
-  public Query<X> and(String clause) {
-    add(" AND ", clause);
+  public Query<X> and(String path, String operator, Object value) {
+    add(" AND ", path + operator + '?');
     return this;
   }
 
-  public Query<X> or(String clause) {
-    add(" OR ", clause);
+  public Query<X> or(String path, String operator, Object value) {
+    add(" OR ", path + operator + '?');
     return this;
+  }
+
+  private StringBuilder getSql() {
+    StringBuilder sql = new StringBuilder(select).append(from);
+    sql.append(" LIMIT ").append("?");
+    sql.append(" OFFSET ").append("?");
+    return sql;
+  }
+
+  private int getOffset() {
+    return (page - 1) * rowsPerPage;
   }
 
   public Query<X> execute() throws SQLException {
-    StringBuilder sql = new StringBuilder(select).append(from);
-    sql.append(" LIMIT ").append(rowsPerPage);
-    sql.append(" OFFSET ").append((page - 1) * rowsPerPage);
+    StringBuilder sql = getSql();
+    String sqlstr = sql.toString();
+    PreparedStatement ps = commands.getQueryCache().get(sqlstr);
+    if (ps == null) {
+      ps = connection.prepareStatement(sqlstr);
+      commands.getQueryCache().put(sqlstr, ps);
+    }
+    int index = 1;
+    ps.setInt(index++, rowsPerPage);
+    CommandScheme.nextValue(sql, rowsPerPage);
+    int offset = getOffset();
+    ps.setInt(index++, offset);
+    CommandScheme.nextValue(sql, offset);
     commands.log(sql.toString());
-    resultSet = connection.createStatement().executeQuery(sql.toString());
+    resultSet = ps.executeQuery();
     rowInPage = 0;
     return this;
   }

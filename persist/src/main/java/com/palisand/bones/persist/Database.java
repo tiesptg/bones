@@ -46,6 +46,11 @@ import lombok.Setter;
 public class Database {
 
   @FunctionalInterface
+  public interface Transaction {
+    Object perform() throws SQLException;
+  }
+
+  @FunctionalInterface
   interface RsGetter {
     Object get(ResultSet rs, int pos) throws SQLException;
   }
@@ -765,6 +770,12 @@ public class Database {
     return commands.update(connection, entity, object);
   }
 
+  public void delete(Connection connection, Object object) throws SQLException {
+    CommandScheme commands = getCommands(connection);
+    DbClass entity = getDbClass(object.getClass());
+    commands.delete(connection, entity, object);
+  }
+
   @SuppressWarnings("unchecked")
   public <T> T refresh(Connection connection, T object) throws SQLException {
     CommandScheme commands = getCommands(connection);
@@ -780,6 +791,20 @@ public class Database {
   public <X> Query<X> newQuery(Connection connection, Class<X> queryType) throws SQLException {
     CommandScheme commands = getCommands(connection);
     return new Query<X>(connection, commands, queryType);
+  }
+
+  public Object transaction(Connection connection, Transaction transaction) throws SQLException {
+    try {
+      Object result = transaction.perform();
+      commit(connection);
+      return result;
+    } catch (SQLException ex) {
+      rollback(connection);
+      throw ex;
+    } catch (Exception ex) {
+      rollback(connection);
+      throw new SQLException(ex);
+    }
   }
 
 }

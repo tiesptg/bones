@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
@@ -38,6 +39,8 @@ public class CommandScheme {
   private Consumer<String> logger = null;
   private final Map<String, Map<String, Object>> cache = new TreeMap<>();
   private boolean indexForFkNeeded = true;
+  @Getter
+  protected final Map<String, PreparedStatement> queryCache = new ConcurrentHashMap<>();
 
   @Getter
   @Setter
@@ -222,6 +225,18 @@ public class CommandScheme {
       }
     }
     typeCache.put(entity.getPrimaryKeyAsString(object), object);
+    return object;
+  }
+
+  protected Object removeFromCache(DbClass entity, Object object) throws SQLException {
+    entity = entity.getRoot();
+    Map<String, Object> typeCache = cache.get(entity.getName());
+    if (typeCache != null) {
+      Object result = typeCache.remove(entity.getPrimaryKeyAsString(object));
+      if (result != null) {
+        return result;
+      }
+    }
     return object;
   }
 
@@ -591,6 +606,30 @@ public class CommandScheme {
     return stmts;
   }
 
+  protected Statements getDeleteStatement(Connection connection, DbClass entity)
+      throws SQLException {
+    Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
+    if (stmts.getDelete() == null) {
+      StringBuilder sql = new StringBuilder("DELETE FROM ");
+      sql.append(entity.getName());
+      sql.append(" WHERE ");
+      Separator and = new Separator(" AND ");
+      for (DbField field : entity.getPrimaryKey().getFields()) {
+        and.next(sql);
+        sql.append(field.getName());
+        sql.append("=?");
+      }
+      if (entity.getVersion() != null) {
+        and.next(sql);
+        sql.append(entity.getVersion().getName());
+        sql.append("=?");
+      }
+      stmts.setDelete(connection.prepareStatement(sql.toString()));
+      stmts.setDeleteSql(sql.toString());
+    }
+    return stmts;
+  }
+
   protected Statements getRefreshStatement(Connection connection, DbClass entity)
       throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
@@ -666,7 +705,7 @@ public class CommandScheme {
     return stmts;
   }
 
-  private void nextValue(StringBuilder sql, Object value) {
+  static void nextValue(StringBuilder sql, Object value) {
     if (sql != null) {
       String literal = getLiteral(value);
       int pos = sql.indexOf("?");
@@ -674,7 +713,7 @@ public class CommandScheme {
     }
   }
 
-  public String getLiteral(Object value) {
+  static String getLiteral(Object value) {
     if (value == null) {
       return "null";
     }
@@ -957,6 +996,44 @@ public class CommandScheme {
     if (table == null || table.getForeignKeys().get(FOREIGN_KEY_PREFIX + name) == null) {
       createParentKey(connection, cls);
     }
+  }
+
+  public void delete(Connection connection, DbClass entity, Object object) throws SQLException {
+    Object oldObject = object;
+    object = removeFromCache(entity, object);
+    Object oldVersion = null;
+    if (object != oldObject) {
+      copy(entity, object, oldObject);
+    }
+    if (entity.getVersion() != null) {
+      oldVersion = entity.getVersion().inc(object);
+    }
+    Statements stmts = getDeleteStatement(connection, entity);
+    PreparedStatement stmt = stmts.getDelete();
+    StringBuilder sql = null;
+    if (logger != null) {
+      sql = new StringBuilder(stmts.getDeleteSql());
+    }
+    int index = 1;
+    for (DbField field : entity.getPrimaryKey().getFields()) {
+      Object value = field.get(object);
+      stmt.setObject(index++, value);
+      nextValue(sql, value);
+    }
+    if (entity.getVersion() != null) {
+      stmt.setObject(index++, oldVersion);
+      nextValue(sql, oldVersion);
+    }
+    if (logger != null) {
+      logger.accept(sql.toString());
+    }
+    if (stmt.executeUpdate() != 1) {
+      throw new StaleObjectException(object + " is out of date.");
+    }
+    if (entity.getSuperClass() != null) {
+      delete(connection, entity.getSuperClass(), object);
+    }
+
   }
 
 }

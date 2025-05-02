@@ -116,46 +116,66 @@ class UpgradeTest {
           Version2.Apartment.class, Version2.Address.class)) {
         database.upgrade(connection, Version2.Person.class, Version2.House.class,
             Version2.Apartment.class, Version2.Address.class);
-        for (int i = 0; i < 10; ++i) {
-          Version2.Person person = new Version2.Person();
-          person.setName("Person" + i);
-          person.setBirthday(LocalDate.of(2000, i + 1, i + 1));
-          person.setChildren(i);
-          person.setWealth(99.09);
-          database.insert(connection, person);
-        }
-        database.commit(connection);
       }
-      Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
-      query.selectFrom(Version2.Person.class);
-      query.setRowsPerPage(4);
-      Version2.Person last = null;
-      for (query.execute(); !query.isLastPage(); query.nextPage()) {
-        for (Version2.Person person = query.next(); person != null; person = query.next()) {
-          System.out.println(person);
-          last = person;
-        }
+      for (int i = 0; i < 10; ++i) {
+        Version2.Person person = new Version2.Person();
+        person.setName("Person" + i);
+        person.setBirthday(LocalDate.of(2000, i + 1, i + 1));
+        person.setChildren(i);
+        person.setWealth(99.09);
+        database.insert(connection, person);
       }
-      Version2.Person p2 = new Version2.Person();
-      p2.setOid(last.getOid());
-      p2 = database.refresh(connection, p2);
-      assertTrue(last == p2);
-      p2 = new Version2.Person();
-      p2.setOid(last.getOid());
-      p2.setOversion(last.getOversion());
-      p2.setName("Other name");
-      p2.setChildren(4);
-      p2.setWealth(55.555);
-      p2.setBirthday(LocalDate.of(1977, 8, 9));
-      p2 = (Version2.Person) database.update(connection, p2);
-      assertTrue(last == p2);
-      System.out.println(p2);
-      p2.setOversion(0);
-      Version2.Person p3 = p2;
+      database.commit(connection);
+      Version2.Person p3 = (Version2.Person) database.transaction(connection, () -> {
+        Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
+        query.selectFrom(Version2.Person.class);
+        query.setRowsPerPage(4);
+        Version2.Person last = null;
+        for (query.execute(); !query.isLastPage(); query.nextPage()) {
+          for (Version2.Person person = query.next(); person != null; person = query.next()) {
+            System.out.println(person);
+            last = person;
+          }
+        }
+        Version2.Person p2 = new Version2.Person();
+        p2.setOid(last.getOid());
+        p2 = database.refresh(connection, p2);
+        assertTrue(last == p2);
+        p2 = new Version2.Person();
+        p2.setOid(last.getOid());
+        p2.setOversion(last.getOversion());
+        p2.setName("Other name");
+        p2.setChildren(4);
+        p2.setWealth(55.555);
+        p2.setBirthday(LocalDate.of(1977, 8, 9));
+        p2 = (Version2.Person) database.update(connection, p2);
+        assertTrue(last == p2);
+        System.out.println(p2);
+        return p2;
+      });
+      p3.setOversion(0);
       Exception exception =
           assertThrows(StaleObjectException.class, () -> database.update(connection, p3));
       System.out.println("Expected exception: " + exception);
       database.commit(connection);
+
+      database.transaction(connection, () -> {
+        database.refresh(connection, p3);
+        database.delete(connection, p3);
+        return p3;
+      });
+
+      database.transaction(connection, () -> {
+        Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
+        query.selectFrom(Version2.Person.class);
+        query.setRowsPerPage(4);
+        for (query.execute(); !query.isLastPage(); query.execute()) {
+          for (Version2.Person person = query.next(); person != null; person = query.next()) {
+            database.delete(connection, person);
+          }
+        }
+        return null;
+      });
     } catch (Exception ex) {
       ex.printStackTrace();
       fail();
