@@ -16,7 +16,7 @@ import com.palisand.bones.persist.Query;
 import com.palisand.bones.persist.StaleObjectException;
 
 class UpgradeTest {
-  private DB type = DB.PG;
+  private DB type = DB.H2;
 
   public enum DB {
     H2, PG
@@ -117,6 +117,8 @@ class UpgradeTest {
         database.upgrade(connection, Version2.Person.class, Version2.House.class,
             Version2.Apartment.class, Version2.Address.class);
       }
+      System.out.println();
+      System.out.println("add 10 persons");
       for (int i = 0; i < 10; ++i) {
         Version2.Person person = new Version2.Person();
         person.setName("Person" + i);
@@ -126,9 +128,10 @@ class UpgradeTest {
         database.insert(connection, person);
       }
       database.commit(connection);
-      Version2.Person p3 = (Version2.Person) database.transaction(connection, () -> {
+      System.out.println();
+      System.out.println("select, update Person");
+      Version2.Person p3 = (Version2.Person) database.transactionWithResult(connection, () -> {
         Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
-        query.selectFrom(Version2.Person.class);
         query.setRowsPerPage(4);
         Version2.Person last = null;
         for (query.execute(); !query.isLastPage(); query.nextPage()) {
@@ -153,28 +156,105 @@ class UpgradeTest {
         System.out.println(p2);
         return p2;
       });
+      System.out.println();
+      System.out.println("optimistic locking check");
       p3.setOversion(0);
       Exception exception =
           assertThrows(StaleObjectException.class, () -> database.update(connection, p3));
       System.out.println("Expected exception: " + exception);
       database.commit(connection);
 
+      System.out.println();
+      System.out.println("refresh & delete");
       database.transaction(connection, () -> {
         database.refresh(connection, p3);
         database.delete(connection, p3);
-        return p3;
       });
 
+      System.out.println();
+      System.out.println("select with simple where");
+      database.transaction(connection, () -> {
+        Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class)
+            .where("Person.birthday", "=", LocalDate.of(2000, 3, 3)).execute();
+        for (Version2.Person person = query.next(); person != null; person = query.next()) {
+          System.out.println(person);
+        }
+      });
+
+      System.out.println();
+      System.out.println("select and delete all");
       database.transaction(connection, () -> {
         Query<Version2.Person> query = database.newQuery(connection, Version2.Person.class);
-        query.selectFrom(Version2.Person.class);
         query.setRowsPerPage(4);
         for (query.execute(); !query.isLastPage(); query.execute()) {
           for (Version2.Person person = query.next(); person != null; person = query.next()) {
             database.delete(connection, person);
           }
         }
-        return null;
+      });
+    } catch (Exception ex) {
+      ex.printStackTrace();
+      fail();
+    }
+  }
+
+  @Test
+  void testLink() {
+    try (Connection connection = getConnection()) {
+      Database database = newDatabase();
+      System.out.println("Connected succesfully to " + database.getDatabaseName(connection));
+      if (!database.verify(connection, Version2.Person.class, Version2.House.class,
+          Version2.Apartment.class, Version2.Address.class)) {
+        database.upgrade(connection, Version2.Person.class, Version2.House.class,
+            Version2.Apartment.class, Version2.Address.class);
+      }
+      System.out.println();
+      System.out.println("add 5 houses with with addresses");
+      Version2.Address a = (Version2.Address) database.transactionWithResult(connection, () -> {
+        Version2.Address address = null;
+        for (int i = 0; i < 5; ++i) {
+          address = new Version2.Address();
+          address.setNumber((i + 1) * 2);
+          address.setStreet("Dorpsstraat");
+          address.setTown("Ons Dorp");
+
+          address = database.insert(connection, address);
+          Version2.House house = new Version2.House();
+          house.setAddress(address);
+          house = database.insert(connection, house);
+        }
+        return address;
+      });
+      System.out.println();
+      System.out.println("select with simple join");
+      database.transaction(connection, () -> {
+        Query<Version2.House> query = database.newQuery(connection, Version2.House.class)
+            .where("house.address", "=", a).execute();
+        for (Version2.House house = query.next(); house != null; house = query.next()) {
+          house.setAddress(database.refresh(connection, house.getAddress()));
+          System.out.println(house);
+        }
+      });
+      System.out.println();
+      System.out.println("select and delete all");
+      database.transaction(connection, () -> {
+        Query<Version2.House> query = database.newQuery(connection, Version2.House.class);
+        query.setRowsPerPage(4);
+        for (query.execute(); !query.isLastPage(); query.execute()) {
+          for (Version2.House house = query.next(); house != null; house = query.next()) {
+            Query<Version2.Person> q2 = database.newQuery(connection, Version2.Person.class);
+            q2.where("person.residence", "=", house).execute();
+            for (Version2.Person person = q2.next(); person != null; person = q2.next()) {
+              database.delete(connection, person);
+            }
+
+            Version2.Address address = house.getAddress();
+            database.delete(connection, house);
+            if (address != null) {
+              database.delete(connection, address);
+            }
+          }
+        }
       });
     } catch (Exception ex) {
       ex.printStackTrace();

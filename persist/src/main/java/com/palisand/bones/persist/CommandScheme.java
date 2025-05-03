@@ -151,20 +151,29 @@ public class CommandScheme {
 
 
   static class Separator {
+    final String firstToken;
     final String token;
     boolean first = true;
 
     Separator() {
+      firstToken = "";
       token = ",";
     }
 
     Separator(String token) {
+      firstToken = "";
+      this.token = token;
+    }
+
+    Separator(String token, String firstToken) {
+      this.firstToken = firstToken;
       this.token = token;
     }
 
     public void next(StringBuilder sb) {
       if (first) {
         first = false;
+        sb.append(firstToken);
       } else {
         sb.append(token);
       }

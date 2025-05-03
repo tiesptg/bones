@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +32,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -47,6 +49,11 @@ public class Database {
 
   @FunctionalInterface
   public interface Transaction {
+    void perform() throws SQLException;
+  }
+
+  @FunctionalInterface
+  public interface TransactionWithResult {
     Object perform() throws SQLException;
   }
 
@@ -64,10 +71,11 @@ public class Database {
       {String.class, Boolean.class, Integer.class, Long.class, Double.class, Float.class,
           Short.class, BigDecimal.class, BigInteger.class, LocalDate.class, LocalDateTime.class,
           Calendar.class, Date.class, OffsetDateTime.class};
-  private static Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
-  private static Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
-  private static Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
-  private static Map<Connection, CommandScheme> COMMAND_SCHEMES = new HashMap<>();
+  static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
+  static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
+  private static final Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
+  private static final Map<Connection, CommandScheme> COMMAND_SCHEMES =
+      Collections.synchronizedMap(new WeakHashMap<>());
 
   static {
     RS_GETTERS.put(String.class, (rs, pos) -> rs.getString(pos));
@@ -197,6 +205,11 @@ public class Database {
           return foreignKey.getName();
         }
         return field.getName();
+      }
+
+      public boolean isForeignKey() {
+        // TODO: this excludes one-to-one associations at this time
+        return !isMany();
       }
 
       public DbClass getEntity() {
@@ -495,8 +508,12 @@ public class Database {
     private String addSubclass(String label, DbClass subClass) throws SQLException {
       if (superClass != null) {
         label = superClass.addSubclass(label, subClass);
-        subClasses.put(label, superClass);
+        subClasses.put(label, subClass);
       } else {
+        if (this.label == null) {
+          this.label = getLabel(getName());
+          subClasses.put(this.label, this);
+        }
         while (subClasses.containsKey(label)) {
           label = nextLabel(label);
         }
@@ -508,7 +525,7 @@ public class Database {
 
     private void registerSubclasses() throws SQLException {
       if (superClass != null) {
-        superClass.addSubclass(getLabel(getName()), this);
+        this.label = superClass.addSubclass(getLabel(getName()), this);
         Map<String, DbClass> changed = new TreeMap<>();
         Set<String> removedKeys = new TreeSet<>();
         for (Entry<String, DbClass> entry : subClasses.entrySet()) {
@@ -519,12 +536,42 @@ public class Database {
           }
         }
         removedKeys.forEach(key -> subClasses.remove(key));
-        changed.forEach((key, value) -> subClasses.put(key, value));
+        changed.forEach((key, value) -> {
+          subClasses.put(key, value);
+          value.setLabel(key);
+        });
       }
     }
 
     public boolean hasSubTypeField() {
       return superClass == null && !subClasses.isEmpty();
+    }
+
+    public DbField getField(String name) {
+      for (DbField field : fields) {
+        if (field.getName().equalsIgnoreCase(name)) {
+          return field;
+        }
+      }
+      return null;
+    }
+
+    public DbRole getForeignKey(String name) {
+      for (DbRole role : foreignKeys) {
+        if (role.getName().equalsIgnoreCase(name)) {
+          return role;
+        }
+      }
+      return null;
+    }
+
+    public DbRole getLink(String name) {
+      for (DbRole role : links) {
+        if (role.getName().equalsIgnoreCase(name)) {
+          return role;
+        }
+      }
+      return null;
     }
 
     public DbClass(Class<?> cls) throws SQLException {
@@ -646,8 +693,6 @@ public class Database {
     return entity;
   }
 
-  public void startTransaction(Connection connection) throws SQLException {}
-
   public void commit(Connection connection) throws SQLException {
     connection.commit();
     CommandScheme commands = getCommands(connection);
@@ -758,16 +803,18 @@ public class Database {
     }
   }
 
-  public Object insert(Connection connection, Object object) throws SQLException {
+  @SuppressWarnings("unchecked")
+  public <T> T insert(Connection connection, T object) throws SQLException {
     CommandScheme commands = getCommands(connection);
     DbClass entity = getDbClass(object.getClass());
-    return commands.insert(connection, entity, entity.getLabel(), object);
+    return (T) commands.insert(connection, entity, entity.getLabel(), object);
   }
 
-  public Object update(Connection connection, Object object) throws SQLException {
+  @SuppressWarnings("unchecked")
+  public <T> T update(Connection connection, T object) throws SQLException {
     CommandScheme commands = getCommands(connection);
     DbClass entity = getDbClass(object.getClass());
-    return commands.update(connection, entity, object);
+    return (T) commands.update(connection, entity, object);
   }
 
   public void delete(Connection connection, Object object) throws SQLException {
@@ -790,14 +837,34 @@ public class Database {
 
   public <X> Query<X> newQuery(Connection connection, Class<X> queryType) throws SQLException {
     CommandScheme commands = getCommands(connection);
-    return new Query<X>(connection, commands, queryType);
+    return new Query<X>(connection, commands, queryType).selectFrom(queryType);
   }
 
-  public Object transaction(Connection connection, Transaction transaction) throws SQLException {
+  public <X> Query<X> newQuery(Connection connection, Class<X> queryType, String alias)
+      throws SQLException {
+    CommandScheme commands = getCommands(connection);
+    return new Query<X>(connection, commands, queryType).selectFrom(queryType, alias);
+  }
+
+  public Object transactionWithResult(Connection connection, TransactionWithResult transaction)
+      throws SQLException {
     try {
       Object result = transaction.perform();
       commit(connection);
       return result;
+    } catch (SQLException ex) {
+      rollback(connection);
+      throw ex;
+    } catch (Exception ex) {
+      rollback(connection);
+      throw new SQLException(ex);
+    }
+  }
+
+  public void transaction(Connection connection, Transaction transaction) throws SQLException {
+    try {
+      transaction.perform();
+      commit(connection);
     } catch (SQLException ex) {
       rollback(connection);
       throw ex;

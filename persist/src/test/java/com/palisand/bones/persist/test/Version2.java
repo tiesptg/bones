@@ -42,6 +42,7 @@ public class Version2 {
     private String street;
     private int number;
     private String town;
+
   }
 
 
