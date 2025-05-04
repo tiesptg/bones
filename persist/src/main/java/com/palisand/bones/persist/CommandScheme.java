@@ -11,6 +11,7 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,7 @@ public class CommandScheme {
   }
 
   Metadata getMetadata(Connection connection) throws SQLException {
+    System.out.println("get metadata");
     DatabaseMetaData dbmd = connection.getMetaData();
     Metadata metadata = new Metadata();
     ResultSet tables = dbmd.getTables(connection.getCatalog(), connection.getSchema(), null,
@@ -130,14 +132,15 @@ public class CommandScheme {
         table.getIndices().remove(key);
       }
     }
-    for (DbTable table : metadata.getTables().values()) {
-      for (DbTable other : metadata.getTables().values()) {
+    Collection<DbTable> found = metadata.getTables().values();
+    for (DbTable table : found) {
+      for (DbTable other : found) {
         ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(), connection.getSchema(),
             other.getName(), connection.getCatalog(), connection.getSchema(), table.getName());
         Metadata.DbIndex fkey = null;
         while (fkeys.next()) {
           String name = fkeys.getString("FK_NAME");
-          if (fkey == null || fkey.getName().equals(name)) {
+          if (fkey == null || !fkey.getName().equals(name)) {
             fkey = new DbIndex(name, false);
             table.getForeignKeys().put(name, fkey);
             fkey.setReferences(other);
@@ -643,12 +646,7 @@ public class CommandScheme {
       throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getRefresh() == null) {
-      List<DbClass> types = new ArrayList<>();
-      types.add(entity);
-      while (entity.getSuperClass() != null) {
-        entity = entity.getSuperClass();
-        types.add(0, entity);
-      }
+      List<DbClass> types = entity.getTypeHierarchy();
       StringBuilder sql = new StringBuilder("SELECT ");
       Separator sqlComma = new Separator();
       if (entity.hasSubTypeField()) {
@@ -679,28 +677,22 @@ public class CommandScheme {
       boolean first = true;
       for (DbClass c : types) {
         if (!first) {
-          sql.append(" JOIN ");
+          sql.append(" LEFT OUTER JOIN ");
         }
         sql.append(c.getName());
         if (first) {
           first = false;
         } else {
-          sql.append(" ON ");
-          Separator and = new Separator(" AND ");
+          sql.append(" USING(");
+          Separator and = new Separator(",");
           for (DbField field : entity.getPrimaryKey().getFields()) {
             and.next(sql);
-            sql.append(entity.getName());
-            sql.append('.');
-            sql.append(field.getName());
-            sql.append('=');
-            sql.append(c.getName());
-            sql.append('.');
             sql.append(field.getName());
           }
+          sql.append(')');
         }
       }
-      sql.append(" WHERE ");
-      Separator and = new Separator(" AND ");
+      Separator and = new Separator(" AND ", " WHERE ");
       for (DbField field : entity.getPrimaryKey().getFields()) {
         and.next(sql);
         sql.append(entity.getName());
@@ -877,12 +869,7 @@ public class CommandScheme {
     }
     object = cache(entity, object);
     String currentSubtype = entity.getLabel();
-    List<DbClass> types = new ArrayList<>();
-    types.add(entity);
-    while (entity.getSuperClass() != null) {
-      entity = entity.getSuperClass();
-      types.add(0, entity);
-    }
+    List<DbClass> types = entity.getTypeHierarchy();
     int index = 1;
     for (DbField field : entity.getPrimaryKey().getFields()) {
       Object value = field.get(object);
@@ -899,16 +886,28 @@ public class CommandScheme {
         if (entity.hasSubTypeField()) {
           subtype = rs.getString(index++);
           if (!subtype.equals(currentSubtype)) {
-            DbClass newClass = entity.getSubClasses().get(subtype);
-            Object newObject = newClass.newInstance();
+            entity = entity.getSubClasses().get(subtype);
+            object = entity.newInstance();
             for (DbField field : entity.getPrimaryKey().getFields()) {
-              field.set(newObject, field.get(newObject));
+              field.set(object, field.get(object));
             }
-            return refresh(connection, newClass, newObject);
+            object = cache(entity, object);
           }
-        }
-        for (DbClass c : types) {
-          index = setValues(rs, c, object, index);
+
+          for (DbClass type : types) {
+            if (type.getType().isAssignableFrom(entity.getType())) {
+              index = setValues(rs, type, object, index);
+            } else {
+              index += type.getFields().size() - type.getPrimaryKey().getFields().size();
+              for (DbRole role : type.getForeignKeys()) {
+                index += role.getForeignKey().getFields().size();
+              }
+            }
+          }
+        } else {
+          for (DbClass c : types) {
+            index = setValues(rs, c, object, index);
+          }
         }
       }
     }

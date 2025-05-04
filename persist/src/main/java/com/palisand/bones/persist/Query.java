@@ -40,6 +40,7 @@ public class Query<X> {
   private final Class<?> queryType;
   private final Connection connection;
   private int rowInPage = 0;
+  private int aliasPostfix = 1;
   @Getter
   private boolean lastPage = false;
   @Getter
@@ -106,6 +107,56 @@ public class Query<X> {
     return this;
   }
 
+  public Query<X> join(String path) throws SQLException {
+    return join(path, null);
+  }
+
+  public Query<X> join(String path, String alias) throws SQLException {
+    String[] parts = path.split("\\.");
+    addJoin(parts[0], parts[1], " JOIN ", alias);
+    return this;
+  }
+
+  private String addJoin(String className, String memberName, String joinType, String alias)
+      throws SQLException {
+    DbClass fromClass = fromClasses.get(className);
+    if (fromClass == null) {
+      throw new SQLException("class name or alias " + className + " not found in query");
+    }
+    DbRole role = fromClass.getForeignKey(memberName);
+    if (role == null) {
+      role = fromClass.getLink(memberName);
+    }
+    if (role != null) {
+      if (role.isForeignKey()) {
+        DbSearchMethod foreignKey = role.getForeignKey();
+        DbClass type = Database.getDbClass(role.getType());
+        from.append(" JOIN ").append(type.getName());
+        if (alias != null) {
+          from.append(' ').append(alias);
+        }
+        from.append(" ON ");
+        if (alias == null) {
+          alias = type.getName();
+        }
+        fromClasses.put(alias, type);
+        Separator and = new Separator(" AND ");
+        for (int j = 0; j < foreignKey.getFields().size(); ++j) {
+          DbField field = foreignKey.getFields().get(j);
+          DbField pkField = type.getPrimaryKey().getFields().get(j);
+          and.next(from);
+          from.append(className).append('.').append(field.getName()).append('=').append(alias)
+              .append('.').append(pkField.getName());
+        }
+      } else {
+        // TODO
+      }
+    } else {
+      throw new SQLException("Role " + memberName + " not found in class " + fromClass.getName());
+    }
+    return alias;
+  }
+
   private Object addParameter(String cls, String member) throws SQLException {
     DbClass dbc = fromClasses.get(cls);
     DbField field = dbc.getField(member);
@@ -127,20 +178,29 @@ public class Query<X> {
 
   public Query<X> where(String path, String operator, Object value) throws SQLException {
     String[] parts = path.split("\\.");
-    Object member = addParameter(parts[0], parts[1]);
+    String alias = parts[0];
+    for (int i = 1; i < parts.length - 1; ++i) {
+      alias = addJoin(alias, parts[i], " JOIN ", "x" + (aliasPostfix++));
+    }
+    return addCondition(alias, parts[parts.length - 1], " WHERE ", operator, value);
+  }
+
+  private Query<X> addCondition(String className, String memberName, String initialSeparator,
+      String operator, Object value) throws SQLException {
+    Object member = addParameter(className, memberName);
     if (member instanceof DbRole role) {
       if (!role.isForeignKey()) {
         role = role.getOpposite();
         // TODO: add join
       }
-      Separator sep = new Separator(" AND ", " WHERE ");
+      Separator sep = new Separator(" AND ", initialSeparator);
       DbSearchMethod foreignKey = role.getForeignKey();
       DbClass type = Database.getDbClass(role.getType());
       for (int i = 0; i < foreignKey.getFields().size(); ++i) {
         DbField field = foreignKey.getFields().get(i);
         DbField pkField = type.getPrimaryKey().getFields().get(i);
         sep.next(where);
-        where.append(parts[0]);
+        where.append(className);
         where.append('.');
         where.append(field.getName());
         where.append(operator);
@@ -149,25 +209,26 @@ public class Query<X> {
         Object key = pkField.get(value);
         values.add(key);
       }
-    } else if (member instanceof DbField field) {
-      add(" WHERE ", path + operator + '?');
+    } else if (member instanceof DbField) {
+      where.append(initialSeparator).append(className).append('.').append(memberName)
+          .append(operator).append('?');
       values.add(value);
     }
     return this;
   }
 
-  private void add(String prefix, String rest) {
-    where.append(prefix);
-    where.append(rest);
+  public Query<X> and(String path, String operator, Object value) throws SQLException {
+    String[] parts = path.split("\\.");
+    return addCondition(parts[0], parts[1], " AND ", operator, value);
   }
 
-  public Query<X> and(String path, String operator, Object value) {
-    add(" AND ", path + operator + '?');
-    return this;
+  public Query<X> or(String path, String operator, Object value) throws SQLException {
+    String[] parts = path.split("\\.");
+    return addCondition(parts[0], parts[1], " OR ", operator, value);
   }
 
-  public Query<X> or(String path, String operator, Object value) {
-    add(" OR ", path + operator + '?');
+  public Query<X> orderBy(String orderBy) {
+    where.append(" ORDER BY ").append(orderBy);
     return this;
   }
 

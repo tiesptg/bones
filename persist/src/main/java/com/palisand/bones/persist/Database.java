@@ -172,6 +172,7 @@ public class Database {
     private final Map<String, DbSearchMethod> indices = new TreeMap<>();
     private final List<DbRole> foreignKeys = new ArrayList<>();
     private final List<DbRole> links = new ArrayList<>();
+    private final List<DbClass> typeHierarchy = new ArrayList<>();
     private final boolean mapped;
     private DbField version;
     private String label;
@@ -602,6 +603,32 @@ public class Database {
       ENTITIES.put(cls, this);
     }
 
+    private static void addSubclass(List<DbClass> list, DbClass cls) {
+      if (!list.contains(cls)) {
+        DbClass superClass = cls.getSuperClass();
+        if (superClass != null) {
+          addSubclass(list, cls.getSuperClass());
+        }
+        list.add(cls);
+      }
+    }
+
+    public List<DbClass> getTypeHierarchy() {
+      if (typeHierarchy.isEmpty()) {
+        DbClass c = getSuperClass();
+        while (c != null) {
+          typeHierarchy.add(0, c);
+          c = c.getSuperClass();
+        }
+        typeHierarchy.add(this);
+        for (DbClass child : getSubClasses().values()) {
+          addSubclass(typeHierarchy, child);
+        }
+      }
+      return typeHierarchy;
+    }
+
+
     public String getName() {
       return type.getSimpleName();
     }
@@ -741,7 +768,9 @@ public class Database {
     Set<String> tableNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     for (Class<?> type : types) {
       DbClass dbc = Database.getDbClass(type);
-      tableNames.add(dbc.getName());
+      if (!dbc.isMapped()) {
+        tableNames.add(dbc.getName());
+      }
     }
     Metadata metadata = commands.getMetadata(connection);
     TreeSet<String> tablesRemoved = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -755,17 +784,19 @@ public class Database {
     }
     for (Class<?> type : types) {
       DbClass entity = getDbClass(type);
-      if (entity.getSuperClass() != null) {
-        withParents.add(entity);
-      }
-      commands.upgradeTable(connection, metadata.getTables().get(entity.getName()), entity);
-      tablesRemoved.remove(entity.getName());
-      for (DbRole role : entity.getLinks()) {
-        if (role.getOpposite() != null && role.getOpposite().isMany()) {
-          m2m.add(role.getFirst());
+      if (!entity.isMapped()) {
+        if (entity.getSuperClass() != null) {
+          withParents.add(entity);
         }
+        commands.upgradeTable(connection, metadata.getTables().get(entity.getName()), entity);
+        tablesRemoved.remove(entity.getName());
+        for (DbRole role : entity.getLinks()) {
+          if (role.getOpposite() != null && role.getOpposite().isMany()) {
+            m2m.add(role.getFirst());
+          }
+        }
+        fks.addAll(entity.getForeignKeys());
       }
-      fks.addAll(entity.getForeignKeys());
     }
     for (DbClass cls : withParents) {
       DbTable table = metadata.getTables().get(cls.getName());

@@ -3,16 +3,17 @@ package com.palisand.bones.persist.test;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+
 import com.palisand.bones.persist.Database.Id;
 import com.palisand.bones.persist.Database.Index;
 import com.palisand.bones.persist.Database.Mapped;
 import com.palisand.bones.persist.Database.Relation;
 import com.palisand.bones.persist.Database.Version;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
 
-public class Version2 {
+public class V1 {
 
   @Data
   @Mapped
@@ -20,7 +21,7 @@ public class Version2 {
 
     @Id(generated = true)
     private long oid;
-
+    
     @Version
     private int oversion;
 
@@ -28,27 +29,23 @@ public class Version2 {
 
   @Data
   @EqualsAndHashCode(callSuper = true)
-  @ToString(callSuper = true)
   public static class House extends Table {
 
-    private Address address;
+    private String address;
+    private Street street;
+    private double someField;
+
     private List<Person> residents = new ArrayList<>();
   }
-
+  
   @Data
-  @EqualsAndHashCode(callSuper = true)
-  @ToString(callSuper = true)
-  public static class Address extends Table {
-    private String street;
-    private int number;
-    private String town;
-
+  @EqualsAndHashCode(callSuper=true)
+  public static class Street extends Table {
+    private String name;
   }
 
-
   @Data
   @EqualsAndHashCode(callSuper = true)
-  @ToString(callSuper = true)
   public static class Apartment extends House {
 
     private int floor;
@@ -57,7 +54,6 @@ public class Version2 {
 
   @Data
   @EqualsAndHashCode(callSuper = true)
-  @ToString(callSuper = true)
   public static class Person extends Table {
 
     @Index("name")
