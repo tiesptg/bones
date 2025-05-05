@@ -56,54 +56,69 @@ public class Query<X> {
     this.connection = connection;
   }
 
-  private DbClass selectColumns(Class<?> cls) throws SQLException {
-    DbClass dbc = Database.getDbClass(cls);
-    return selectColumns(cls, dbc, dbc.getName());
-  }
-
   private DbClass selectColumns(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = Database.getDbClass(cls);
     return selectColumns(cls, dbc, alias);
   }
 
+  private String getAlias(DbClass type, DbClass reference, String alias) {
+    if (type != reference && type.getLabel() != null) {
+      return type.getLabel() + (aliasPostfix++);
+    }
+    if (alias == null) {
+      return reference.getName();
+    }
+    return alias;
+  }
+
 
   private DbClass selectColumns(Class<?> cls, DbClass dbc, String alias) throws SQLException {
+    if (alias == null) {
+      alias = dbc.getName();
+    }
     selectObjects.add(dbc);
     fromClasses.put(alias, dbc);
-    if (dbc.hasSubTypeField()) {
+    DbClass root = dbc.getRoot();
+    String rootAlias = getAlias(root, dbc, alias);
+    if (dbc.getRoot().hasSubTypeField()) {
       selectComma.next(select);
-      select.append(alias);
+      select.append(rootAlias);
       select.append('.');
       select.append(CommandScheme.SUBTYPE_FIELD);
     }
-    for (DbField field : dbc.getFields()) {
-      selectComma.next(select);
-      select.append(alias);
-      select.append('.');
-      select.append(field.getName());
-    }
-    for (DbRole role : dbc.getForeignKeys()) {
-      for (DbField field : role.getForeignKey().getFields()) {
-        selectComma.next(select);
-        select.append(alias);
-        select.append('.');
-        select.append(field.getName());
+    boolean first = true;
+    List<DbClass> hierarchy = dbc.getTypeHierarchy();
+    for (DbClass type : hierarchy) {
+      String typeAlias = type == root ? rootAlias : getAlias(type, dbc, alias);
+      fromClasses.put(typeAlias, type);
+      for (DbField field : type.getFields()) {
+        if (first || !type.getPrimaryKey().getFields().contains(field)) {
+          selectComma.next(select);
+          select.append(typeAlias);
+          select.append('.');
+          select.append(field.getName());
+        }
       }
+      for (DbRole role : type.getForeignKeys()) {
+        for (DbField field : role.getForeignKey().getFields()) {
+          selectComma.next(select);
+          select.append(typeAlias);
+          select.append('.');
+          select.append(field.getName());
+        }
+      }
+      first = false;
     }
     return dbc;
   }
 
   public Query<X> selectFrom(Class<?> cls) throws SQLException {
-    DbClass dbc = selectColumns(cls);
-    from.append(dbc.getName());
-    return this;
+    return selectFrom(cls, null);
   }
 
   public Query<X> selectFrom(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = selectColumns(cls, alias);
-    from.append(dbc.getName());
-    from.append(' ');
-    from.append(alias);
+    commands.addHierarchyJoins(from, dbc.getTypeHierarchy(), dbc, fromClasses);
     return this;
   }
 
@@ -295,22 +310,19 @@ public class Query<X> {
       int index = 1;
       for (Object obj : selectObjects) {
         if (obj instanceof DbClass cls) {
-          Object result;
-          if (cls.hasSubTypeField()) {
-            String label = resultSet.getString(index++);
-            if (!cls.getLabel().equals(label)) {
-              DbClass subClass = cls.getSubClasses().get(label);
-              result = subClass.newInstance();
-            } else {
-              result = cls.newInstance();
-            }
-          } else {
-            result = cls.newInstance();
+          String label = null;
+          DbClass realCls = cls;
+          if (cls.getRoot().hasSubTypeField()) {
+            label = resultSet.getString(index++);
+            realCls = cls.getLabel().equals(label) ? cls : cls.getSubClasses().get(label);
           }
+          Object result = realCls.newInstance();
           index = commands.setPrimaryKey(resultSet, cls, result, index);
           result = commands.cache(cls, result);
-          index = commands.setValues(resultSet, cls, result, index);
+          index = commands.setHierarchyValues(resultSet, cls, realCls, result, index);
           row.add(result);
+        } else {
+          // TODO simple values
         }
       }
       ++rowInPage;

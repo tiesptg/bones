@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -642,6 +643,46 @@ public class CommandScheme {
     return stmts;
   }
 
+  private String getAlias(Map<String, DbClass> map, DbClass cls) {
+    for (Entry<String, DbClass> e : map.entrySet()) {
+      if (e.getValue() == cls && !cls.getName().equalsIgnoreCase(e.getKey())) {
+        return e.getKey();
+      }
+    }
+    return null;
+  }
+
+  void addHierarchyJoins(StringBuilder sql, List<DbClass> hierarchy, DbClass target,
+      Map<String, DbClass> aliasses) {
+    boolean first = true;
+    for (DbClass c : hierarchy) {
+      String alias = getAlias(aliasses, c);
+      if (!first) {
+        if (!c.getType().isAssignableFrom(target.getType())) {
+          sql.append(" LEFT JOIN ");
+        } else {
+          sql.append(" JOIN ");
+        }
+      }
+      sql.append(c.getName());
+      if (alias != null) {
+        sql.append(' ').append(alias);
+      }
+      if (first) {
+        first = false;
+      } else {
+        sql.append(" USING(");
+        Separator and = new Separator(",");
+        for (DbField field : c.getPrimaryKey().getFields()) {
+          and.next(sql);
+          sql.append(field.getName());
+        }
+        sql.append(')');
+      }
+    }
+
+  }
+
   protected Statements getRefreshStatement(Connection connection, DbClass entity)
       throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
@@ -674,24 +715,7 @@ public class CommandScheme {
         }
       }
       sql.append(" FROM ");
-      boolean first = true;
-      for (DbClass c : types) {
-        if (!first) {
-          sql.append(" LEFT OUTER JOIN ");
-        }
-        sql.append(c.getName());
-        if (first) {
-          first = false;
-        } else {
-          sql.append(" USING(");
-          Separator and = new Separator(",");
-          for (DbField field : entity.getPrimaryKey().getFields()) {
-            and.next(sql);
-            sql.append(field.getName());
-          }
-          sql.append(')');
-        }
-      }
+      addHierarchyJoins(sql, types, entity, Collections.emptyMap());
       Separator and = new Separator(" AND ", " WHERE ");
       for (DbField field : entity.getPrimaryKey().getFields()) {
         and.next(sql);
@@ -860,6 +884,21 @@ public class CommandScheme {
     return object;
   }
 
+  public int setHierarchyValues(ResultSet rs, DbClass root, DbClass realClass, Object object,
+      int index) throws SQLException {
+    for (DbClass type : root.getTypeHierarchy()) {
+      if (type.getType().isAssignableFrom(realClass.getType())) {
+        index = setValues(rs, type, object, index);
+      } else {
+        index += type.getFields().size() - type.getPrimaryKey().getFields().size();
+        for (DbRole role : type.getForeignKeys()) {
+          index += role.getForeignKey().getFields().size();
+        }
+      }
+    }
+    return index;
+  }
+
   public Object refresh(Connection connection, DbClass entity, Object object) throws SQLException {
     Statements stmts = getRefreshStatement(connection, entity);
     PreparedStatement stmt = stmts.getRefresh();
@@ -885,25 +924,16 @@ public class CommandScheme {
         String subtype = null;
         if (entity.hasSubTypeField()) {
           subtype = rs.getString(index++);
+          DbClass realEntity = entity;
           if (!subtype.equals(currentSubtype)) {
-            entity = entity.getSubClasses().get(subtype);
+            realEntity = entity.getSubClasses().get(subtype);
             object = entity.newInstance();
             for (DbField field : entity.getPrimaryKey().getFields()) {
               field.set(object, field.get(object));
             }
             object = cache(entity, object);
           }
-
-          for (DbClass type : types) {
-            if (type.getType().isAssignableFrom(entity.getType())) {
-              index = setValues(rs, type, object, index);
-            } else {
-              index += type.getFields().size() - type.getPrimaryKey().getFields().size();
-              for (DbRole role : type.getForeignKeys()) {
-                index += role.getForeignKey().getFields().size();
-              }
-            }
-          }
+          index = setHierarchyValues(rs, entity, realEntity, object, index);
         } else {
           for (DbClass c : types) {
             index = setValues(rs, c, object, index);

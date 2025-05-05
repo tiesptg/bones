@@ -599,7 +599,9 @@ public class Database {
           }
         }
       }
-      registerSubclasses();
+      if (!isMapped()) {
+        registerSubclasses();
+      }
       ENTITIES.put(cls, this);
     }
 

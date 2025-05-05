@@ -16,7 +16,7 @@ import com.palisand.bones.persist.Query;
 import com.palisand.bones.persist.StaleObjectException;
 
 class UpgradeTest {
-  private DB type = DB.PG;
+  private DB type = DB.H2;
 
   public enum DB {
     H2, PG
@@ -397,8 +397,19 @@ class UpgradeTest {
           database.insert(connection, b);
         }
       });
+      System.out.println();
+      System.out.println("select all b's");
+      Query<V3.B> queryb = database.newQuery(connection, V3.B.class);
+      for (queryb.execute(); !queryb.isLastPage(); queryb.nextPage()) {
+        for (V3.B b = queryb.next(); b != null; b = queryb.next()) {
+          System.out.println(b);
+        }
+      }
+      System.out.println();
+      System.out.println("select all a's and remove them");
       Query<V3.A> query = database.newQuery(connection, V3.A.class).orderBy("A.oid desc");
-      for (query.execute(); !query.isLastPage(); query.execute()) {
+      while (!query.isLastPage()) {
+        query.execute();
         for (V3.A a = query.next(); a != null; a = query.next()) {
           System.out.println(a);
           database.delete(connection, a);
