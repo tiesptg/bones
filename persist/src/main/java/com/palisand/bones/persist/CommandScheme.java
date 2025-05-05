@@ -241,6 +241,12 @@ public class CommandScheme {
     return object;
   }
 
+  protected void replaceInCache(DbClass entity, Object object) throws SQLException {
+    entity = entity.getRoot();
+    Map<String, Object> typeCache = cache.get(entity.getName());
+    typeCache.put(entity.getPrimaryKeyAsString(object), object);
+  }
+
   protected Object removeFromCache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
@@ -922,16 +928,17 @@ public class CommandScheme {
       if (rs.next()) {
         index = 1;
         String subtype = null;
-        if (entity.hasSubTypeField()) {
+        if (entity.getRoot().hasSubTypeField()) {
           subtype = rs.getString(index++);
           DbClass realEntity = entity;
           if (!subtype.equals(currentSubtype)) {
             realEntity = entity.getSubClasses().get(subtype);
-            object = entity.newInstance();
+            Object newObject = realEntity.newInstance();
             for (DbField field : entity.getPrimaryKey().getFields()) {
-              field.set(object, field.get(object));
+              field.set(newObject, field.get(object));
             }
-            object = cache(entity, object);
+            object = newObject;
+            replaceInCache(entity, object);
           }
           index = setHierarchyValues(rs, entity, realEntity, object, index);
         } else {

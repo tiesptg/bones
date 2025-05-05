@@ -266,7 +266,8 @@ class UpgradeTest {
             person.setResidence(house);
             database.delete(connection, person);
             if (house != null) {
-              V2.Address address = house.getAddress();
+              V2.Address address = database.refresh(connection, house.getAddress());
+              house.setAddress(address);
               database.delete(connection, house);
               if (address != null) {
                 database.delete(connection, address);

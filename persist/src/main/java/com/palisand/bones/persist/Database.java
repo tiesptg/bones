@@ -387,7 +387,7 @@ public class Database {
           if (ex.getCause() != null) {
             ex = (Exception) ex.getCause();
           }
-          throw new SQLException("Could not get value of field " + field);
+          throw new SQLException("Could not set value of field " + field + " to " + value, ex);
         }
       }
 
