@@ -131,6 +131,27 @@ public class Query<X> {
     addJoin(parts[0], parts[1], " JOIN ", alias);
     return this;
   }
+  
+  private void constructJoin(String fromName, DbClass toClass, String alias, String joinType, List<DbField> fromFields, List<DbField> toFields) {
+    from.append(joinType).append(toClass.getName());
+    if (alias != null) {
+      from.append(' ').append(alias);
+    }
+    from.append(" ON ");
+    if (alias == null) {
+      alias = toClass.getName();
+    }
+    fromClasses.put(alias, toClass);
+    Separator and = new Separator(" AND ");
+    for (int j = 0; j < fromFields.size(); ++j) {
+      DbField field = fromFields.get(j);
+      DbField pkField = toFields.get(j);
+      and.next(from);
+      from.append(fromName).append('.').append(field.getName()).append('=').append(alias)
+          .append('.').append(pkField.getName());
+    }
+
+  }
 
   private String addJoin(String className, String memberName, String joinType, String alias)
       throws SQLException {
@@ -146,25 +167,18 @@ public class Query<X> {
       if (role.isForeignKey()) {
         DbSearchMethod foreignKey = role.getForeignKey();
         DbClass type = Database.getDbClass(role.getType());
-        from.append(" JOIN ").append(type.getName());
-        if (alias != null) {
-          from.append(' ').append(alias);
-        }
-        from.append(" ON ");
-        if (alias == null) {
-          alias = type.getName();
-        }
-        fromClasses.put(alias, type);
-        Separator and = new Separator(" AND ");
-        for (int j = 0; j < foreignKey.getFields().size(); ++j) {
-          DbField field = foreignKey.getFields().get(j);
-          DbField pkField = type.getPrimaryKey().getFields().get(j);
-          and.next(from);
-          from.append(className).append('.').append(field.getName()).append('=').append(alias)
-              .append('.').append(pkField.getName());
-        }
+        constructJoin(className, type, alias, joinType, foreignKey.getFields(), type.getPrimaryKey().getFields());
       } else {
-        // TODO
+      	DbRole opposite = role.getOpposite();
+      	if (opposite != null) {
+      		if (opposite.isForeignKey()) {
+		        DbSearchMethod foreignKey = opposite.getForeignKey();
+		        DbClass type = foreignKey.getEntity();
+		        constructJoin(className,type,alias,joinType,type.getPrimaryKey().getFields(),foreignKey.getFields());
+      		} else {
+      			// TODO: many to many relation
+      		}
+      	} 
       }
     } else {
       throw new SQLException("Role " + memberName + " not found in class " + fromClass.getName());

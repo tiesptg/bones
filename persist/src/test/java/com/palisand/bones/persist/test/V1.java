@@ -15,60 +15,66 @@ import lombok.EqualsAndHashCode;
 
 public class V1 {
 
-  @Data
-  @Mapped
-  public static class Table {
+	@Data
+	@Mapped
+	public static class Table {
 
-    @Id(generated = true)
-    private long oid;
-    
-    @Version
-    private int oversion;
+		@Id(generated = true)
+		private long oid;
 
-  }
+		@Version
+		private int oversion;
 
-  @Data
-  @EqualsAndHashCode(callSuper = true)
-  public static class House extends Table {
+	}
 
-    private String address;
-    private Street street;
-    private double someField;
+	@Data
+	@EqualsAndHashCode(callSuper = true)
+	public static class House extends Table {
 
-    private List<Person> residents = new ArrayList<>();
-  }
-  
-  @Data
-  @EqualsAndHashCode(callSuper=true)
-  public static class Street extends Table {
-    private String name;
-  }
+		private String address;
+		private Street street;
+		private double someField;
 
-  @Data
-  @EqualsAndHashCode(callSuper = true)
-  public static class Apartment extends House {
+		private List<Person> residents = new ArrayList<>();
+	}
 
-    private int floor;
-    private boolean liftAvailable;
-  }
+	@Data
+	@EqualsAndHashCode(callSuper = true)
+	public static class Street extends Table {
+		private String name;
+	}
 
-  @Data
-  @EqualsAndHashCode(callSuper = true)
-  public static class Person extends Table {
+	@Data
+	@EqualsAndHashCode(callSuper = true)
+	public static class Apartment extends House {
 
-    @Index("name")
-    private String name;
-    private double wealth;
-    private LocalDate birthday;
-    private Integer children;
+		private int floor;
+		private boolean liftAvailable;
+	}
 
-    @Relation(opposite = "friends2")
-    private List<Person> friends1 = new ArrayList<>();
-    private List<Person> friends2 = new ArrayList<>();
+	@Data
+	@EqualsAndHashCode(callSuper = true)
+	public static class Person extends Table {
 
-    @Relation(opposite = "residents")
-    private House residence;
+		@Index("name")
+		private String name;
+		private double wealth;
+		private LocalDate birthday;
+		private Integer children;
 
-  }
+		private List<Person> friends;
+
+		@Relation(opposite = "residents")
+		private House residence;
+
+	}
+
+	@Data
+	public static class Friendship {
+		@Id
+		private Person one;
+		@Id
+		private Person other;
+	}
 
 }
