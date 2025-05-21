@@ -12,16 +12,17 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import com.palisand.bones.persist.CommandScheme;
 import com.palisand.bones.persist.Database;
+import com.palisand.bones.persist.MySqlCommands;
 import com.palisand.bones.persist.OracleCommands;
 import com.palisand.bones.persist.PostgresqlCommands;
 import com.palisand.bones.persist.Query;
 import com.palisand.bones.persist.StaleObjectException;
 
 class UpgradeTest {
-  private DB type = DB.ORA;
+  private DB type = DB.H2;
 
   public enum DB {
-    H2, PG, ORA
+    H2, PG, ORA, MYS
   }
 
   Connection getConnection() throws Exception {
@@ -39,6 +40,10 @@ class UpgradeTest {
         Class.forName("oracle.jdbc.driver.OracleDriver");
         return DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521/FREEPDB1", "ties",
             "ties");
+      case MYS:
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        return DriverManager.getConnection("jdbc:mysql://localhost:3306/persisttest", "ties",
+            "ties");
     }
     return null;
   }
@@ -48,11 +53,11 @@ class UpgradeTest {
       case PG:
         return new Database(() -> new PostgresqlCommands().logger(str -> System.out.println(str)));
       case H2:
-        return new Database(() -> new CommandScheme() // .indexForFkNeeded(false)
-            .logger(str -> System.out.println(str)));
+        return new Database(() -> new CommandScheme().logger(str -> System.out.println(str)));
       case ORA:
-        return new Database(() -> new OracleCommands() // .indexForFkNeeded(false)
-            .logger(str -> System.out.println(str)));
+        return new Database(() -> new OracleCommands().logger(str -> System.out.println(str)));
+      case MYS:
+        return new Database(() -> new MySqlCommands().logger(str -> System.out.println(str)));
     }
     return new Database(() -> new CommandScheme().logger(str -> System.out.println(str)));
   }
@@ -158,7 +163,7 @@ class UpgradeTest {
           for (V2.Friendship f = friends.next(); f != null; f = friends.next()) {
             database.delete(connection, f);
           }
-          friends.nextPage();
+          friends.execute();
         }
       });
 
@@ -248,7 +253,7 @@ class UpgradeTest {
         for (int i = 0; i < 3; ++i) {
           V2.Address address = new V2.Address();
           address.setStreet("Kleine Veer");
-          address.setNumber(i);
+          address.setHouseNumber(i);
           address.setTown("Empel");
           address = database.insert(connection, address);
 
@@ -428,7 +433,7 @@ class UpgradeTest {
         V2.Address address = null;
         for (int i = 0; i < 5; ++i) {
           address = new V2.Address();
-          address.setNumber((i + 1) * 2);
+          address.setHouseNumber((i + 1) * 2);
           address.setStreet("Dorpsstraat");
           address.setTown("Ons Dorp");
 
@@ -443,7 +448,7 @@ class UpgradeTest {
       System.out.println("select with simple join");
       database.transaction(connection, () -> {
         Query<V2.House> query =
-            database.newQuery(connection, V2.House.class).where("house.address", "=", a).execute();
+            database.newQuery(connection, V2.House.class).where("House.address", "=", a).execute();
         for (V2.House house = query.next(); house != null; house = query.next()) {
           house.setAddress(database.refresh(connection, house.getAddress()));
           System.out.println(house);
@@ -457,7 +462,7 @@ class UpgradeTest {
         for (query.execute(); !query.isLastPage(); query.execute()) {
           for (V2.House house = query.next(); house != null; house = query.next()) {
             Query<V2.Person> q2 = database.newQuery(connection, V2.Person.class);
-            q2.where("person.residence", "=", house).execute();
+            q2.where("Person.residence", "=", house).execute();
             for (V2.Person person = q2.next(); person != null; person = q2.next()) {
               database.delete(connection, person);
             }
@@ -500,13 +505,13 @@ class UpgradeTest {
         for (int i = 0; i < rows; ++i) {
           V3.B b = new V3.B();
           b.setName("B" + i);
-          b.setNumber(i);
+          b.setTheNumber(i);
           database.insert(connection, b);
         }
         for (int i = 0; i < rows; ++i) {
           V3.C b = new V3.C();
           b.setName("C" + i);
-          b.setNumber(i);
+          b.setTheNumber(i);
           b.setDescription("Description = " + i);
           b.setAmount(i + .987);
           database.insert(connection, b);
@@ -514,7 +519,7 @@ class UpgradeTest {
         for (int i = 0; i < rows; ++i) {
           V3.D b = new V3.D();
           b.setName("D" + i);
-          b.setNumber(i);
+          b.setTheNumber(i);
           b.setDescription("Description = " + i);
           b.setBetter(i % 2 == 0);
           database.insert(connection, b);

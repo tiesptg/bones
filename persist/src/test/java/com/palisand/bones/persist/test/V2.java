@@ -2,84 +2,84 @@ package com.palisand.bones.persist.test;
 
 import java.time.LocalDate;
 import java.util.List;
-
+import com.palisand.bones.persist.Database.Db;
 import com.palisand.bones.persist.Database.Id;
 import com.palisand.bones.persist.Database.Index;
 import com.palisand.bones.persist.Database.Mapped;
 import com.palisand.bones.persist.Database.Relation;
 import com.palisand.bones.persist.Database.Version;
-
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 public class V2 {
 
-	@Data
-	@Mapped
-	public static class Table {
+  @Data
+  @Mapped
+  public static class Table {
 
-		@Id(generated = true)
-		private long oid;
+    @Id(generated = true)
+    private long oid;
 
-		@Version
-		private int oversion;
+    @Version
+    private int oversion;
 
-	}
+  }
 
-	@Data
-	@EqualsAndHashCode(callSuper = true)
-	@ToString(callSuper = true)
-	public static class House extends Table {
+  @Data
+  @EqualsAndHashCode(callSuper = true)
+  @ToString(callSuper = true)
+  public static class House extends Table {
 
-		private Address address;
-		private List<Person> residents = null;
+    private Address address;
+    private List<Person> residents = null;
 
-	}
+  }
 
-	@Data
-	@EqualsAndHashCode(callSuper = true)
-	@ToString(callSuper = true)
-	public static class Address extends Table {
-		private String street;
-		private int number;
-		private String town;
+  @Data
+  @EqualsAndHashCode(callSuper = true)
+  @ToString(callSuper = true)
+  public static class Address extends Table {
+    private String street;
+    private int houseNumber;
+    private String town;
 
-	}
+  }
 
-	@Data
-	@EqualsAndHashCode(callSuper = true)
-	@ToString(callSuper = true)
-	public static class Apartment extends House {
+  @Data
+  @EqualsAndHashCode(callSuper = true)
+  @ToString(callSuper = true)
+  public static class Apartment extends House {
 
-		private int floor;
-		private boolean liftAvailable;
-	}
+    private int floor;
+    private boolean liftAvailable;
+  }
 
-	@Data
-	@EqualsAndHashCode(callSuper = true)
-	@ToString(callSuper = true)
-	public static class Person extends Table {
+  @Data
+  @EqualsAndHashCode(callSuper = true)
+  @ToString(callSuper = true)
+  public static class Person extends Table {
 
-		@Index("name")
-		private String name;
-		private double wealth;
-		private LocalDate birthday;
-		private Integer children;
+    @Index("name")
+    @Db(size = 100)
+    private String name;
+    private double wealth;
+    private LocalDate birthday;
+    private Integer children;
 
-		private List<Person> friends;
+    private List<Person> friends;
 
-		@Relation(opposite = "residents")
-		private House residence;
+    @Relation(opposite = "residents")
+    private House residence;
 
-	}
+  }
 
-	@Data
-	public static class Friendship {
-		@Id
-		private Person one;
-		@Id
-		private Person other;
-	}
+  @Data
+  public static class Friendship {
+    @Id
+    private Person one;
+    @Id
+    private Person other;
+  }
 
 }

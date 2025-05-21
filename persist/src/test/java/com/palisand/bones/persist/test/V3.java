@@ -18,7 +18,7 @@ public class V3 {
   @EqualsAndHashCode(callSuper = true)
   @ToString(callSuper = true)
   public static class B extends A {
-    private int number;
+    private int theNumber;
   }
 
   @Data

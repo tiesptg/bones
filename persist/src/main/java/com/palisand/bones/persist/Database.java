@@ -544,6 +544,12 @@ public class Database {
       attribute.setStmtSetter(STMT_SETTERS.get(field.getType()));
       attribute.setNullable(!field.getType().isPrimitive());
       fields.add(attribute);
+      Db db = field.getAnnotation(Db.class);
+      if (db != null) {
+        if (db.size() != 0) {
+          attribute.setSize(db.size());
+        }
+      }
       Index[] all = field.getAnnotationsByType(Index.class);
       for (Index index : all) {
         DbSearchMethod path = indices.get(index.value());
@@ -676,6 +682,7 @@ public class Database {
             role.setId(id);
             DbSearchMethod fk = role.getForeignKey();
             for (DbField field : fk.getFields()) {
+              field.setNullable(false);
               primaryKey.getFields().add(field);
             }
           }
@@ -805,6 +812,14 @@ public class Database {
         }
         throw new SQLException(ex);
       }
+    }
+
+    public int[] getPkFieldNumbers() throws SQLException {
+      int[] result = new int[getPrimaryKey().getFields().size()];
+      for (int i = 0; i < result.length; ++i) {
+        result[i] = i + 1;
+      }
+      return result;
     }
 
   }

@@ -1,7 +1,10 @@
 package com.palisand.bones.persist;
 
+import java.sql.Connection;
 import java.sql.JDBCType;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
 
 public class OracleCommands extends CommandScheme {
@@ -35,6 +38,25 @@ public class OracleCommands extends CommandScheme {
     return super.getJDBCType(type);
   }
 
+  @Override
+  public void addSelectPage(StringBuilder sql) {
+    sql.append(" OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+  }
 
+  @Override
+  public int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
+      int index) throws SQLException {
+    stmt.setInt(index++, offset);
+    CommandScheme.nextValue(sql, offset);
+    stmt.setInt(index++, limit);
+    CommandScheme.nextValue(sql, limit);
+    return index;
+  }
+
+  @Override
+  protected PreparedStatement prepareInsertStatement(Connection connection, DbClass entity,
+      String sql) throws SQLException {
+    return connection.prepareStatement(sql, entity.getPkFieldNumbers());
+  }
 
 }

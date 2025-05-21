@@ -7,7 +7,6 @@ import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -141,23 +140,22 @@ public class CommandScheme {
     }
     Collection<DbTable> found = metadata.getTables().values();
     for (DbTable table : found) {
-      for (DbTable other : found) {
-        ResultSet fkeys = dbmd.getCrossReference(connection.getCatalog(), connection.getSchema(),
-            other.getName(), connection.getCatalog(), connection.getSchema(), table.getName());
-        Metadata.DbIndex fkey = null;
-        while (fkeys.next()) {
-          String name = fkeys.getString("FK_NAME");
-          if (fkey == null || !fkey.getName().equals(name)) {
-            fkey = new DbIndex(name, false);
-            table.getForeignKeys().put(name, fkey);
-            fkey.setReferences(other);
-          }
-          fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME")));
+      ResultSet fkeys =
+          dbmd.getImportedKeys(connection.getCatalog(), connection.getSchema(), table.getName());
+      Metadata.DbIndex fkey = null;
+      while (fkeys.next()) {
+        String name = fkeys.getString("FK_NAME");
+        if (fkey == null || !fkey.getName().equals(name)) {
+          fkey = new DbIndex(name, false);
+          table.getForeignKeys().put(name, fkey);
+          fkey.setReferences(metadata.getTables().get(fkeys.getString("PKTABLE_NAME")));
         }
+        fkey.getFields().add(table.getFields().get(fkeys.getString("FKCOLUMN_NAME")));
       }
     }
     return metadata;
   }
+
 
   static class Separator {
     final String firstToken;
@@ -187,6 +185,7 @@ public class CommandScheme {
         sb.append(token);
       }
     }
+
   }
 
   public CommandScheme() {
@@ -309,12 +308,16 @@ public class CommandScheme {
     sql.append(" ");
     sql.append(getType(attribute));
     if (attribute.getId() != null && attribute.isGenerated() && entity.getSuperClass() == null) {
-      sql.append(" GENERATED ALWAYS AS IDENTITY");
+      sql.append(getGeneratedClause());
     }
     if (!nullable) {
       sql.append(" NOT");
     }
     sql.append(" NULL");
+  }
+
+  protected String getGeneratedClause() {
+    return " GENERATED ALWAYS AS IDENTITY";
   }
 
   protected void upgradeColumns(Connection connection, DbTable dbTable, DbClass entity)
@@ -343,25 +346,25 @@ public class CommandScheme {
     }
   }
 
-  protected void upgradeIndices(Connection connection, DbTable dbTable, DbClass entity)
-      throws SQLException {
+  protected void upgradeIndices(Connection connection, DbTable dbTable, DbClass entity,
+      boolean create) throws SQLException {
     TreeSet<String> indicesToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
     indicesToRemove.addAll(dbTable.getIndices().keySet());
     for (DbSearchMethod index : entity.getIndices().values()) {
-      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName())) {
+      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName()) && create) {
         createIndex(connection, index);
       }
     }
     for (DbRole role : entity.getForeignKeys()) {
       DbSearchMethod index = role.getForeignKey();
-      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName())) {
+      if (!indicesToRemove.remove(INDEX_PREFIX + index.getName()) && create) {
         if (isIndexForFkNeeded()) {
           createIndex(connection, index);
         }
       }
     }
     for (String name : indicesToRemove) {
-      if (isIndexForFkNeeded()) {
+      if (isIndexForFkNeeded() && !create) {
         dropIndex(connection, entity, name);
       }
     }
@@ -372,8 +375,9 @@ public class CommandScheme {
     if (dbTable == null) {
       createTable(connection, entity);
     } else {
+      upgradeIndices(connection, dbTable, entity, false);
       upgradeColumns(connection, dbTable, entity);
-      upgradeIndices(connection, dbTable, entity);
+      upgradeIndices(connection, dbTable, entity, true);
     }
   }
 
@@ -386,6 +390,19 @@ public class CommandScheme {
     if (fk == null) {
       createForeignKey(connection, role);
     }
+  }
+
+  public void addSelectPage(StringBuilder sql) {
+    sql.append(" LIMIT ? OFFSET ?");
+  }
+
+  public int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
+      int index) throws SQLException {
+    stmt.setInt(index++, limit);
+    CommandScheme.nextValue(sql, limit);
+    stmt.setInt(index++, offset);
+    CommandScheme.nextValue(sql, offset);
+    return index;
   }
 
   protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName)
@@ -427,7 +444,7 @@ public class CommandScheme {
     }
     for (DbRole role : entity.getForeignKeys()) {
       for (DbField field : role.getForeignKey().getFields()) {
-        appendColumn(sql, entity, field, true);
+        appendColumn(sql, entity, field, field.isNullable());
         sql.append(",");
       }
     }
@@ -452,7 +469,7 @@ public class CommandScheme {
 
   protected void dropIndex(Connection connection, DbClass entity, String indexName)
       throws SQLException {
-    StringBuilder sql = new StringBuilder("DROP INDEX IF EXISTS ");
+    StringBuilder sql = new StringBuilder("DROP INDEX ");
     sql.append(indexName);
     execute(connection, sql.toString());
   }
@@ -522,10 +539,15 @@ public class CommandScheme {
       sql.append(") VALUES (");
       sql.append(params);
       sql.append(")");
-      stmts.setInsert(connection.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS));
+      stmts.setInsert(prepareInsertStatement(connection, entity, sql.toString()));
       stmts.setInsertSql(sql.toString());
     }
     return stmts;
+  }
+
+  protected PreparedStatement prepareInsertStatement(Connection connection, DbClass entity,
+      String sql) throws SQLException {
+    return connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
   }
 
   protected Statements getUpdateStatement(Connection connection, DbClass entity)
@@ -604,6 +626,7 @@ public class CommandScheme {
   void addHierarchyJoins(StringBuilder sql, List<DbClass> hierarchy, DbClass target,
       Map<String, DbClass> aliasses) throws SQLException {
     boolean first = true;
+    String parentName = null;
     for (DbClass c : hierarchy) {
       String alias = getAlias(aliasses, c);
       if (!first) {
@@ -616,17 +639,21 @@ public class CommandScheme {
       sql.append(c.getName());
       if (alias != null) {
         sql.append(' ').append(alias);
+      } else {
+        alias = c.getName();
       }
       if (first) {
         first = false;
+        parentName = alias;
       } else {
-        sql.append(" USING(");
-        Separator and = new Separator(",");
+        sql.append(" ON ");
+        Separator and = new Separator(" AND ");
         for (DbField field : c.getPrimaryKey().getFields()) {
           and.next(sql);
-          sql.append(field.getName());
+          sql.append(parentName).append('.').append(field.getName());
+          sql.append(" = ");
+          sql.append(alias).append('.').append(field.getName());
         }
-        sql.append(')');
       }
     }
 
@@ -948,7 +975,7 @@ public class CommandScheme {
     if (unique) {
       sql.append("UNIQUE ");
     }
-    sql.append("INDEX IF NOT EXISTS ");
+    sql.append("INDEX ");
     sql.append(INDEX_PREFIX);
     sql.append(indexName);
     sql.append(" ON ");
