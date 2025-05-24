@@ -423,11 +423,12 @@ public class CommandScheme {
     sql.append(getType(attribute));
     if (attribute.getId() != null && attribute.isGenerated() && entity.getSuperClass() == null) {
       sql.append(getGeneratedClause());
+    } else {
+      if (!nullable) {
+        sql.append(" NOT");
+      }
+      sql.append(" NULL");
     }
-    if (!nullable) {
-      sql.append(" NOT");
-    }
-    sql.append(" NULL");
   }
 
   protected String getGeneratedClause() {

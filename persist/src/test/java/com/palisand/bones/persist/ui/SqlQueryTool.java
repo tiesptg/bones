@@ -303,6 +303,8 @@ public class SqlQueryTool extends JFrame implements MouseListener {
       className = "oracle.jdbc.driver.OracleDriver";
     } else if (urlstr.startsWith("jdbc:mysql:")) {
       className = "com.mysql.cj.jdbc.Driver";
+    } else if (urlstr.startsWith("jdbc:sqlserver:")) {
+      className = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
     }
     Class.forName(className);
   }
@@ -420,7 +422,6 @@ public class SqlQueryTool extends JFrame implements MouseListener {
     }
     table.setModel(new DataTableModel(colNames, rows));
   }
-
 
   public static void main(String... args) {
     new SqlQueryTool();

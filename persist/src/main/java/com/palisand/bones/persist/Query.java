@@ -28,6 +28,7 @@ public class Query<X> {
 
   private final List<Object> selectObjects = new ArrayList<>();
   private final Map<String, DbClass> fromClasses = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+  private String firstAlias = null;
   private StringBuilder select = new StringBuilder("SELECT ");
   private final Separator selectComma = new Separator();
   private StringBuilder from = new StringBuilder(" FROM ");
@@ -41,14 +42,11 @@ public class Query<X> {
   private final Connection connection;
   private int rowInPage = 0;
   private int aliasPostfix = 1;
+  @Getter private boolean lastPage = false;
   @Getter
-  private boolean lastPage = false;
+  @Setter private int page = 1;
   @Getter
-  @Setter
-  private int page = 1;
-  @Getter
-  @Setter
-  private int rowsPerPage = 20;
+  @Setter private int rowsPerPage = 20;
 
   Query(Connection connection, CommandScheme commands, Class<?> queryType) throws SQLException {
     this.commands = commands;

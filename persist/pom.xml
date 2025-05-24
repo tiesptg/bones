@@ -26,26 +26,35 @@
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 		</dependency>
-		<!-- https://mvnrepository.com/artifact/org.postgresql/postgresql -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<version>42.7.5</version>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<version>2.3.232</version>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 		    <groupId>com.oracle.database.jdbc</groupId>
 		    <artifactId>ojdbc17</artifactId>
 		    <version>23.8.0.25.04</version>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 		    <groupId>mysql</groupId>
 		    <artifactId>mysql-connector-java</artifactId>
 		    <version>8.0.33</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+    		<groupId>com.microsoft.sqlserver</groupId>
+    		<artifactId>mssql-jdbc</artifactId>
+    		<version>12.10.0.jre11</version>
+    		<scope>test</scope>
 		</dependency>
 	</dependencies>
 </project>

@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import com.palisand.bones.persist.CommandScheme;
 import com.palisand.bones.persist.Database;
+import com.palisand.bones.persist.MsSqlServerCommands;
 import com.palisand.bones.persist.MySqlCommands;
 import com.palisand.bones.persist.OracleCommands;
 import com.palisand.bones.persist.PostgresqlCommands;
@@ -31,10 +32,10 @@ import com.palisand.bones.persist.StaleObjectException;
 import com.palisand.bones.persist.test.V2.TypeTest;
 
 class UpgradeTest {
-  private DB type = DB.MYS;
+  private DB type = DB.H2;
 
   public enum DB {
-    H2, PG, ORA, MYS
+    H2, PG, ORA, MYS, MSSQL
   }
 
   public boolean supportsLargeObjects() {
@@ -60,6 +61,11 @@ class UpgradeTest {
         Class.forName("com.mysql.cj.jdbc.Driver");
         return DriverManager.getConnection("jdbc:mysql://localhost:3306/persisttest", "ties",
             "ties");
+      case MSSQL:
+        Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+        return DriverManager.getConnection(
+            "jdbc:sqlserver://localhost:1433;trustServerCertificate=true;database=persisttest",
+            "ties", "Ti3sTi3s");
     }
     return null;
   }
@@ -74,6 +80,8 @@ class UpgradeTest {
         return new Database(() -> new OracleCommands().logger(str -> System.out.println(str)));
       case MYS:
         return new Database(() -> new MySqlCommands().logger(str -> System.out.println(str)));
+      case MSSQL:
+        return new Database(() -> new MsSqlServerCommands().logger(str -> System.out.println(str)));
     }
     return new Database(() -> new CommandScheme().logger(str -> System.out.println(str)));
   }
@@ -179,7 +187,8 @@ class UpgradeTest {
         object.setUuidField(UUID.randomUUID());
         System.out.println(object);
         database.insert(connection, object);
-        Query<TypeTest> query = database.newQuery(connection, TypeTest.class).execute();
+        Query<TypeTest> query = database.newQuery(connection, TypeTest.class)
+            .orderBy("TypeTest.id, TypeTest.shortField").execute();
         object = query.next();
         assertNotNull(object);
         System.out.println(object);
@@ -226,14 +235,16 @@ class UpgradeTest {
       System.out.println("select friends");
       database.transaction(connection, () -> {
         Query<V2.Friendship> friends = database.newQuery(connection, V2.Friendship.class, "friends")
-            .where("friends.one", "=", list.get(5)).or("friends.other", "=", list.get(5)).execute();
+            .where("friends.one", "=", list.get(5)).or("friends.other", "=", list.get(5))
+            .orderBy("friends.one_oid,friends.other_oid").execute();
         for (V2.Friendship f = friends.next(); f != null; f = friends.next()) {
           System.out.println(database.refresh(connection, f.getOne()));
           System.out.println(database.refresh(connection, f.getOther()));
           System.out.println();
         }
 
-        friends = database.newQuery(connection, V2.Friendship.class).execute();
+        friends = database.newQuery(connection, V2.Friendship.class)
+            .orderBy("Friendship.one_oid,Friendship.other_oid").execute();
         while (!friends.isLastPage()) {
           for (V2.Friendship f = friends.next(); f != null; f = friends.next()) {
             database.delete(connection, f);
@@ -245,7 +256,8 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select, update Person");
       V2.Person p3 = (V2.Person) database.transactionWithResult(connection, () -> {
-        Query<V2.Person> query = database.newQuery(connection, V2.Person.class);
+        Query<V2.Person> query =
+            database.newQuery(connection, V2.Person.class).orderBy("Person.oid");
         query.setRowsPerPage(4);
         V2.Person last = null;
         for (query.execute(); !query.isLastPage(); query.nextPage()) {
@@ -289,7 +301,8 @@ class UpgradeTest {
       System.out.println("select with simple where");
       database.transaction(connection, () -> {
         Query<V2.Person> query = database.newQuery(connection, V2.Person.class)
-            .where("Person.birthday", "=", LocalDate.of(2000, 3, 3)).execute();
+            .where("Person.birthday", "=", LocalDate.of(2000, 3, 3)).orderBy("Person.oid")
+            .execute();
         for (V2.Person person = query.next(); person != null; person = query.next()) {
           System.out.println(person);
         }
@@ -298,7 +311,8 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select and delete all");
       database.transaction(connection, () -> {
-        Query<V2.Person> query = database.newQuery(connection, V2.Person.class);
+        Query<V2.Person> query =
+            database.newQuery(connection, V2.Person.class).orderBy("Person.oid");
         query.setRowsPerPage(4);
         for (query.execute(); !query.isLastPage(); query.execute()) {
           for (V2.Person person = query.next(); person != null; person = query.next()) {
@@ -351,9 +365,9 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select person, house & address with number 2");
       database.transaction(connection, () -> {
-        Query<V2.Person> query =
-            database.newQuery(connection, V2.Person.class).join("Person.residence")
-                .join("House.address").where("Address.number", "=", 2).execute();
+        Query<V2.Person> query = database.newQuery(connection, V2.Person.class)
+            .join("Person.residence").join("House.address").where("Address.number", "=", 2)
+            .orderBy("Person.oid").execute();
         for (V2.Person person = query.next(); person != null; person = query.next()) {
           V2.House house = database.refresh(connection, person.getResidence());
           person.setResidence(house);
@@ -366,7 +380,7 @@ class UpgradeTest {
       System.out.println("multiple joins in one statement");
       database.transaction(connection, () -> {
         Query<V2.Person> query = database.newQuery(connection, V2.Person.class)
-            .where("Person.residence.address.number", "=", 1).execute();
+            .where("Person.residence.address.number", "=", 1).orderBy("Person.oid").execute();
         for (V2.Person person = query.next(); person != null; person = query.next()) {
           V2.House house = database.refresh(connection, person.getResidence());
           person.setResidence(house);
@@ -379,7 +393,7 @@ class UpgradeTest {
       System.out.println("join through opposite");
       database.transaction(connection, () -> {
         Query<V2.House> query = database.newQuery(connection, V2.House.class)
-            .where("House.residents.children", "=", 1).execute();
+            .where("House.residents.children", "=", 1).orderBy("House.oid").execute();
         for (V2.House house = query.next(); house != null; house = query.next()) {
           System.out.println(house);
         }
@@ -387,7 +401,8 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select all and remove");
       database.transaction(connection, () -> {
-        Query<V2.Person> query = database.newQuery(connection, V2.Person.class);
+        Query<V2.Person> query =
+            database.newQuery(connection, V2.Person.class).orderBy("Person.oid");
         while (!query.isLastPage()) {
           query.execute();
           for (V2.Person person = query.next(); person != null; person = query.next()) {
@@ -450,16 +465,17 @@ class UpgradeTest {
       database.commit(connection);
 
       database.transaction(connection, () -> {
-        Query<Integer> query = database.newQuery(connection, Integer.class).select("count(*)")
-            .from(V2.Person.class).execute();
+        Query<Integer> query = database.newQuery(connection, Integer.class)
+            .select("count(*) as total").from(V2.Person.class).orderBy("total").execute();
         for (Integer count = query.next(); count != null; count = query.next()) {
           System.out.println(count);
         }
       });
 
       database.transaction(connection, () -> {
-        Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
-            .select("name", "count(*)").from(V2.Person.class).groupBy("name").execute();
+        Query<CountPerLabel> query =
+            database.newQuery(connection, CountPerLabel.class).select("name", "count(*)")
+                .from(V2.Person.class).groupBy("name").orderBy("name").execute();
         for (CountPerLabel count = query.next(); count != null; count = query.next()) {
           System.out.println(count);
         }
@@ -471,7 +487,8 @@ class UpgradeTest {
 
         int count = 1;
         while (count != 0) {
-          Query<V2.Friendship> friends = database.newQuery(connection, V2.Friendship.class);
+          Query<V2.Friendship> friends = database.newQuery(connection, V2.Friendship.class)
+              .orderBy("Friendship.one_oid,Friendship.other_oid");
           friends.setRowsPerPage(100);
           friends.execute();
           count = 0;
@@ -481,7 +498,8 @@ class UpgradeTest {
           }
         }
 
-        List<V2.Person> all = database.newQuery(connection, V2.Person.class).toList();
+        List<V2.Person> all =
+            database.newQuery(connection, V2.Person.class).orderBy("Person.oid").toList();
         for (V2.Person person : all) {
           database.delete(connection, person);
         }
@@ -522,8 +540,8 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select with simple join");
       database.transaction(connection, () -> {
-        Query<V2.House> query =
-            database.newQuery(connection, V2.House.class).where("House.address", "=", a).execute();
+        Query<V2.House> query = database.newQuery(connection, V2.House.class)
+            .where("House.address", "=", a).orderBy("House.oid").execute();
         for (V2.House house = query.next(); house != null; house = query.next()) {
           house.setAddress(database.refresh(connection, house.getAddress()));
           System.out.println(house);
@@ -532,12 +550,12 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select and delete all");
       database.transaction(connection, () -> {
-        Query<V2.House> query = database.newQuery(connection, V2.House.class);
+        Query<V2.House> query = database.newQuery(connection, V2.House.class).orderBy("House.oid");
         query.setRowsPerPage(4);
         for (query.execute(); !query.isLastPage(); query.execute()) {
           for (V2.House house = query.next(); house != null; house = query.next()) {
             Query<V2.Person> q2 = database.newQuery(connection, V2.Person.class);
-            q2.where("Person.residence", "=", house).execute();
+            q2.where("Person.residence", "=", house).orderBy("Person.oid").execute();
             for (V2.Person person = q2.next(); person != null; person = q2.next()) {
               database.delete(connection, person);
             }
@@ -608,7 +626,7 @@ class UpgradeTest {
       });
       System.out.println();
       System.out.println("select all b's");
-      Query<V3.B> queryb = database.newQuery(connection, V3.B.class);
+      Query<V3.B> queryb = database.newQuery(connection, V3.B.class).orderBy("B.oid");
       for (queryb.execute(); !queryb.isLastPage(); queryb.nextPage()) {
         for (V3.B b = queryb.next(); b != null; b = queryb.next()) {
           System.out.println(b);
