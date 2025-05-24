@@ -8,7 +8,6 @@ import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
 
 public class OracleCommands extends CommandScheme {
-
   @Override
   protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.VARCHAR) {
@@ -17,6 +16,10 @@ public class OracleCommands extends CommandScheme {
       return "BINARY_DOUBLE";
     } else if (type == JDBCType.BIGINT) {
       return "INTEGER";
+    } else if (type == JDBCType.VARBINARY) {
+      return "LONG RAW";
+    } else if (type == JDBCType.TIME || type == JDBCType.DATE) {
+      return "TIMESTAMP";
     }
     return super.typeName(type, cls, size, scale);
   }
@@ -34,6 +37,8 @@ public class OracleCommands extends CommandScheme {
   protected JDBCType getJDBCType(int type) {
     if (type == 101) {
       return JDBCType.DOUBLE;
+    } else if (type == -101) {
+      return JDBCType.TIMESTAMP;
     }
     return super.getJDBCType(type);
   }

@@ -37,7 +37,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -75,75 +74,8 @@ public class Database {
       Integer.class, Long.class, Double.class, Float.class, Short.class, BigDecimal.class,
       BigInteger.class, LocalDate.class, LocalDateTime.class, Calendar.class, Date.class,
       OffsetDateTime.class, Time.class, UUID.class, Clob.class, Blob.class, byte[].class};
-  static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
-  static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
-  private static final Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
   private static final Map<Connection, CommandScheme> COMMAND_SCHEMES =
       Collections.synchronizedMap(new WeakHashMap<>());
-
-  static {
-    RS_GETTERS.put(String.class, (rs, pos) -> rs.getString(pos));
-    STMT_SETTERS.put(String.class, (rs, pos, value) -> rs.setString(pos, (String) value));
-    RS_GETTERS.put(int.class, (rs, pos) -> rs.getInt(pos));
-    STMT_SETTERS.put(int.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
-    RS_GETTERS.put(Integer.class, (rs, pos) -> rs.getInt(pos));
-    STMT_SETTERS.put(Integer.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
-    RS_GETTERS.put(short.class, (rs, pos) -> rs.getShort(pos));
-    STMT_SETTERS.put(short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
-    RS_GETTERS.put(Short.class, (rs, pos) -> rs.getShort(pos));
-    STMT_SETTERS.put(Short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
-    RS_GETTERS.put(long.class, (rs, pos) -> rs.getLong(pos));
-    STMT_SETTERS.put(long.class, (rs, pos, value) -> rs.setLong(pos, (Long) value));
-    RS_GETTERS.put(Long.class, (rs, pos) -> rs.getLong(pos));
-    STMT_SETTERS.put(Long.class, (rs, pos, value) -> rs.setLong(pos, (Long) value));
-    RS_GETTERS.put(boolean.class, (rs, pos) -> rs.getBoolean(pos));
-    STMT_SETTERS.put(boolean.class, (rs, pos, value) -> rs.setBoolean(pos, (Boolean) value));
-    RS_GETTERS.put(Boolean.class, (rs, pos) -> rs.getBoolean(pos));
-    STMT_SETTERS.put(Boolean.class, (rs, pos, value) -> rs.setBoolean(pos, (Boolean) value));
-    RS_GETTERS.put(double.class, (rs, pos) -> rs.getDouble(pos));
-    STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
-    RS_GETTERS.put(Double.class, (rs, pos) -> rs.getDouble(pos));
-    STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
-    RS_GETTERS.put(LocalDate.class, (rs, pos) -> rs.getObject(pos, LocalDate.class));
-    STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, (LocalDate) value));
-    RS_GETTERS.put(byte[].class, (rs, pos) -> rs.getBytes(pos));
-    STMT_SETTERS.put(byte[].class, (rs, pos, value) -> rs.setBytes(pos, (byte[]) value));
-    RS_GETTERS.put(OffsetDateTime.class, (rs, pos) -> rs.getObject(pos, OffsetDateTime.class));
-    STMT_SETTERS.put(OffsetDateTime.class,
-        (rs, pos, value) -> rs.setObject(pos, (OffsetDateTime) value));
-    RS_GETTERS.put(LocalDateTime.class, (rs, pos) -> rs.getObject(pos, LocalDateTime.class));
-    STMT_SETTERS.put(LocalDateTime.class,
-        (rs, pos, value) -> rs.setObject(pos, (LocalDateTime) value));
-    RS_GETTERS.put(Date.class, (rs, pos) -> rs.getObject(pos, Date.class));
-    STMT_SETTERS.put(Date.class,
-        (rs, pos, value) -> rs.setDate(pos, new java.sql.Date(((Date) value).getTime())));
-    RS_GETTERS.put(Time.class, (rs, pos) -> rs.getTime(pos));
-    STMT_SETTERS.put(Time.class, (rs, pos, value) -> rs.setTime(pos, (Time) value));
-    RS_GETTERS.put(Clob.class, (rs, pos) -> rs.getClob(pos));
-    STMT_SETTERS.put(Clob.class, (rs, pos, value) -> rs.setClob(pos, (Clob) value));
-    RS_GETTERS.put(Blob.class, (rs, pos) -> rs.getBlob(pos));
-    STMT_SETTERS.put(Blob.class, (rs, pos, value) -> rs.setBlob(pos, (Blob) value));
-    RS_GETTERS.put(UUID.class, (rs, pos) -> {
-      String value = rs.getString(pos);
-      if (value != null) {
-        return UUID.fromString(value);
-      }
-      return null;
-    });
-    STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setString(pos, value.toString()));
-    RS_GETTERS.put(BigDecimal.class, (rs, pos) -> rs.getObject(pos, BigDecimal.class));
-    STMT_SETTERS.put(BigDecimal.class, (rs, pos, value) -> rs.setObject(pos, (BigDecimal) value));
-    RS_GETTERS.put(BigInteger.class, (rs, pos) -> rs.getObject(pos, BigInteger.class));
-    STMT_SETTERS.put(BigInteger.class, (rs, pos, value) -> rs.setObject(pos, (BigInteger) value));
-    INCREMENTERS.put(int.class, i -> (Integer) i + 1);
-    INCREMENTERS.put(Integer.class, i -> (Integer) i + 1);
-    INCREMENTERS.put(long.class, i -> (Long) i + 1);
-    INCREMENTERS.put(Long.class, i -> (Long) i + 1);
-    INCREMENTERS.put(short.class, i -> (Short) i + 1);
-    INCREMENTERS.put(Short.class, i -> (Short) i + 1);
-    INCREMENTERS.put(byte.class, i -> (Byte) i + 1);
-    INCREMENTERS.put(Byte.class, i -> (Byte) i + 1);
-  }
 
   public static Class<?> getGenericType(Type type, int position) {
     try {
@@ -200,11 +132,17 @@ public class Database {
   @Retention(RetentionPolicy.RUNTIME)
   @Target(ElementType.FIELD)
   public @interface Db {
-    String name() default "";
+    String name()
 
-    int size() default 0;
+    default "";
 
-    int scale() default 0;
+    int size()
+
+    default 0;
+
+    int scale()
+
+    default 0;
 
     boolean largeObject() default false;
   }
@@ -538,10 +476,10 @@ public class Database {
       return getName();
     }
 
-    private DbClass registerSuperClass() throws SQLException {
+    private DbClass registerSuperClass(CommandScheme commands) throws SQLException {
       DbClass result = null;
       if (type.getSuperclass() != Object.class) {
-        DbClass parent = Database.getDbClass(type.getSuperclass());
+        DbClass parent = Database.registerDbClass(commands, type.getSuperclass());
         if (parent.isMapped()) {
           fields.addAll(parent.getFields());
           indices.putAll(parent.getIndices());
@@ -575,13 +513,13 @@ public class Database {
       return role;
     }
 
-    private DbField newAttribute(Field field) {
+    private DbField newAttribute(CommandScheme commands, Field field) {
       DbField attribute = new DbField();
       attribute.setField(field);
       attribute.setGetter(getGetter(type, field));
       attribute.setSetter(getSetter(type, field));
-      attribute.setRsGetter(RS_GETTERS.get(field.getType()));
-      attribute.setStmtSetter(STMT_SETTERS.get(field.getType()));
+      attribute.setRsGetter(commands.getRsGetter(field.getType()));
+      attribute.setStmtSetter(commands.getStmtSetter(field.getType()));
       attribute.setNullable(!field.getType().isPrimitive());
       fields.add(attribute);
       Db db = field.getAnnotation(Db.class);
@@ -606,10 +544,10 @@ public class Database {
       return attribute;
     }
 
-    private DbField initVersion(DbField field) {
+    private DbField initVersion(CommandScheme commands, DbField field) {
       Version version = field.getField().getAnnotation(Version.class);
       if (version != null) {
-        field.setIncrementer(INCREMENTERS.get(field.getType()));
+        field.setIncrementer(commands.getIncrementer(field.getType()));
         field.setVersion(version);
         return field;
       }
@@ -744,9 +682,9 @@ public class Database {
       return null;
     }
 
-    public DbClass(Class<?> cls) throws SQLException {
+    public DbClass(CommandScheme commands, Class<?> cls) throws SQLException {
       type = cls;
-      superClass = registerSuperClass();
+      superClass = registerSuperClass(commands);
       mapped = cls.getAnnotation(Mapped.class) != null;
       for (Field field : cls.getDeclaredFields()) {
         if (field.getAnnotation(DontPersist.class) == null) {
@@ -755,8 +693,8 @@ public class Database {
           } else if (!field.getType().isPrimitive() && !isSupported(field.getType())) {
             foreignKeys.add(newRole(field, false));
           } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
-            DbField attribute = newAttribute(field);
-            DbField withVersion = initVersion(attribute);
+            DbField attribute = newAttribute(commands, field);
+            DbField withVersion = initVersion(commands, attribute);
             if (withVersion != null) {
               version = withVersion;
             }
@@ -799,10 +737,6 @@ public class Database {
 
     public String getName() {
       return type.getSimpleName();
-    }
-
-    private boolean isSupported(Class<?> cls) {
-      return Arrays.stream(SUPPORTED_OBJECT_TYPES).anyMatch(c -> c == cls);
     }
 
     public DbClass getRoot() {
@@ -867,7 +801,7 @@ public class Database {
 
   }
 
-  private static final Map<Class<?>, DbClass> ENTITIES = new ConcurrentHashMap<>();
+  private static Map<Class<?>, DbClass> ENTITIES = new HashMap<>();
   private final Supplier<CommandScheme> commandsCreator;
 
   public Database() {
@@ -876,6 +810,10 @@ public class Database {
 
   public Database(Supplier<CommandScheme> commandSupplier) {
     commandsCreator = commandSupplier;
+  }
+
+  private static boolean isSupported(Class<?> cls) {
+    return Arrays.stream(SUPPORTED_OBJECT_TYPES).anyMatch(c -> c == cls);
   }
 
   public void setLogger(Connection connection, Consumer<String> logger) {}
@@ -890,13 +828,17 @@ public class Database {
     return (CommandScheme) result;
   }
 
-  synchronized static DbClass getDbClass(Class<?> cls) throws SQLException {
-    DbClass entity = ENTITIES.get(cls);
-    if (entity == null) {
-      entity = new DbClass(cls);
-      ENTITIES.put(cls, entity);
+  static DbClass getDbClass(Class<?> cls) {
+    return ENTITIES.get(cls);
+  }
+
+  static DbClass registerDbClass(CommandScheme commands, Class<?> cls) throws SQLException {
+    DbClass dbc = ENTITIES.get(cls);
+    if (dbc == null) {
+      dbc = new DbClass(commands, cls);
+      ENTITIES.put(cls, dbc);
     }
-    return entity;
+    return dbc;
   }
 
   public void commit(Connection connection) throws SQLException {
@@ -909,9 +851,10 @@ public class Database {
     connection.rollback();
   }
 
-  public void register(Class<?>... persistentClasses) throws SQLException {
+  public void register(Connection connection, Class<?>... persistentClasses) throws SQLException {
+    CommandScheme commands = getCommands(connection);
     for (Class<?> c : persistentClasses) {
-      Database.getDbClass(c);
+      Database.registerDbClass(commands, c);
     }
   }
 
@@ -921,8 +864,7 @@ public class Database {
     Consumer<String> logger = commands.getLogger();
     try {
       commands.logger(str -> {
-        if (logger != null)
-          logger.accept("Verification Error: " + str);
+        if (logger != null) logger.accept("Verification Error: " + str);
         throw new RuntimeException(error);
       });
       upgrade(connection, types);
@@ -938,7 +880,7 @@ public class Database {
   }
 
   public void upgrade(Connection connection, Class<?>... types) throws SQLException {
-    register(types);
+    register(connection, types);
     CommandScheme commands = getCommands(connection);
     HashSet<DbRole> fks = new HashSet<>();
     List<DbClass> withParents = new ArrayList<>();
@@ -1037,7 +979,7 @@ public class Database {
       throws SQLException {
     CommandScheme commands = getCommands(connection);
     Query<X> query = new Query<X>(connection, commands, queryType);
-    if (!queryType.isRecord() && !queryType.getPackage().getName().startsWith("java")) {
+    if (!queryType.isRecord() && !isSupported(queryType)) {
       return query.selectFrom(queryType, alias);
     }
     return query;

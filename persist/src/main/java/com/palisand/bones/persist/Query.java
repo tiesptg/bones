@@ -225,7 +225,7 @@ public class Query<X> {
     DbClass dbc = fromClasses.get(cls);
     DbField field = dbc.getField(member);
     if (field != null) {
-      setters.add(Database.STMT_SETTERS.get(field.getType()));
+      setters.add(commands.getStmtSetter(field.getType()));
       return field;
     }
     DbRole role = dbc.getForeignKey(member);
@@ -234,7 +234,7 @@ public class Query<X> {
     }
     if (role != null) {
       for (DbField f : role.getForeignKey().getFields()) {
-        setters.add(Database.STMT_SETTERS.get(f.getType()));
+        setters.add(commands.getStmtSetter(f.getType()));
       }
     }
     return role;
@@ -394,7 +394,7 @@ public class Query<X> {
           index = commands.setHierarchyValues(resultSet, cls, realCls, result, index);
           row.add(result);
         } else if (obj instanceof Class<?> cls) {
-          row.add(Database.RS_GETTERS.get(cls).get(resultSet, index++));
+          row.add(commands.getRsGetter(cls).get(resultSet, index++));
         }
       }
       ++rowInPage;

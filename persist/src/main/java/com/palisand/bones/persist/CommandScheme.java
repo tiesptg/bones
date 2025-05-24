@@ -112,8 +112,6 @@ public class CommandScheme {
     INCREMENTERS.put(Byte.class, i -> (Byte) i + 1);
   }
 
-
-
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
   protected static final String INDEX_PREFIX = "idx_";
   protected static final String SUBTYPE_FIELD = "subtype";
@@ -121,8 +119,7 @@ public class CommandScheme {
   private Consumer<String> logger = null;
   private final Map<String, Map<String, Object>> cache = new TreeMap<>();
   private boolean indexForFkNeeded = true;
-  @Getter
-  protected final Map<String, PreparedStatement> queryCache = new ConcurrentHashMap<>();
+  @Getter protected final Map<String, PreparedStatement> queryCache = new ConcurrentHashMap<>();
 
   @Getter
   @Setter
@@ -241,7 +238,6 @@ public class CommandScheme {
     return metadata;
   }
 
-
   static class Separator {
     final String firstToken;
     final String token;
@@ -311,6 +307,18 @@ public class CommandScheme {
 
   protected void log(String str) {
     this.logger.accept(str);
+  }
+
+  RsGetter getRsGetter(Class<?> cls) {
+    return RS_GETTERS.get(cls);
+  }
+
+  StmtSetter getStmtSetter(Class<?> cls) {
+    return STMT_SETTERS.get(cls);
+  }
+
+  Function<Object, Object> getIncrementer(Class<?> cls) {
+    return INCREMENTERS.get(cls);
   }
 
   public CommandScheme indexForFkNeeded(boolean value) {
