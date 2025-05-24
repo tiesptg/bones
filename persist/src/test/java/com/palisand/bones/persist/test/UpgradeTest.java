@@ -1,14 +1,25 @@
 package com.palisand.bones.persist.test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
+import java.sql.Time;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import com.palisand.bones.persist.CommandScheme;
 import com.palisand.bones.persist.Database;
@@ -17,12 +28,17 @@ import com.palisand.bones.persist.OracleCommands;
 import com.palisand.bones.persist.PostgresqlCommands;
 import com.palisand.bones.persist.Query;
 import com.palisand.bones.persist.StaleObjectException;
+import com.palisand.bones.persist.test.V2.TypeTest;
 
 class UpgradeTest {
-  private DB type = DB.H2;
+  private DB type = DB.PG;
 
   public enum DB {
     H2, PG, ORA, MYS
+  }
+
+  public boolean supportsLargeObjects() {
+    return type != DB.PG;
   }
 
   Connection getConnection() throws Exception {
@@ -110,6 +126,65 @@ class UpgradeTest {
           V2.Address.class, V2.Friendship.class));
       database.commit(connection);
       System.out.println("after upgrade without changes");
+    } catch (Exception ex) {
+      ex.printStackTrace();
+      fail();
+    }
+  }
+
+  @Test
+  void testTypes() {
+    String data =
+        "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data"
+            + "This is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of dataThis is a lot of data";
+    try (Connection connection = getConnection()) {
+      Database database = newDatabase();
+      System.out.println("Connected succesfully to " + database.getDatabaseName(connection));
+      database.dropAll(connection);
+      if (supportsLargeObjects()) {
+        database.upgrade(connection, V2.TypeTest.class, V2.TypeTestWithLobs.class);
+      } else {
+        database.upgrade(connection, V2.TypeTest.class);
+      }
+      System.out.println();
+      System.out.println("Add TypeTest");
+      database.transaction(connection, () -> {
+        TypeTest object = supportsLargeObjects() ? new V2.TypeTestWithLobs() : new V2.TypeTest();
+        if (object instanceof V2.TypeTestWithLobs tt) {
+          Blob blob = connection.createBlob();
+          blob.setBytes(1, data.getBytes());
+          tt.setBlobField(blob);
+          Clob clob = connection.createClob();
+          clob.setString(1, data);
+          tt.setClobField(clob);
+        }
+        object.setBytesField(data.getBytes());
+        object.setBooleanField(true);
+        object.setDateField(OffsetDateTime.now());
+        object.setDecimalField(new BigDecimal("1234567.89"));
+        object.setIntegerField(new BigInteger("8765"));
+        object.setIntField(93939393);
+        object.setIntObjectField(88776655);
+        object.setLocalDateField(LocalDate.now());
+        object.setLocalDateTimeField(LocalDateTime.now());
+        object.setShortField((short) 8866);
+        object.setStringField("This is just a short field");
+        object.setTimeField(Time.valueOf(LocalTime.now()));
+        object.setSqlDateField(new Date(new java.util.Date().getTime()));
+        object.setUuidField(UUID.randomUUID());
+        System.out.println(object);
+        database.insert(connection, object);
+        Query<TypeTest> query = database.newQuery(connection, TypeTest.class).execute();
+        object = query.next();
+        assertNotNull(object);
+        System.out.println(object);
+        database.delete(connection, object);
+      });
     } catch (Exception ex) {
       ex.printStackTrace();
       fail();

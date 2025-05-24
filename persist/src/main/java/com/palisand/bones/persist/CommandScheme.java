@@ -1,13 +1,19 @@
 package com.palisand.bones.persist;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,21 +24,96 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
+import com.palisand.bones.persist.Database.DbClass.DbForeignKeyField;
 import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
+import com.palisand.bones.persist.Database.RsGetter;
+import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
 public class CommandScheme {
   private Map<Class<?>, JDBCType> typeMap = new HashMap<>();
+  static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
+  static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
+  private static final Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
+
+  static {
+    RS_GETTERS.put(String.class, (rs, pos) -> rs.getString(pos));
+    STMT_SETTERS.put(String.class, (rs, pos, value) -> rs.setString(pos, (String) value));
+    RS_GETTERS.put(int.class, (rs, pos) -> rs.getInt(pos));
+    STMT_SETTERS.put(int.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
+    RS_GETTERS.put(Integer.class, (rs, pos) -> rs.getInt(pos));
+    STMT_SETTERS.put(Integer.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
+    RS_GETTERS.put(short.class, (rs, pos) -> rs.getShort(pos));
+    STMT_SETTERS.put(short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
+    RS_GETTERS.put(Short.class, (rs, pos) -> rs.getShort(pos));
+    STMT_SETTERS.put(Short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
+    RS_GETTERS.put(long.class, (rs, pos) -> rs.getLong(pos));
+    STMT_SETTERS.put(long.class, (rs, pos, value) -> rs.setLong(pos, (Long) value));
+    RS_GETTERS.put(Long.class, (rs, pos) -> rs.getLong(pos));
+    STMT_SETTERS.put(Long.class, (rs, pos, value) -> rs.setLong(pos, (Long) value));
+    RS_GETTERS.put(boolean.class, (rs, pos) -> rs.getBoolean(pos));
+    STMT_SETTERS.put(boolean.class, (rs, pos, value) -> rs.setBoolean(pos, (Boolean) value));
+    RS_GETTERS.put(Boolean.class, (rs, pos) -> rs.getBoolean(pos));
+    STMT_SETTERS.put(Boolean.class, (rs, pos, value) -> rs.setBoolean(pos, (Boolean) value));
+    RS_GETTERS.put(double.class, (rs, pos) -> rs.getDouble(pos));
+    STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
+    RS_GETTERS.put(Double.class, (rs, pos) -> rs.getDouble(pos));
+    STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
+    RS_GETTERS.put(LocalDate.class, (rs, pos) -> rs.getObject(pos, LocalDate.class));
+    STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, (LocalDate) value));
+    RS_GETTERS.put(byte[].class, (rs, pos) -> rs.getBytes(pos));
+    STMT_SETTERS.put(byte[].class, (rs, pos, value) -> rs.setBytes(pos, (byte[]) value));
+    RS_GETTERS.put(OffsetDateTime.class, (rs, pos) -> rs.getObject(pos, OffsetDateTime.class));
+    STMT_SETTERS.put(OffsetDateTime.class,
+        (rs, pos, value) -> rs.setObject(pos, (OffsetDateTime) value));
+    RS_GETTERS.put(LocalDateTime.class, (rs, pos) -> rs.getObject(pos, LocalDateTime.class));
+    STMT_SETTERS.put(LocalDateTime.class,
+        (rs, pos, value) -> rs.setObject(pos, (LocalDateTime) value));
+    RS_GETTERS.put(Date.class, (rs, pos) -> rs.getObject(pos, Date.class));
+    STMT_SETTERS.put(Date.class,
+        (rs, pos, value) -> rs.setDate(pos, new java.sql.Date(((Date) value).getTime())));
+    RS_GETTERS.put(Time.class, (rs, pos) -> rs.getTime(pos));
+    STMT_SETTERS.put(Time.class, (rs, pos, value) -> rs.setTime(pos, (Time) value));
+    RS_GETTERS.put(Clob.class, (rs, pos) -> rs.getClob(pos));
+    STMT_SETTERS.put(Clob.class, (rs, pos, value) -> rs.setClob(pos, (Clob) value));
+    RS_GETTERS.put(Blob.class, (rs, pos) -> rs.getBlob(pos));
+    STMT_SETTERS.put(Blob.class, (rs, pos, value) -> rs.setBlob(pos, (Blob) value));
+    RS_GETTERS.put(UUID.class, (rs, pos) -> {
+      String value = rs.getString(pos);
+      if (value != null) {
+        return UUID.fromString(value);
+      }
+      return null;
+    });
+    STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setString(pos, value.toString()));
+    RS_GETTERS.put(BigDecimal.class, (rs, pos) -> rs.getObject(pos, BigDecimal.class));
+    STMT_SETTERS.put(BigDecimal.class, (rs, pos, value) -> rs.setObject(pos, (BigDecimal) value));
+    RS_GETTERS.put(BigInteger.class, (rs, pos) -> rs.getObject(pos, BigInteger.class));
+    STMT_SETTERS.put(BigInteger.class, (rs, pos, value) -> rs.setObject(pos, (BigInteger) value));
+    INCREMENTERS.put(int.class, i -> (Integer) i + 1);
+    INCREMENTERS.put(Integer.class, i -> (Integer) i + 1);
+    INCREMENTERS.put(long.class, i -> (Long) i + 1);
+    INCREMENTERS.put(Long.class, i -> (Long) i + 1);
+    INCREMENTERS.put(short.class, i -> (Short) i + 1);
+    INCREMENTERS.put(Short.class, i -> (Short) i + 1);
+    INCREMENTERS.put(byte.class, i -> (Byte) i + 1);
+    INCREMENTERS.put(Byte.class, i -> (Byte) i + 1);
+  }
+
+
+
   protected static final String FOREIGN_KEY_PREFIX = "fk_";
   protected static final String INDEX_PREFIX = "idx_";
   protected static final String SUBTYPE_FIELD = "subtype";
@@ -89,6 +170,10 @@ public class CommandScheme {
 
   protected JDBCType getJDBCType(int type) {
     return JDBCType.valueOf(type);
+  }
+
+  public boolean supportsUUID() {
+    return true;
   }
 
   Metadata getMetadata(Connection connection) throws SQLException {
@@ -198,13 +283,21 @@ public class CommandScheme {
     typeMap.put(boolean.class, JDBCType.BOOLEAN);
     typeMap.put(Boolean.class, JDBCType.BOOLEAN);
     typeMap.put(String.class, JDBCType.VARCHAR);
-    typeMap.put(OffsetDateTime.class, JDBCType.TIME_WITH_TIMEZONE);
+    typeMap.put(OffsetDateTime.class, JDBCType.TIMESTAMP_WITH_TIMEZONE);
     typeMap.put(LocalDate.class, JDBCType.DATE);
     typeMap.put(BigDecimal.class, JDBCType.DECIMAL);
     typeMap.put(double.class, JDBCType.DOUBLE);
     typeMap.put(Double.class, JDBCType.DOUBLE);
     typeMap.put(float.class, JDBCType.REAL);
     typeMap.put(Float.class, JDBCType.REAL);
+    typeMap.put(BigInteger.class, JDBCType.BIGINT);
+    typeMap.put(Clob.class, JDBCType.CLOB);
+    typeMap.put(Blob.class, JDBCType.BLOB);
+    typeMap.put(byte[].class, JDBCType.VARBINARY);
+    typeMap.put(LocalDateTime.class, JDBCType.TIMESTAMP);
+    typeMap.put(Date.class, JDBCType.DATE);
+    typeMap.put(Time.class, JDBCType.TIME);
+    typeMap.put(UUID.class, JDBCType.CHAR);
   }
 
   public CommandScheme logger(Consumer<String> logger) {
@@ -267,8 +360,20 @@ public class CommandScheme {
     cache.clear();
   }
 
-  protected String typeName(JDBCType type) {
-    return type.getName();
+  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
+    if (type == JDBCType.TIMESTAMP_WITH_TIMEZONE) {
+      return "TIMESTAMP WITH TIME ZONE";
+    }
+    if (cls == UUID.class) {
+      size = 36;
+    }
+
+    if (size == 0) {
+      return type.getName();
+    } else if (scale == 0) {
+      return type.getName() + '(' + size + ')';
+    }
+    return type.getName() + '(' + size + ',' + scale + ')';
   }
 
   protected boolean execute(Connection connection, String sql) throws SQLException {
@@ -292,14 +397,15 @@ public class CommandScheme {
     return attribute.getSize();
   }
 
+  protected int getScale(DbField attribute) throws SQLException {
+    return attribute.getScale();
+  }
+
   private String getType(DbField attribute) throws SQLException {
     JDBCType type = getJDBCType(attribute.getType());
-    String result = typeName(type);
     int size = getSize(attribute);
-    if (size != 0) {
-      return result + '(' + size + ')';
-    }
-    return result;
+    int scale = getScale(attribute);
+    return typeName(type, attribute.getType(), size, scale);
   }
 
   private void appendColumn(StringBuilder sql, DbClass entity, DbField attribute, boolean nullable)
@@ -744,7 +850,7 @@ public class CommandScheme {
       if (!field.isGenerated() || entity.getSuperClass() != null) {
         Object value = field.get(object);
         if (value != null) {
-          stmt.setObject(index++, value);
+          field.stmtSet(stmt, index++, value);
         } else {
           stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
@@ -753,11 +859,11 @@ public class CommandScheme {
     }
     for (DbRole role : entity.getForeignKeys()) {
       Object child = role.get(object);
-      DbClass cls = Database.getDbClass(role.getType());
-      for (DbField field : cls.getPrimaryKey().getFields()) {
-        Object value = child == null ? null : field.get(child);
+      for (DbField field : role.getForeignKey().getFields()) {
+        DbForeignKeyField fkField = (DbForeignKeyField) field;
+        Object value = child == null ? null : fkField.getPrimaryKeyField().get(child);
         if (value != null) {
-          stmt.setObject(index++, value);
+          field.stmtSet(stmt, index++, value);
         } else {
           stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }
@@ -827,11 +933,11 @@ public class CommandScheme {
     }
     for (DbRole role : entity.getForeignKeys()) {
       Object child = role.get(object);
-      DbClass cls = Database.getDbClass(role.getType());
-      for (DbField field : cls.getPrimaryKey().getFields()) {
-        Object value = child == null ? null : field.get(child);
+      for (DbField field : role.getForeignKey().getFields()) {
+        DbForeignKeyField fkField = (DbForeignKeyField) field;
+        Object value = child == null ? null : fkField.getPrimaryKeyField().get(child);
         if (value != null) {
-          stmt.setObject(index++, value);
+          field.stmtSet(stmt, index++, value);
         } else {
           stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
         }

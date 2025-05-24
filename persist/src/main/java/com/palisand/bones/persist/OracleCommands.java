@@ -10,15 +10,15 @@ import com.palisand.bones.persist.Database.DbClass.DbField;
 public class OracleCommands extends CommandScheme {
 
   @Override
-  protected String typeName(JDBCType type) {
+  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.VARCHAR) {
-      return "VARCHAR2";
+      return "VARCHAR2(" + size + ')';
     } else if (type == JDBCType.DOUBLE) {
       return "BINARY_DOUBLE";
     } else if (type == JDBCType.BIGINT) {
       return "INTEGER";
     }
-    return super.typeName(type);
+    return super.typeName(type, cls, size, scale);
   }
 
   @Override

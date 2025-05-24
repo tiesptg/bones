@@ -11,10 +11,14 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -23,7 +27,6 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +35,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -67,10 +71,10 @@ public class Database {
     void set(PreparedStatement stmt, int pos, Object value) throws SQLException;
   }
 
-  private static final Class<?>[] SUPPORTED_OBJECT_TYPES =
-      {String.class, Boolean.class, Integer.class, Long.class, Double.class, Float.class,
-          Short.class, BigDecimal.class, BigInteger.class, LocalDate.class, LocalDateTime.class,
-          Calendar.class, Date.class, OffsetDateTime.class};
+  private static final Class<?>[] SUPPORTED_OBJECT_TYPES = {String.class, Boolean.class,
+      Integer.class, Long.class, Double.class, Float.class, Short.class, BigDecimal.class,
+      BigInteger.class, LocalDate.class, LocalDateTime.class, Calendar.class, Date.class,
+      OffsetDateTime.class, Time.class, UUID.class, Clob.class, Blob.class, byte[].class};
   static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
   static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
   private static final Map<Class<?>, Function<Object, Object>> INCREMENTERS = new HashMap<>();
@@ -84,6 +88,10 @@ public class Database {
     STMT_SETTERS.put(int.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
     RS_GETTERS.put(Integer.class, (rs, pos) -> rs.getInt(pos));
     STMT_SETTERS.put(Integer.class, (rs, pos, value) -> rs.setInt(pos, (Integer) value));
+    RS_GETTERS.put(short.class, (rs, pos) -> rs.getShort(pos));
+    STMT_SETTERS.put(short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
+    RS_GETTERS.put(Short.class, (rs, pos) -> rs.getShort(pos));
+    STMT_SETTERS.put(Short.class, (rs, pos, value) -> rs.setShort(pos, (Short) value));
     RS_GETTERS.put(long.class, (rs, pos) -> rs.getLong(pos));
     STMT_SETTERS.put(long.class, (rs, pos, value) -> rs.setLong(pos, (Long) value));
     RS_GETTERS.put(Long.class, (rs, pos) -> rs.getLong(pos));
@@ -98,6 +106,35 @@ public class Database {
     STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
     RS_GETTERS.put(LocalDate.class, (rs, pos) -> rs.getObject(pos, LocalDate.class));
     STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, (LocalDate) value));
+    RS_GETTERS.put(byte[].class, (rs, pos) -> rs.getBytes(pos));
+    STMT_SETTERS.put(byte[].class, (rs, pos, value) -> rs.setBytes(pos, (byte[]) value));
+    RS_GETTERS.put(OffsetDateTime.class, (rs, pos) -> rs.getObject(pos, OffsetDateTime.class));
+    STMT_SETTERS.put(OffsetDateTime.class,
+        (rs, pos, value) -> rs.setObject(pos, (OffsetDateTime) value));
+    RS_GETTERS.put(LocalDateTime.class, (rs, pos) -> rs.getObject(pos, LocalDateTime.class));
+    STMT_SETTERS.put(LocalDateTime.class,
+        (rs, pos, value) -> rs.setObject(pos, (LocalDateTime) value));
+    RS_GETTERS.put(Date.class, (rs, pos) -> rs.getObject(pos, Date.class));
+    STMT_SETTERS.put(Date.class,
+        (rs, pos, value) -> rs.setDate(pos, new java.sql.Date(((Date) value).getTime())));
+    RS_GETTERS.put(Time.class, (rs, pos) -> rs.getTime(pos));
+    STMT_SETTERS.put(Time.class, (rs, pos, value) -> rs.setTime(pos, (Time) value));
+    RS_GETTERS.put(Clob.class, (rs, pos) -> rs.getClob(pos));
+    STMT_SETTERS.put(Clob.class, (rs, pos, value) -> rs.setClob(pos, (Clob) value));
+    RS_GETTERS.put(Blob.class, (rs, pos) -> rs.getBlob(pos));
+    STMT_SETTERS.put(Blob.class, (rs, pos, value) -> rs.setBlob(pos, (Blob) value));
+    RS_GETTERS.put(UUID.class, (rs, pos) -> {
+      String value = rs.getString(pos);
+      if (value != null) {
+        return UUID.fromString(value);
+      }
+      return null;
+    });
+    STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setString(pos, value.toString()));
+    RS_GETTERS.put(BigDecimal.class, (rs, pos) -> rs.getObject(pos, BigDecimal.class));
+    STMT_SETTERS.put(BigDecimal.class, (rs, pos, value) -> rs.setObject(pos, (BigDecimal) value));
+    RS_GETTERS.put(BigInteger.class, (rs, pos) -> rs.getObject(pos, BigInteger.class));
+    STMT_SETTERS.put(BigInteger.class, (rs, pos, value) -> rs.setObject(pos, (BigInteger) value));
     INCREMENTERS.put(int.class, i -> (Integer) i + 1);
     INCREMENTERS.put(Integer.class, i -> (Integer) i + 1);
     INCREMENTERS.put(long.class, i -> (Long) i + 1);
@@ -167,7 +204,7 @@ public class Database {
 
     int size() default 0;
 
-    int precision() default 0;
+    int scale() default 0;
 
     boolean largeObject() default false;
   }
@@ -300,8 +337,10 @@ public class Database {
           foreignKey.setName(getEntity().getName() + '_' + getName());
           foreignKey.setUnique(false);
           entity.getPrimaryKey().getFields().forEach(field -> {
-            DbForeignKeyAttribute copy = new DbForeignKeyAttribute();
+            DbForeignKeyField copy = new DbForeignKeyField();
             copy.setName(getName() + '_' + field.getName());
+            copy.setRsGetter(field.getRsGetter());
+            copy.setStmtSetter(field.getStmtSetter());
             copy.setType(field.getType());
             copy.setPrimaryKeyField(field);
             copy.setRole(this);
@@ -391,6 +430,7 @@ public class Database {
       private StmtSetter stmtSetter;
       private Function<Object, Object> incrementer = null;
       private int size = 0;
+      private int scale = 0;
 
       @Override
       public String toString() {
@@ -457,7 +497,7 @@ public class Database {
     @Getter
     @Setter
     @RequiredArgsConstructor
-    public class DbForeignKeyAttribute extends DbField {
+    public class DbForeignKeyField extends DbField {
       private String name;
       private Class<?> type;
       private DbRole role;
@@ -548,6 +588,9 @@ public class Database {
       if (db != null) {
         if (db.size() != 0) {
           attribute.setSize(db.size());
+        }
+        if (db.scale() != 0) {
+          attribute.setScale(db.scale());
         }
       }
       Index[] all = field.getAnnotationsByType(Index.class);
@@ -669,6 +712,7 @@ public class Database {
           if (id != null) {
             primaryKey.fields.add(field);
             field.setId(id);
+            field.setNullable(false);
           }
         }
         for (int i = 0; i < primaryKey.getFields().size(); ++i) {
@@ -708,8 +752,7 @@ public class Database {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
             links.add(newRole(field, true));
-          } else if (!field.getType().isPrimitive()
-              && !field.getType().getName().startsWith("java")) {
+          } else if (!field.getType().isPrimitive() && !isSupported(field.getType())) {
             foreignKeys.add(newRole(field, false));
           } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
             DbField attribute = newAttribute(field);

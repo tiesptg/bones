@@ -1,7 +1,16 @@
 package com.palisand.bones.persist.test;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.Time;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 import com.palisand.bones.persist.Database.Db;
 import com.palisand.bones.persist.Database.Id;
 import com.palisand.bones.persist.Database.Index;
@@ -80,6 +89,33 @@ public class V2 {
     private Person one;
     @Id
     private Person other;
+  }
+
+  @Data
+  public static class TypeTestWithLobs extends TypeTest {
+    private Clob clobField;
+    private Blob blobField;
+  }
+
+  @Data
+  public static class TypeTest {
+    @Id(generated = true)
+    private long id;
+    @Id
+    private OffsetDateTime dateField;
+    private String stringField;
+    private short shortField;
+    private int intField;
+    private Integer intObjectField;
+    private boolean booleanField;
+    private byte[] bytesField;
+    private BigDecimal decimalField;
+    private BigInteger integerField;
+    private LocalDate localDateField;
+    private LocalDateTime localDateTimeField;
+    private Time timeField;
+    private Date sqlDateField;
+    private UUID uuidField;
   }
 
 }
