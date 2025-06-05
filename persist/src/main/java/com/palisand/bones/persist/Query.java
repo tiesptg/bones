@@ -16,7 +16,6 @@ import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Getter;
-import lombok.Setter;
 
 public class Query<X> {
 
@@ -43,15 +42,23 @@ public class Query<X> {
   private int rowInPage = 0;
   private int aliasPostfix = 1;
   @Getter private boolean lastPage = false;
-  @Getter
-  @Setter private int page = 1;
-  @Getter
-  @Setter private int rowsPerPage = 20;
+  @Getter private int page = 1;
+  @Getter private int rowsPerPage = 20;
 
   Query(Connection connection, CommandScheme commands, Class<?> queryType) throws SQLException {
     this.commands = commands;
     this.queryType = queryType;
     this.connection = connection;
+  }
+
+  public Query<X> rowsPerPage(int rows) {
+    rowsPerPage = rows;
+    return this;
+  }
+
+  public Query<X> page(int page) {
+    this.page = page;
+    return this;
   }
 
   private DbClass selectColumns(Class<?> cls, String alias) throws SQLException {
@@ -190,14 +197,17 @@ public class Query<X> {
     if (fromClass == null) {
       throw new SQLException("class name or alias " + className + " not found in query");
     }
+    String[] memberParts = memberName.split("\\|");
+    memberName = memberParts[0];
     DbRole role = fromClass.getForeignKey(memberName);
     if (role == null) {
       role = fromClass.getLink(memberName);
     }
+    DbClass type = null;
     if (role != null) {
       if (role.isForeignKey()) {
         DbSearchMethod foreignKey = role.getForeignKey();
-        DbClass type = Database.getDbClass(role.getType());
+        type = Database.getDbClass(role.getType());
         constructJoin(className, type, alias, joinType, foreignKey.getFields(),
             type.getPrimaryKey().getFields());
       } else {
@@ -205,13 +215,20 @@ public class Query<X> {
         if (opposite != null) {
           if (opposite.isForeignKey()) {
             DbSearchMethod foreignKey = opposite.getForeignKey();
-            DbClass type = foreignKey.getEntity();
+            type = foreignKey.getEntity();
             constructJoin(className, type, alias, joinType, type.getPrimaryKey().getFields(),
                 foreignKey.getFields());
-          } else {
-            // TODO: many to many relation
           }
         }
+      }
+      if (memberParts.length == 2) {
+        String newAlias = alias + 'c';
+        DbClass subType = type.getSubclass(memberParts[1]);
+        constructJoin(alias, subType, newAlias, " JOIN ", subType.getPrimaryKey().getFields(),
+            fromClass.getPrimaryKey().getFields());
+        alias = newAlias;
+      } else if (memberParts.length > 2) {
+        throw new SQLException("More than one cast '|' sign in query :" + memberParts);
       }
     } else {
       throw new SQLException("Role " + memberName + " not found in class " + fromClass.getName());
@@ -234,22 +251,25 @@ public class Query<X> {
       for (DbField f : role.getForeignKey().getFields()) {
         setters.add(commands.getStmtSetter(f.getType()));
       }
+    } else {
+      throw new SQLException("Member " + member + " not defined in class " + dbc.getName());
     }
     return role;
   }
 
   public Query<X> where(String path, String operator, Object value) throws SQLException {
+    return addCondition(path, " WHERE ", operator, value);
+  }
+
+  private Query<X> addCondition(String path, String initialSeparator, String operator, Object value)
+      throws SQLException {
     String[] parts = path.split("\\.");
     String alias = parts[0];
     for (int i = 1; i < parts.length - 1; ++i) {
       alias = addJoin(alias, parts[i], " JOIN ", "x" + (aliasPostfix++));
     }
-    return addCondition(alias, parts[parts.length - 1], " WHERE ", operator, value);
-  }
-
-  private Query<X> addCondition(String className, String memberName, String initialSeparator,
-      String operator, Object value) throws SQLException {
-    Object member = addParameter(className, memberName);
+    String memberName = parts[parts.length - 1];
+    Object member = addParameter(alias, memberName);
     if (member instanceof DbRole role) {
       if (!role.isForeignKey()) {
         role = role.getOpposite();
@@ -262,7 +282,7 @@ public class Query<X> {
         DbField field = foreignKey.getFields().get(i);
         DbField pkField = type.getPrimaryKey().getFields().get(i);
         sep.next(where);
-        where.append(className);
+        where.append(alias);
         where.append('.');
         where.append(field.getName());
         where.append(operator);
@@ -272,21 +292,19 @@ public class Query<X> {
         values.add(key);
       }
     } else if (member instanceof DbField) {
-      where.append(initialSeparator).append(className).append('.').append(memberName)
-          .append(operator).append('?');
+      where.append(initialSeparator).append(alias).append('.').append(memberName).append(operator)
+          .append('?');
       values.add(value);
     }
     return this;
   }
 
   public Query<X> and(String path, String operator, Object value) throws SQLException {
-    String[] parts = path.split("\\.");
-    return addCondition(parts[0], parts[1], " AND ", operator, value);
+    return addCondition(path, " AND ", operator, value);
   }
 
   public Query<X> or(String path, String operator, Object value) throws SQLException {
-    String[] parts = path.split("\\.");
-    return addCondition(parts[0], parts[1], " OR ", operator, value);
+    return addCondition(path, " OR ", operator, value);
   }
 
   public Query<X> brackets(Consumer<Query<X>> queryClause) {
@@ -321,7 +339,7 @@ public class Query<X> {
     return (page - 1) * rowsPerPage;
   }
 
-  public Query<X> execute() throws SQLException {
+  private void execute() throws SQLException {
     StringBuilder sql = getSql();
     String sqlstr = sql.toString();
     if (stmt == null) {
@@ -345,8 +363,6 @@ public class Query<X> {
     rowInPage = 0;
     setters.clear();
     values.clear();
-
-    return this;
   }
 
   @SuppressWarnings("unchecked")
@@ -370,11 +386,20 @@ public class Query<X> {
     if (!isLastPage()) {
       ++page;
       execute();
+      return true;
     }
     return false;
   }
 
+  public void firstPage() throws SQLException {
+    page = 1;
+    execute();
+  }
+
   public X next() throws SQLException {
+    if (resultSet == null) {
+      execute();
+    }
     if (resultSet.next()) {
       List<Object> row = new ArrayList<>();
       int index = 1;
@@ -404,10 +429,7 @@ public class Query<X> {
 
   public List<X> toList() throws SQLException {
     List<X> list = new ArrayList<>();
-    setPage(1);
-    if (resultSet == null) {
-      execute();
-    }
+    firstPage();
     while (!isLastPage()) {
       for (X x = next(); x != null; x = next()) {
         list.add(x);

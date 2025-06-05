@@ -592,6 +592,15 @@ public class Database {
       return label;
     }
 
+    public DbClass getSubclass(String fullName) {
+      for (DbClass cls : subClasses.values()) {
+        if (cls.getName().equals(fullName)) {
+          return cls;
+        }
+      }
+      return null;
+    }
+
     private void registerSubclasses() throws SQLException {
       if (superClass != null) {
         this.label = superClass.addSubclass(getLabel(getName()), this);
@@ -816,8 +825,6 @@ public class Database {
     return Arrays.stream(SUPPORTED_OBJECT_TYPES).anyMatch(c -> c == cls);
   }
 
-  public void setLogger(Connection connection, Consumer<String> logger) {}
-
   private CommandScheme getCommands(Connection connection) throws SQLException {
     CommandScheme result = COMMAND_SCHEMES.get(connection);
     if (result == null) {
@@ -1011,6 +1018,10 @@ public class Database {
       rollback(connection);
       throw new SQLException(ex);
     }
+  }
+
+  public void clearStatementCache(Connection connection) {
+    COMMAND_SCHEMES.remove(connection);
   }
 
 }
