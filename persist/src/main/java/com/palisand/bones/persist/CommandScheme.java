@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -729,21 +728,16 @@ public class CommandScheme {
     return stmts;
   }
 
-  private String getAlias(Map<String, DbClass> map, DbClass cls) {
-    for (Entry<String, DbClass> e : map.entrySet()) {
-      if (e.getValue() == cls && !cls.getName().equalsIgnoreCase(e.getKey())) {
-        return e.getKey();
-      }
+  void addHierarchyJoins(StringBuilder sql, DbClass target, String targetAlias)
+      throws SQLException {
+    int pos = sql.indexOf("FROM");
+    if (sql.length() - pos > 5) { // ' FROM '
+      sql.append(',');
     }
-    return null;
-  }
-
-  void addHierarchyJoins(StringBuilder sql, List<DbClass> hierarchy, DbClass target,
-      Map<String, DbClass> aliasses) throws SQLException {
     boolean first = true;
     String parentName = null;
-    for (DbClass c : hierarchy) {
-      String alias = getAlias(aliasses, c);
+    for (DbClass c : target.getTypeHierarchy()) {
+      String alias = Query.getAlias(c, target, targetAlias);
       if (!first) {
         if (!c.getType().isAssignableFrom(target.getType())) {
           sql.append(" LEFT JOIN ");
@@ -781,7 +775,8 @@ public class CommandScheme {
       List<DbClass> types = entity.getTypeHierarchy();
       StringBuilder sql = new StringBuilder("SELECT ");
       Separator sqlComma = new Separator();
-      if (entity.hasSubTypeField()) {
+      DbClass root = entity.getRoot();
+      if (root.hasSubTypeField()) {
         sqlComma.next(sql);
         sql.append(entity.getName());
         sql.append('.');
@@ -791,7 +786,7 @@ public class CommandScheme {
         for (DbField field : c.getFields()) {
           if (!c.getPrimaryKey().getFields().contains(field)) {
             sqlComma.next(sql);
-            sql.append(c.getName());
+            sql.append(Query.getAlias(c, entity, entity.getName()));
             sql.append('.');
             sql.append(field.getName());
           }
@@ -799,14 +794,14 @@ public class CommandScheme {
         for (DbRole role : c.getForeignKeys()) {
           for (DbField field : role.getForeignKey().getFields()) {
             sqlComma.next(sql);
-            sql.append(c.getName());
+            sql.append(Query.getAlias(c, entity, entity.getName()));
             sql.append('.');
             sql.append(field.getName());
           }
         }
       }
       sql.append(" FROM ");
-      addHierarchyJoins(sql, types, entity, Collections.emptyMap());
+      addHierarchyJoins(sql, entity, entity.getName());
       Separator and = new Separator(" AND ", " WHERE ");
       for (DbField field : entity.getPrimaryKey().getFields()) {
         and.next(sql);

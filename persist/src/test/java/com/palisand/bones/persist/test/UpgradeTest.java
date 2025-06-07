@@ -187,12 +187,13 @@ class UpgradeTest {
         object.setUuidField(UUID.randomUUID());
         System.out.println(object);
         database.insert(connection, object);
-        Query<TypeTest> query = database.newQuery(connection, TypeTest.class)
-            .orderBy("TypeTest.id, TypeTest.shortField");
-        object = query.next();
-        assertNotNull(object);
-        System.out.println(object);
-        database.delete(connection, object);
+        try (Query<TypeTest> query = database.newQuery(connection, TypeTest.class)
+            .orderBy("TypeTest.id, TypeTest.shortField")) {
+          object = query.next();
+          assertNotNull(object);
+          System.out.println(object);
+          database.delete(connection, object);
+        }
       });
     } catch (Exception ex) {
       ex.printStackTrace();
@@ -323,6 +324,9 @@ class UpgradeTest {
     }
   }
 
+  public record PersonHouseAddress(V2.Person person, V2.House house, V2.Address address) {
+  }
+
   @Test
   void testQueryWithJoin() {
     try (Connection connection = getConnection()) {
@@ -362,15 +366,28 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select person, house & address with number 2");
       database.transaction(connection, () -> {
-        Query<V2.Person> query =
+        try (Query<V2.Person> query =
             database.newQuery(connection, V2.Person.class).join("Person.residence")
-                .join("House.address").where("Address.houseNumber", "=", 2).orderBy("Person.oid");
-        for (V2.Person person = query.next(); person != null; person = query.next()) {
-          V2.House house = database.refresh(connection, person.getResidence());
-          person.setResidence(house);
-          V2.Address address = database.refresh(connection, house.getAddress());
-          house.setAddress(address);
-          System.out.println(person);
+                .join("House.address").where("Address.houseNumber", "=", 2).orderBy("Person.oid")) {
+          for (V2.Person person = query.next(); person != null; person = query.next()) {
+            V2.House house = database.refresh(connection, person.getResidence());
+            person.setResidence(house);
+            V2.Address address = database.refresh(connection, house.getAddress());
+            house.setAddress(address);
+            System.out.println(person);
+          }
+        }
+      });
+      System.out.println();
+      System.out.println("select person, house & address in one query");
+      database.transaction(connection, () -> {
+        try (Query<PersonHouseAddress> query = database
+            .newQuery(connection, PersonHouseAddress.class).select(V2.Person.class, "p")
+            .select(V2.House.class, "h").select(V2.Address.class, "a").from(V2.Person.class, "p")
+            .join("p.residence", "h").join("h.address", "a").orderBy("Person.oid")) {
+          for (PersonHouseAddress pha = query.next(); pha != null; pha = query.next()) {
+            System.out.println(pha);
+          }
         }
       });
       System.out.println();
@@ -443,6 +460,9 @@ class UpgradeTest {
   public record CountPerLabel(String label, int count) {
   }
 
+  public record Friends(V2.Person one, V2.Person other) {
+  }
+
   @Test
   void testQueryMisc() {
     try (Connection connection = getConnection()) {
@@ -484,10 +504,23 @@ class UpgradeTest {
       });
 
       database.transaction(connection, () -> {
-        Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
-            .select("name", "count(*)").from(V2.Person.class).groupBy("name").orderBy("name");
-        for (CountPerLabel count = query.next(); count != null; count = query.next()) {
-          System.out.println(count);
+        try (Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
+            .select("name", "count(*)").from(V2.Person.class).groupBy("name").orderBy("name")) {
+          for (CountPerLabel count = query.next(); count != null; count = query.next()) {
+            System.out.println(count);
+          }
+        }
+      });
+
+      System.out.println();
+      System.out.println("select friends in one statement");
+      database.transaction(connection, () -> {
+        try (Query<Friends> query = database.newQuery(connection, Friends.class)
+            .select(V2.Person.class, "one").select(V2.Person.class, "other")
+            .from(V2.Friendship.class, "f").join("f.one", "one").join("f.other", "other")) {
+          for (Friends friends = query.next(); friends != null; friends = query.next()) {
+            System.out.println(friends);
+          }
         }
       });
 

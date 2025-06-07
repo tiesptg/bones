@@ -28,7 +28,7 @@ During a transactions all instance of an object will be cached and the library g
 ## Supported Databases
 
 The library has been tested with:
-- Oracle 23ai
+- Oracle 23c
 - MS SQL Server 2019
 - PostgreSQL 17.5
 - MySQL 8.0
@@ -83,7 +83,9 @@ The Getter and Setter annotations are from Lombok. The Id annotation indicates t
 
 The Version annotation indicates a field that will be used for the optimistic locking strategy. This means that when you update or delete an object which version field is out of sync with the database, the library will throw a StaleObjectException. This indicates the object should be refreshed and send to the user to let him verify that the change he intended should happen. The library will update the version field at each update.
 
-The library supports most primitive datatypes and its Class equivalents. The Class equivalents are considered nullable and the primitive types not nullable. It supports java.sql.Date and Time and some java.time.* classes. BigDecimal and BigInteger fields. java.sql.Clob and -Blob field are supported for large dataitems. String and byte[] will also support any length that will fit in memory.
+The library supports most primitive datatypes and its Class equivalents. The Class equivalents are considered     } finally {
+      
+nullable and the primitive types not nullable. It supports java.sql.Date and Time and some java.time.* classes. BigDecimal and BigInteger fields. java.sql.Clob and -Blob field are supported for large dataitems. String and byte[] will also support any length that will fit in memory.
 
 Any annotations of the library are declared within the Database class. Checkout the javadoc or souce code for more information.
 
@@ -183,7 +185,7 @@ In the transaction you the upgrade method creates, alters and/or drops the table
 
 When you do not want to upgrade your schema, you can use the register method in stead. Both these calls need to be called only once within a process and before any other calls to any instance of Database.
 
-Database instances are thread safe, but in general cheap to create because they contain little data. CommandScheme objects are not threadsafe and hold PreparedStatements. So in server applications reuse connections with connectionpools. If you want to close a connection it is best to use Database.close(connection) because it will clear any cached data.
+Database instances are thread safe, but in general cheap to create because they contain little data. CommandScheme objects are not threadsafe and hold PreparedStatements. So in server applications reuse connections with connectionpools. If you want to close a connection the data it is stored with the connection will be automatically cleared when the connection is garbage collected, with the help of weak references.
 
 # Data manipulation
 
@@ -228,17 +230,72 @@ The Query class is used to select more and more diverse data. It supports single
 Let's start with an example
 
 ```
-Query<Person> query =
-            database.newQuery(connection, Person.class).orderBy("Person.oid");
-for (Person person = query.next(); person != null; person = query.next()) {
-  System.out.println(person);
+try (Query<Person> query =
+            database.newQuery(connection, Person.class).orderBy("Person.oid")) {
+	for (Person person = query.next(); person != null; person = query.next()) {
+	  System.out.println(person);
+	}
 }
 ```
 As you can see, you create a query with the newQuery method of the database object. You provide as arguments the connection and the class that will hold the result of the query. This can be a persistent class, a simple class from java.lang to receive results of expressions or also a record class with multiple fields. (https://docs.oracle.com/en/java/javase/17/language/records.html)
 
 In this example I use an orderBy statement. This not always necessary, unless you use MS SQL Server. This dbms requires an order by clause if you want to use paging which is standard in the library. For other databases it is also good practice, so you know you will always retrieve the objects in the same order.
 
+A Query is a Closeable object, so it is advisable to use a try with resources to close the Query when you are done.
 
+### Implicit joins
+
+```
+  database.transaction(connection, () -> {
+    try (Query<Person> query = database.newQuery(connection, Person.class)
+        .where("Person.residence.address.houseNumber", "=", 2)
+        .or("Person.residence|Apartment.floor", "=", 1).orderBy("Person.oid")) {
+	    for (Person person = query.next(); person != null; person = query.next()) {
+	      person.setResidence(database.refresh(connection, person.getResidence()));
+	      house.setAddress(database.refresh(connection, house.getAddress()));
+	      System.out.println(person);
+	    }
+	 }
+  });
+```
+
+A more advance examples shows some other features. You can use implicite joins with . navigations of roles of relations. Both roles of a relation can be used.
+
+In the implicite joins in the "Person.residence|Apartment.floor" example you see that floor is a field of the Apartment class that is a subclass of House that is the type of the role residence of Person. 
+
+You see the calls to refresh to get the field values of the related objects.
+
+### Return simple objects
+
+It is possible to return simple values in queries. Look at this simple example:
+
+```
+  database.transaction(connection, () -> {
+    try (Query<Integer> query = database.newQuery(connection, Integer.class)
+        .select("count(*) as total").from(V2.Person.class).orderBy("total")) {
+      Integer count = query.next(); 
+      System.out.println(count);
+    }
+```
+
+In this case you define the select clause explicitly.
+
+### Return multiple object at the same time
+
+You can use a record class to select multiple data items at the same time. Let us look at two examples:
+
+```
+public record CountPerLabel(String label, int count) {}
+
+try (Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
+    .select("name", "count(*)").from(Person.class).groupBy("name").orderBy("name")) {
+  for (CountPerLabel count = query.next(); count != null; count = query.next()) {
+    System.out.println(count);
+  }
+}
+```
+
+With the explicit select method you can select any expression you want. In this case just the name and count(*) from Person. The CountPerLabel record will hold the data per row returned by the query.
 
 
 

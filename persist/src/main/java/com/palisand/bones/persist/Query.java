@@ -1,5 +1,7 @@
 package com.palisand.bones.persist;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -17,7 +19,7 @@ import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Getter;
 
-public class Query<X> {
+public class Query<X> implements Closeable {
 
   public static final String EQ = "=";
   public static final String NOT_EQ = "<>";
@@ -27,7 +29,6 @@ public class Query<X> {
 
   private final List<Object> selectObjects = new ArrayList<>();
   private final Map<String, DbClass> fromClasses = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-  private String firstAlias = null;
   private StringBuilder select = new StringBuilder("SELECT ");
   private final Separator selectComma = new Separator();
   private StringBuilder from = new StringBuilder(" FROM ");
@@ -63,20 +64,15 @@ public class Query<X> {
 
   private DbClass selectColumns(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = Database.getDbClass(cls);
-    return selectColumns(cls, dbc, alias);
+    return selectColumns(dbc, alias);
   }
 
-  private String getAlias(DbClass type, DbClass reference, String alias) {
-    if (type != reference && type.getLabel() != null) {
-      return type.getLabel() + (aliasPostfix++);
-    }
-    if (alias == null) {
-      return reference.getName();
-    }
-    return alias;
+  static String getAlias(DbClass type, DbClass reference, String alias) {
+    if (type == reference) return alias;
+    return alias + type.getLabel();
   }
 
-  private DbClass selectColumns(Class<?> cls, DbClass dbc, String alias) throws SQLException {
+  private DbClass selectColumns(DbClass dbc, String alias) throws SQLException {
     if (alias == null) {
       alias = dbc.getName();
     }
@@ -89,11 +85,12 @@ public class Query<X> {
       select.append(rootAlias);
       select.append('.');
       select.append(CommandScheme.SUBTYPE_FIELD);
+      commands.addHierarchyJoins(from, dbc, alias);
     }
     boolean first = true;
     List<DbClass> hierarchy = dbc.getTypeHierarchy();
     for (DbClass type : hierarchy) {
-      String typeAlias = type == root ? rootAlias : getAlias(type, dbc, alias);
+      String typeAlias = getAlias(type, dbc, alias);
       fromClasses.put(typeAlias, type);
       for (DbField field : type.getFields()) {
         if (first || !type.getPrimaryKey().getFields().contains(field)) {
@@ -116,13 +113,22 @@ public class Query<X> {
     return dbc;
   }
 
+  public Query<X> select(Class<?> cls) throws SQLException {
+    return select(cls, null);
+  }
+
+  public Query<X> select(Class<?> cls, String alias) throws SQLException {
+    selectColumns(cls, alias);
+    return this;
+  }
+
   public Query<X> selectFrom(Class<?> cls) throws SQLException {
     return selectFrom(cls, null);
   }
 
   public Query<X> selectFrom(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = selectColumns(cls, alias);
-    commands.addHierarchyJoins(from, dbc.getTypeHierarchy(), dbc, fromClasses);
+    commands.addHierarchyJoins(from, dbc, alias == null ? dbc.getName() : alias);
     return this;
   }
 
@@ -155,6 +161,9 @@ public class Query<X> {
     from.append(entity.getName());
     if (alias != null) {
       from.append(' ').append(alias);
+      fromClasses.put(alias, entity);
+    } else {
+      fromClasses.put(entity.getName(), entity);
     }
     return this;
   }
@@ -165,7 +174,11 @@ public class Query<X> {
 
   public Query<X> join(String path, String alias) throws SQLException {
     String[] parts = path.split("\\.");
-    addJoin(parts[0], parts[1], " JOIN ", alias);
+    String pAlias = parts[0];
+    for (int i = 1; i < parts.length - 2; ++i) {
+      pAlias = addJoin(pAlias, parts[i], " JOIN ", "x" + (aliasPostfix++));
+    }
+    addJoin(pAlias, parts[parts.length - 1], " JOIN ", alias);
     return this;
   }
 
@@ -448,6 +461,17 @@ public class Query<X> {
       list.add(x);
     }
     return list;
+  }
+
+  @Override
+  public void close() throws IOException {
+    try {
+      if (resultSet != null) {
+        resultSet.close();
+      }
+    } catch (SQLException ex) {
+      throw new IOException(ex);
+    }
   }
 
 }

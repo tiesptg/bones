@@ -52,12 +52,12 @@ public class Database {
 
   @FunctionalInterface
   public interface Transaction {
-    void perform() throws SQLException;
+    void perform() throws Exception;
   }
 
   @FunctionalInterface
   public interface TransactionWithResult {
-    Object perform() throws SQLException;
+    Object perform() throws Exception;
   }
 
   @FunctionalInterface
@@ -968,6 +968,7 @@ public class Database {
 
   @SuppressWarnings("unchecked")
   public <T> T refresh(Connection connection, T object) throws SQLException {
+    if (object == null) return null;
     CommandScheme commands = getCommands(connection);
     DbClass cls = Database.getDbClass(object.getClass());
     return (T) commands.refresh(connection, cls, object);
@@ -1018,10 +1019,6 @@ public class Database {
       rollback(connection);
       throw new SQLException(ex);
     }
-  }
-
-  public void clearStatementCache(Connection connection) {
-    COMMAND_SCHEMES.remove(connection);
   }
 
 }
