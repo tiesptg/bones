@@ -6,14 +6,21 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import com.palisand.bones.persist.CommandScheme.Separator;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
+import com.palisand.bones.persist.Database.DbClass.DbForeignKeyField;
 import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
@@ -27,11 +34,64 @@ public class Query<X> implements Closeable {
   public static final String LT = "<";
   public static final String GT = ">";
 
+  private record Join(DbClass fromClass, String alias, DbClass toClass, DbSearchMethod role,
+      String joinType) {
+  }
+
+  private class OrderedSet<X> extends AbstractSet<X> {
+    private final ArrayList<X> list = new ArrayList<>();
+
+    @Override
+    public Iterator<X> iterator() {
+      return list.iterator();
+    }
+
+    @Override
+    public int size() {
+      return list.size();
+    }
+
+    @Override
+    public boolean add(X x) {
+      int pos = list.indexOf(x);
+      if (pos == -1) {
+        list.add(x);
+        return true;
+      }
+      list.set(pos, x);
+      return false;
+    }
+
+  }
+
+  private class OrderedMap<K, V> extends AbstractMap<K, V> {
+    private OrderedSet<Entry<K, V>> entries = new OrderedSet<>();
+
+    @Override
+    public Set<Entry<K, V>> entrySet() {
+      return entries;
+    }
+
+    @Override
+    public V put(K key, V value) {
+      for (Entry<K, V> e : entries) {
+        if (e.getKey().equals(key)) {
+          V old = e.getValue();
+          e.setValue(value);
+          return old;
+        }
+      }
+      entries.add(new SimpleEntry<>(key, value));
+      return null;
+    }
+
+  }
+
   private final List<Object> selectObjects = new ArrayList<>();
   private final Map<String, DbClass> fromClasses = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
   private StringBuilder select = new StringBuilder("SELECT ");
   private final Separator selectComma = new Separator();
-  private StringBuilder from = new StringBuilder(" FROM ");
+  private final Map<String, Join> joins = new OrderedMap<>();
   private StringBuilder where = new StringBuilder();
   private final CommandScheme commands;
   private PreparedStatement stmt = null;
@@ -85,7 +145,7 @@ public class Query<X> implements Closeable {
       select.append(rootAlias);
       select.append('.');
       select.append(CommandScheme.SUBTYPE_FIELD);
-      commands.addHierarchyJoins(from, dbc, alias);
+      addHierarchyJoins(dbc, alias);
     }
     boolean first = true;
     List<DbClass> hierarchy = dbc.getTypeHierarchy();
@@ -122,16 +182,6 @@ public class Query<X> implements Closeable {
     return this;
   }
 
-  public Query<X> selectFrom(Class<?> cls) throws SQLException {
-    return selectFrom(cls, null);
-  }
-
-  public Query<X> selectFrom(Class<?> cls, String alias) throws SQLException {
-    DbClass dbc = selectColumns(cls, alias);
-    commands.addHierarchyJoins(from, dbc, alias == null ? dbc.getName() : alias);
-    return this;
-  }
-
   public Query<X> select(String... columns) throws SQLException {
     for (String column : columns) {
       addSelectObject(selectObjects.size());
@@ -154,17 +204,11 @@ public class Query<X> implements Closeable {
   }
 
   public Query<X> from(Class<?> cls, String alias) throws SQLException {
-    if (from.length() > 6) { // ' FROM '
-      from.append(',');
+    DbClass dbc = Database.getDbClass(cls);
+    if (alias == null) {
+      alias = dbc.getName();
     }
-    DbClass entity = Database.getDbClass(cls);
-    from.append(entity.getName());
-    if (alias != null) {
-      from.append(' ').append(alias);
-      fromClasses.put(alias, entity);
-    } else {
-      fromClasses.put(entity.getName(), entity);
-    }
+    fromClasses.put(alias, dbc);
     return this;
   }
 
@@ -182,26 +226,52 @@ public class Query<X> implements Closeable {
     return this;
   }
 
-  private void constructJoin(String fromName, DbClass toClass, String alias, String joinType,
-      List<DbField> fromFields, List<DbField> toFields) {
-    from.append(joinType).append(toClass.getName());
-    if (alias != null) {
-      from.append(' ').append(alias);
+  private void constructJoin(StringBuilder from, String toAlias, Join join) {
+    from.append(join.joinType()).append(join.toClass().getName());
+    if (!toAlias.equals(join.toClass().getName())) {
+      from.append(' ').append(toAlias);
     }
     from.append(" ON ");
+    Separator and = new Separator(" AND ");
+    List<DbField> fromFields = join.role.getFields();
+    String fromAlias = join.alias();
+    if (join.role().getEntity() != join.fromClass()) {
+      fromAlias = toAlias;
+      toAlias = join.alias();
+    }
+    for (int j = 0; j < fromFields.size(); ++j) {
+      DbField field = fromFields.get(j);
+      DbField pkField = field;
+      if (field instanceof DbForeignKeyField fkField) {
+        pkField = fkField.getPrimaryKeyField();
+      }
+      and.next(from);
+      from.append(fromAlias).append('.').append(field.getName()).append('=').append(toAlias)
+          .append('.').append(pkField.getName());
+    }
+
+  }
+
+  private void saveJoin(String alias, DbClass fromClass, String fromAlias, DbClass toClass,
+      DbSearchMethod key, String joinType) throws SQLException {
     if (alias == null) {
       alias = toClass.getName();
     }
     fromClasses.put(alias, toClass);
-    Separator and = new Separator(" AND ");
-    for (int j = 0; j < fromFields.size(); ++j) {
-      DbField field = fromFields.get(j);
-      DbField pkField = toFields.get(j);
-      and.next(from);
-      from.append(fromName).append('.').append(field.getName()).append('=').append(alias)
-          .append('.').append(pkField.getName());
-    }
+    joins.put(alias, new Join(fromClass, fromAlias, toClass, key, joinType));
+  }
 
+  private void addHierarchyJoins(DbClass target, String targetAlias) throws SQLException {
+    for (DbClass c : target.getTypeHierarchy()) {
+      if (c != target) {
+        String alias = Query.getAlias(c, target, targetAlias);
+        String joinType = " JOIN ";
+        if (!c.getType().isAssignableFrom(target.getType())) {
+          joinType = " LEFT JOIN ";
+        }
+        saveJoin(alias, target, targetAlias, c, c.getPrimaryKey(), joinType);
+      }
+    }
   }
 
   private String addJoin(String className, String memberName, String joinType, String alias)
@@ -213,38 +283,28 @@ public class Query<X> implements Closeable {
     String[] memberParts = memberName.split("\\|");
     memberName = memberParts[0];
     DbRole role = fromClass.getForeignKey(memberName);
+    DbSearchMethod foreignKey = null;
+    DbClass type = null;
     if (role == null) {
       role = fromClass.getLink(memberName);
-    }
-    DbClass type = null;
-    if (role != null) {
-      if (role.isForeignKey()) {
-        DbSearchMethod foreignKey = role.getForeignKey();
-        type = Database.getDbClass(role.getType());
-        constructJoin(className, type, alias, joinType, foreignKey.getFields(),
-            type.getPrimaryKey().getFields());
-      } else {
-        DbRole opposite = role.getOpposite();
-        if (opposite != null) {
-          if (opposite.isForeignKey()) {
-            DbSearchMethod foreignKey = opposite.getForeignKey();
-            type = foreignKey.getEntity();
-            constructJoin(className, type, alias, joinType, type.getPrimaryKey().getFields(),
-                foreignKey.getFields());
-          }
-        }
+      if (role == null) {
+        throw new SQLException("Role " + memberName + " not found in class " + fromClass.getName());
       }
-      if (memberParts.length == 2) {
-        String newAlias = alias + 'c';
-        DbClass subType = type.getSubclass(memberParts[1]);
-        constructJoin(alias, subType, newAlias, " JOIN ", subType.getPrimaryKey().getFields(),
-            fromClass.getPrimaryKey().getFields());
-        alias = newAlias;
-      } else if (memberParts.length > 2) {
-        throw new SQLException("More than one cast '|' sign in query :" + memberParts);
-      }
+      foreignKey = role.getOpposite().getForeignKey();
+      type = Database.getDbClass(role.getType());
+      saveJoin(alias, fromClass, className, type, foreignKey, joinType);
     } else {
-      throw new SQLException("Role " + memberName + " not found in class " + fromClass.getName());
+      type = Database.getDbClass(role.getType());
+      foreignKey = role.getForeignKey();
+      saveJoin(alias, fromClass, className, type, foreignKey, joinType);
+    }
+    if (memberParts.length == 2) {
+      DbClass subType = type.getSubclass(memberParts[1]);
+      String newAlias = alias + subType.getLabel();
+      saveJoin(newAlias, type, alias, subType, subType.getPrimaryKey(), " JOIN ");
+      alias = newAlias;
+    } else if (memberParts.length > 2) {
+      throw new SQLException("More than one cast '|' sign in query :" + memberParts);
     }
     return alias;
   }
@@ -342,7 +402,27 @@ public class Query<X> implements Closeable {
     return this;
   }
 
+  private StringBuilder buildFrom() {
+    StringBuilder from = new StringBuilder(" FROM ");
+    TreeSet<String> froms = new TreeSet<>(fromClasses.keySet());
+    froms.removeAll(joins.keySet());
+    Separator comma = new Separator();
+    for (String alias : froms) {
+      DbClass dbc = fromClasses.get(alias);
+      comma.next(from);
+      from.append(dbc.getName());
+      if (!alias.equals(dbc.getName())) {
+        from.append(" ").append(alias);
+      }
+    }
+    for (Entry<String, Join> e : joins.entrySet()) {
+      constructJoin(from, e.getKey(), e.getValue());
+    }
+    return from;
+  }
+
   private StringBuilder getSql() {
+    StringBuilder from = buildFrom();
     StringBuilder sql = new StringBuilder(select).append(from).append(where);
     commands.addSelectPage(sql);
     return sql;

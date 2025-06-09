@@ -32,7 +32,7 @@ import com.palisand.bones.persist.StaleObjectException;
 import com.palisand.bones.persist.test.V2.TypeTest;
 
 class UpgradeTest {
-  private DB type = DB.H2;
+  private DB type = DB.MSSQL;
 
   public enum DB {
     H2, PG, ORA, MYS, MSSQL
@@ -382,9 +382,8 @@ class UpgradeTest {
       System.out.println("select person, house & address in one query");
       database.transaction(connection, () -> {
         try (Query<PersonHouseAddress> query = database
-            .newQuery(connection, PersonHouseAddress.class).select(V2.Person.class, "p")
-            .select(V2.House.class, "h").select(V2.Address.class, "a").from(V2.Person.class, "p")
-            .join("p.residence", "h").join("h.address", "a").orderBy("Person.oid")) {
+            .newQuery(connection, PersonHouseAddress.class).join("house.residents", "person")
+            .join("house.address", "address").orderBy("person.oid")) {
           for (PersonHouseAddress pha = query.next(); pha != null; pha = query.next()) {
             System.out.println(pha);
           }
@@ -515,9 +514,9 @@ class UpgradeTest {
       System.out.println();
       System.out.println("select friends in one statement");
       database.transaction(connection, () -> {
-        try (Query<Friends> query = database.newQuery(connection, Friends.class)
-            .select(V2.Person.class, "one").select(V2.Person.class, "other")
-            .from(V2.Friendship.class, "f").join("f.one", "one").join("f.other", "other")) {
+        try (Query<Friends> query =
+            database.newQuery(connection, Friends.class).from(V2.Friendship.class, "f")
+                .join("f.one", "one").join("f.other", "other").orderBy("one.oid,other.oid")) {
           for (Friends friends = query.next(); friends != null; friends = query.next()) {
             System.out.println(friends);
           }

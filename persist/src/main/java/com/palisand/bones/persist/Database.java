@@ -8,6 +8,7 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -987,8 +988,14 @@ public class Database {
       throws SQLException {
     CommandScheme commands = getCommands(connection);
     Query<X> query = new Query<X>(connection, commands, queryType);
-    if (!queryType.isRecord() && !isSupported(queryType)) {
-      return query.selectFrom(queryType, alias);
+    if (queryType.isRecord()) {
+      for (RecordComponent comp : queryType.getRecordComponents()) {
+        if (!isSupported(comp.getType()) && !comp.getType().isPrimitive()) {
+          query.select(comp.getType(), comp.getName());
+        }
+      }
+    } else if (!isSupported(queryType)) {
+      return query.select(queryType, alias);
     }
     return query;
   }
