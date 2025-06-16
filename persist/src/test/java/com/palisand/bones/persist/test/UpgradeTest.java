@@ -32,7 +32,7 @@ import com.palisand.bones.persist.StaleObjectException;
 import com.palisand.bones.persist.test.V2.TypeTest;
 
 class UpgradeTest {
-  private DB type = DB.MSSQL;
+  private DB type = DB.H2;
 
   public enum DB {
     H2, PG, ORA, MYS, MSSQL
@@ -188,7 +188,7 @@ class UpgradeTest {
         System.out.println(object);
         database.insert(connection, object);
         try (Query<TypeTest> query = database.newQuery(connection, TypeTest.class)
-            .orderBy("TypeTest.id, TypeTest.shortField")) {
+            .orderBy("DbTypeTest.id, DbTypeTest.shortField")) {
           object = query.next();
           assertNotNull(object);
           System.out.println(object);

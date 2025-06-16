@@ -24,6 +24,7 @@ import com.palisand.bones.persist.Database.DbClass.DbForeignKeyField;
 import com.palisand.bones.persist.Database.DbClass.DbRole;
 import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
+import lombok.Data;
 import lombok.Getter;
 
 public class Query<X> implements Closeable {
@@ -85,6 +86,13 @@ public class Query<X> implements Closeable {
       return null;
     }
 
+  }
+
+  @Data
+  public static class Expr {
+    public static final Expr NULL = new Expr("NULL");
+
+    private final String expr;
   }
 
   private final List<Object> selectObjects = new ArrayList<>();
@@ -359,15 +367,23 @@ public class Query<X> implements Closeable {
         where.append('.');
         where.append(field.getName());
         where.append(operator);
-        where.append('?');
+        if (value instanceof Expr expr) {
+          where.append(expr.getExpr());
+        } else {
+          where.append('?');
 
-        Object key = pkField.get(value);
-        values.add(key);
+          Object key = pkField.get(value);
+          values.add(key);
+        }
       }
     } else if (member instanceof DbField) {
-      where.append(initialSeparator).append(alias).append('.').append(memberName).append(operator)
-          .append('?');
-      values.add(value);
+      where.append(initialSeparator).append(alias).append('.').append(memberName).append(operator);
+      if (value instanceof Expr expr) {
+        where.append(expr.getExpr());
+      } else {
+        where.append('?');
+        values.add(value);
+      }
     }
     return this;
   }

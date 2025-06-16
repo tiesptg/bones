@@ -131,7 +131,7 @@ public class Database {
   }
 
   @Retention(RetentionPolicy.RUNTIME)
-  @Target(ElementType.FIELD)
+  @Target({ElementType.FIELD, ElementType.TYPE})
   public @interface Db {
     String name()
 
@@ -163,6 +163,7 @@ public class Database {
     private final boolean mapped;
     private DbField version;
     private String label;
+    private String name = null;
 
     @Setter
     @Getter
@@ -370,6 +371,7 @@ public class Database {
       private Function<Object, Object> incrementer = null;
       private int size = 0;
       private int scale = 0;
+      private String name = null;
 
       @Override
       public String toString() {
@@ -377,7 +379,10 @@ public class Database {
       }
 
       public String getName() {
-        return field.getName();
+        if (name == null) {
+          return field.getName();
+        }
+        return name;
       }
 
       public Class<?> getType() {
@@ -525,6 +530,9 @@ public class Database {
       fields.add(attribute);
       Db db = field.getAnnotation(Db.class);
       if (db != null) {
+        if (!db.name().isBlank()) {
+          attribute.setName(db.name());
+        }
         if (db.size() != 0) {
           attribute.setSize(db.size());
         }
@@ -696,6 +704,10 @@ public class Database {
       type = cls;
       superClass = registerSuperClass(commands);
       mapped = cls.getAnnotation(Mapped.class) != null;
+      Db db = cls.getAnnotation(Db.class);
+      if (db != null && !db.name().isBlank()) {
+        name = db.name();
+      }
       for (Field field : cls.getDeclaredFields()) {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
@@ -718,6 +730,13 @@ public class Database {
         registerSubclasses();
       }
       ENTITIES.put(cls, this);
+    }
+
+    public String getName() {
+      if (name == null) {
+        return type.getSimpleName();
+      }
+      return name;
     }
 
     private static void addSubclass(List<DbClass> list, DbClass cls) {
@@ -743,10 +762,6 @@ public class Database {
         }
       }
       return typeHierarchy;
-    }
-
-    public String getName() {
-      return type.getSimpleName();
     }
 
     public DbClass getRoot() {

@@ -92,16 +92,17 @@ public class V2 {
   }
 
   @Data
+  @Db(name = "DbTypeTest")
   public static class TypeTest {
     @Id(generated = true) private long id;
     @Id private short shortField;
     private OffsetDateTime dateField;
     private String stringField;
-    private int intField;
+    @Db(name = "intDbField") private int intField;
     private Integer intObjectField;
     private boolean booleanField;
     private byte[] bytesField;
-    private BigDecimal decimalField;
+    @Db(size = 10, scale = 2) private BigDecimal decimalField;
     private BigInteger integerField;
     private LocalDate localDateField;
     private LocalDateTime localDateTimeField;
