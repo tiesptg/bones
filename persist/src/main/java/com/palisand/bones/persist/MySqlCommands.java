@@ -7,10 +7,13 @@ import java.util.UUID;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
 
+/**
+ * The command scheme for the MySQL database
+ */
 public class MySqlCommands extends CommandScheme {
 
   @Override
-  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
+  String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.TIMESTAMP_WITH_TIMEZONE) {
       return "TIMESTAMP";
     } else if (type == JDBCType.DECIMAL) {
@@ -27,7 +30,7 @@ public class MySqlCommands extends CommandScheme {
   }
 
   @Override
-  protected int getSize(DbField attribute) throws SQLException {
+  int getSize(DbField attribute) throws SQLException {
     int size = attribute.getSize();
     JDBCType type = getJDBCType(attribute);
     if ((type == JDBCType.VARCHAR || type == JDBCType.VARBINARY) && size == 0) {
@@ -37,12 +40,11 @@ public class MySqlCommands extends CommandScheme {
   }
 
   @Override
-  protected String getGeneratedClause() {
+  String getGeneratedClause() {
     return " AUTO_INCREMENT";
   }
 
-  protected void dropIndex(Connection connection, DbClass entity, String indexName)
-      throws SQLException {
+  void dropIndex(Connection connection, DbClass entity, String indexName) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP INDEX ");
     sql.append(indexName);
     sql.append(" ON ").append(entity.getName());

@@ -16,7 +16,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import com.palisand.bones.persist.CommandScheme.Separator;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbClass.DbField;
@@ -27,6 +26,11 @@ import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Data;
 import lombok.Getter;
 
+/**
+ * This class represent one database query
+ * 
+ * @param <X> either a record type, a persistent class or a simple type
+ */
 public class Query<X> implements Closeable {
 
   public static final String EQ = "=";
@@ -39,11 +43,11 @@ public class Query<X> implements Closeable {
       String joinType) {
   }
 
-  private class OrderedSet<X> extends AbstractSet<X> {
-    private final ArrayList<X> list = new ArrayList<>();
+  private class OrderedSet<Y> extends AbstractSet<Y> {
+    private final ArrayList<Y> list = new ArrayList<>();
 
     @Override
-    public Iterator<X> iterator() {
+    public Iterator<Y> iterator() {
       return list.iterator();
     }
 
@@ -53,7 +57,7 @@ public class Query<X> implements Closeable {
     }
 
     @Override
-    public boolean add(X x) {
+    public boolean add(Y x) {
       int pos = list.indexOf(x);
       if (pos == -1) {
         list.add(x);
@@ -110,9 +114,12 @@ public class Query<X> implements Closeable {
   private final Connection connection;
   private int rowInPage = 0;
   private int aliasPostfix = 1;
-  @Getter private boolean lastPage = false;
-  @Getter private int page = 1;
-  @Getter private int rowsPerPage = 20;
+  @Getter
+  private boolean lastPage = false;
+  @Getter
+  private int page = 1;
+  @Getter
+  private int rowsPerPage = 20;
 
   Query(Connection connection, CommandScheme commands, Class<?> queryType) throws SQLException {
     this.commands = commands;
@@ -120,15 +127,30 @@ public class Query<X> implements Closeable {
     this.connection = connection;
   }
 
+  /**
+   * Sets the number of rows in a page. The query will not return more rows than indicated here. The
+   * default is 20
+   * 
+   * @param rows the maximum number of rows returned per page.
+   * @return the query object
+   */
   public Query<X> rowsPerPage(int rows) {
     rowsPerPage = rows;
     return this;
   }
 
+  /**
+   * Set the page number it should return. The default is 1 (the first page). 0 (zero) or lower is
+   * not a valid value.
+   * 
+   * @param page 1 or higher to indicate the page to return
+   * @return the query object
+   */
   public Query<X> page(int page) {
     this.page = page;
     return this;
   }
+
 
   private DbClass selectColumns(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = Database.getDbClass(cls);
@@ -136,7 +158,8 @@ public class Query<X> implements Closeable {
   }
 
   static String getAlias(DbClass type, DbClass reference, String alias) {
-    if (type == reference) return alias;
+    if (type == reference)
+      return alias;
     return alias + type.getLabel();
   }
 
@@ -181,15 +204,23 @@ public class Query<X> implements Closeable {
     return dbc;
   }
 
-  public Query<X> select(Class<?> cls) throws SQLException {
+  Query<X> select(Class<?> cls) throws SQLException {
     return select(cls, null);
   }
 
-  public Query<X> select(Class<?> cls, String alias) throws SQLException {
+  Query<X> select(Class<?> cls, String alias) throws SQLException {
     selectColumns(cls, alias);
     return this;
   }
 
+  /**
+   * With this method you can specify specific columns to select. Use this to select expressions
+   * like sum(..) or count(..)
+   * 
+   * @param columns the column specification in valid SQL
+   * @return the query object
+   * @throws SQLException
+   */
   public Query<X> select(String... columns) throws SQLException {
     for (String column : columns) {
       addSelectObject(selectObjects.size());
@@ -207,10 +238,27 @@ public class Query<X> implements Closeable {
     }
   }
 
+  /**
+   * With this method you can specify extra tables in the from clause of the query. You only need to
+   * call this method when you use the {@link com.palisand.bones.persist.Query#select} method.
+   * 
+   * @param cls the persistent class you want to select from
+   * @return the query object
+   * @throws SQLException
+   */
   public Query<X> from(Class<?> cls) throws SQLException {
     return from(cls, null);
   }
 
+  /**
+   * With this method you can specify extra tables in the from clause of the query. You only need to
+   * call this method when you use the {@link com.palisand.bones.persist.Query#select} method. In
+   * this variant you can give an explicit alias for the class.
+   * 
+   * @param cls the persistent class you want to select from
+   * @return the query object
+   * @throws SQLException
+   */
   public Query<X> from(Class<?> cls, String alias) throws SQLException {
     DbClass dbc = Database.getDbClass(cls);
     if (alias == null) {
@@ -220,10 +268,29 @@ public class Query<X> implements Closeable {
     return this;
   }
 
+  /**
+   * specify a join for the query. You should start the path parameter with an alias or class name
+   * and use .&lt;relation&gt; to specify the foreign key to use. You can use multiple joins in the
+   * path You can cast the result of a join to a subtype by using the pipe symbol (|)
+   * 
+   * @param path the path of relations and casts that the join should follow
+   * @return the query object
+   * @throws SQLException
+   */
   public Query<X> join(String path) throws SQLException {
     return join(path, null);
   }
 
+  /**
+   * specify a join for the query. You should start the path parameter with an alias or class name
+   * and use .&lt;relation&gt; to specify the foreign key to use. You can use multiple joins in the
+   * path You can cast the result of a join to a subtype by using the pipe symbol (|).
+   * 
+   * @param path the path of relations and casts that the join should follow
+   * @param alias the alias the resulting class should use
+   * @return the query object
+   * @throws SQLException
+   */
   public Query<X> join(String path, String alias) throws SQLException {
     String[] parts = path.split("\\.");
     String pAlias = parts[0];
@@ -338,6 +405,18 @@ public class Query<X> implements Closeable {
     return role;
   }
 
+  /**
+   * The first condition in the where clause. The path can include implicit joins and casts as
+   * described in {@link com.palisand.bones.persist.Query#join(String)}. The value may be a
+   * persistent object or simple value You can also use a
+   * {@link com.palisand.bones.persist.Query.Expr} That specifies a SQL expression.
+   * 
+   * @param path a path of roles and casts
+   * @param operator the operator in the condition
+   * @param value the value
+   * @return
+   * @throws SQLException
+   */
   public Query<X> where(String path, String operator, Object value) throws SQLException {
     return addCondition(path, " WHERE ", operator, value);
   }
@@ -388,26 +467,56 @@ public class Query<X> implements Closeable {
     return this;
   }
 
+
+  /**
+   * The subsequent condition in the where clause. The path can include implicit joins and casts as
+   * described in {@link com.palisand.bones.persist.Query#join(String)}. The value may be a
+   * persistent object or simple value You can also use a
+   * {@link com.palisand.bones.persist.Query.Expr} That specifies a SQL expression.
+   * 
+   * @param path a path of roles and casts
+   * @param operator the operator in the condition
+   * @param value the value
+   * @return
+   * @throws SQLException
+   */
   public Query<X> and(String path, String operator, Object value) throws SQLException {
     return addCondition(path, " AND ", operator, value);
   }
 
+  /**
+   * The subsequent condition in the where clause. The path can include implicit joins and casts as
+   * described in {@link com.palisand.bones.persist.Query#join(String)}. The value may be a
+   * persistent object or simple value You can also use a
+   * {@link com.palisand.bones.persist.Query.Expr} That specifies a SQL expression.
+   * 
+   * @param path a path of roles and casts
+   * @param operator the operator in the condition
+   * @param value the value
+   * @return
+   * @throws SQLException
+   */
   public Query<X> or(String path, String operator, Object value) throws SQLException {
     return addCondition(path, " OR ", operator, value);
   }
 
-  public Query<X> brackets(Consumer<Query<X>> queryClause) {
-    where.append('(');
-    queryClause.accept(this);
-    where.append(')');
-    return this;
-  }
-
+  /**
+   * specifies the order by clause of the query
+   * 
+   * @param orderBy a list of fields
+   * @return the query object
+   */
   public Query<X> orderBy(String orderBy) {
     where.append(" ORDER BY ").append(orderBy);
     return this;
   }
 
+  /**
+   * specifies the columns in a group by clause
+   * 
+   * @param columns
+   * @return
+   */
   public Query<X> groupBy(String... columns) {
     Separator comma = new Separator();
     where.append(" GROUP BY ");
@@ -449,6 +558,9 @@ public class Query<X> implements Closeable {
   }
 
   private void execute() throws SQLException {
+    if (resultSet != null) {
+      resultSet.close();
+    }
     StringBuilder sql = getSql();
     String sqlstr = sql.toString();
     if (stmt == null) {
@@ -491,6 +603,12 @@ public class Query<X> implements Closeable {
     return null;
   }
 
+  /**
+   * executes the query for a next page to retrieve
+   * 
+   * @return
+   * @throws SQLException
+   */
   public boolean nextPage() throws SQLException {
     if (!isLastPage()) {
       ++page;
@@ -500,11 +618,22 @@ public class Query<X> implements Closeable {
     return false;
   }
 
+  /**
+   * return to the first page
+   * 
+   * @throws SQLException
+   */
   public void firstPage() throws SQLException {
     page = 1;
     execute();
   }
 
+  /**
+   * get the next instance from the results of this query
+   * 
+   * @return
+   * @throws SQLException
+   */
   public X next() throws SQLException {
     if (resultSet == null) {
       execute();
@@ -536,6 +665,13 @@ public class Query<X> implements Closeable {
     return null;
   }
 
+  /**
+   * returns a list with all results of all pages this query This method should be used with
+   * caution.
+   * 
+   * @return a list with all results
+   * @throws SQLException
+   */
   public List<X> toList() throws SQLException {
     List<X> list = new ArrayList<>();
     firstPage();
@@ -548,6 +684,12 @@ public class Query<X> implements Closeable {
     return list;
   }
 
+  /**
+   * returns a list with a results of the current page
+   * 
+   * @return list with all instances in this page
+   * @throws SQLException
+   */
   public List<X> pageToList() throws SQLException {
     List<X> list = new ArrayList<>();
     if (resultSet == null) {
@@ -559,6 +701,9 @@ public class Query<X> implements Closeable {
     return list;
   }
 
+  /**
+   * close method to release the result set of this query
+   */
   @Override
   public void close() throws IOException {
     try {

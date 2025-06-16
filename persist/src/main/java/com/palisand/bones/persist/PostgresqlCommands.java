@@ -7,6 +7,9 @@ import java.util.UUID;
 import com.palisand.bones.persist.Database.RsGetter;
 import com.palisand.bones.persist.Database.StmtSetter;
 
+/**
+ * The CommandScheme for the PostgreSQL database
+ */
 public class PostgresqlCommands extends CommandScheme {
   static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
   static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
@@ -15,11 +18,11 @@ public class PostgresqlCommands extends CommandScheme {
     RS_GETTERS.putAll(CommandScheme.RS_GETTERS);
     STMT_SETTERS.putAll(CommandScheme.STMT_SETTERS);
     RS_GETTERS.put(UUID.class, (rs, pos) -> rs.getObject(pos, UUID.class));
-    STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setObject(pos, (UUID) value));
+    STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setObject(pos, value));
   }
 
   @Override
-  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
+  String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.DOUBLE) {
       return "DOUBLE PRECISION";
     } else if (type == JDBCType.VARBINARY || type == JDBCType.BLOB) {

@@ -41,6 +41,11 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * This class is the superclass for all DBMS specific SQL dialect classes You have to specify which
+ * you want to use in the constructor of {@link com.palisand.bones.persist.Database} It can be used
+ * for the H2 database
+ */
 public class CommandScheme {
   private Map<Class<?>, JDBCType> typeMap = new HashMap<>();
   static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
@@ -71,15 +76,13 @@ public class CommandScheme {
     RS_GETTERS.put(Double.class, (rs, pos) -> rs.getDouble(pos));
     STMT_SETTERS.put(double.class, (rs, pos, value) -> rs.setDouble(pos, (Double) value));
     RS_GETTERS.put(LocalDate.class, (rs, pos) -> rs.getObject(pos, LocalDate.class));
-    STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, (LocalDate) value));
+    STMT_SETTERS.put(LocalDate.class, (rs, pos, value) -> rs.setObject(pos, value));
     RS_GETTERS.put(byte[].class, (rs, pos) -> rs.getBytes(pos));
     STMT_SETTERS.put(byte[].class, (rs, pos, value) -> rs.setBytes(pos, (byte[]) value));
     RS_GETTERS.put(OffsetDateTime.class, (rs, pos) -> rs.getObject(pos, OffsetDateTime.class));
-    STMT_SETTERS.put(OffsetDateTime.class,
-        (rs, pos, value) -> rs.setObject(pos, (OffsetDateTime) value));
+    STMT_SETTERS.put(OffsetDateTime.class, (rs, pos, value) -> rs.setObject(pos, value));
     RS_GETTERS.put(LocalDateTime.class, (rs, pos) -> rs.getObject(pos, LocalDateTime.class));
-    STMT_SETTERS.put(LocalDateTime.class,
-        (rs, pos, value) -> rs.setObject(pos, (LocalDateTime) value));
+    STMT_SETTERS.put(LocalDateTime.class, (rs, pos, value) -> rs.setObject(pos, value));
     RS_GETTERS.put(Date.class, (rs, pos) -> rs.getObject(pos, Date.class));
     STMT_SETTERS.put(Date.class,
         (rs, pos, value) -> rs.setDate(pos, new java.sql.Date(((Date) value).getTime())));
@@ -98,9 +101,9 @@ public class CommandScheme {
     });
     STMT_SETTERS.put(UUID.class, (rs, pos, value) -> rs.setString(pos, value.toString()));
     RS_GETTERS.put(BigDecimal.class, (rs, pos) -> rs.getObject(pos, BigDecimal.class));
-    STMT_SETTERS.put(BigDecimal.class, (rs, pos, value) -> rs.setObject(pos, (BigDecimal) value));
+    STMT_SETTERS.put(BigDecimal.class, (rs, pos, value) -> rs.setObject(pos, value));
     RS_GETTERS.put(BigInteger.class, (rs, pos) -> rs.getObject(pos, BigInteger.class));
-    STMT_SETTERS.put(BigInteger.class, (rs, pos, value) -> rs.setObject(pos, (BigInteger) value));
+    STMT_SETTERS.put(BigInteger.class, (rs, pos, value) -> rs.setObject(pos, value));
     INCREMENTERS.put(int.class, i -> (Integer) i + 1);
     INCREMENTERS.put(Integer.class, i -> (Integer) i + 1);
     INCREMENTERS.put(long.class, i -> (Long) i + 1);
@@ -111,14 +114,15 @@ public class CommandScheme {
     INCREMENTERS.put(Byte.class, i -> (Byte) i + 1);
   }
 
-  protected static final String FOREIGN_KEY_PREFIX = "fk_";
-  protected static final String INDEX_PREFIX = "idx_";
-  protected static final String SUBTYPE_FIELD = "subtype";
-  protected Map<DbClass, Statements> statements = new HashMap<>();
+  static final String FOREIGN_KEY_PREFIX = "fk_";
+  static final String INDEX_PREFIX = "idx_";
+  static final String SUBTYPE_FIELD = "subtype";
+  Map<DbClass, Statements> statements = new HashMap<>();
   private Consumer<String> logger = null;
   private final Map<String, Map<String, Object>> cache = new TreeMap<>();
   private boolean indexForFkNeeded = true;
-  @Getter protected final Map<String, PreparedStatement> queryCache = new ConcurrentHashMap<>();
+  @Getter
+  final Map<String, PreparedStatement> queryCache = new ConcurrentHashMap<>();
 
   @Getter
   @Setter
@@ -164,11 +168,11 @@ public class CommandScheme {
     private String catalog;
   }
 
-  protected JDBCType getJDBCType(int type) {
+  JDBCType getJDBCType(int type) {
     return JDBCType.valueOf(type);
   }
 
-  public boolean supportsUUID() {
+  boolean supportsUUID() {
     return true;
   }
 
@@ -257,7 +261,7 @@ public class CommandScheme {
       this.token = token;
     }
 
-    public void next(StringBuilder sb) {
+    void next(StringBuilder sb) {
       if (first) {
         first = false;
         sb.append(firstToken);
@@ -295,16 +299,28 @@ public class CommandScheme {
     typeMap.put(UUID.class, JDBCType.CHAR);
   }
 
+  /**
+   * You can specify a logger with this method. When you do it will be used to log the SQL
+   * statements that are executed
+   * 
+   * @param logger a consumer that will receive the SQL string
+   * @return the CommandScheme.this object
+   */
   public CommandScheme logger(Consumer<String> logger) {
     this.logger = logger;
     return this;
   }
 
+  /**
+   * You can ask the current logger
+   * 
+   * @return the current logger object.
+   */
   public Consumer<String> getLogger() {
     return logger;
   }
 
-  protected void log(String str) {
+  void log(String str) {
     this.logger.accept(str);
   }
 
@@ -320,16 +336,16 @@ public class CommandScheme {
     return INCREMENTERS.get(cls);
   }
 
-  public CommandScheme indexForFkNeeded(boolean value) {
+  CommandScheme indexForFkNeeded(boolean value) {
     indexForFkNeeded = value;
     return this;
   }
 
-  protected boolean isIndexForFkNeeded() {
+  boolean isIndexForFkNeeded() {
     return indexForFkNeeded;
   }
 
-  protected Object cache(DbClass entity, Object object) throws SQLException {
+  Object cache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
     if (typeCache == null) {
@@ -345,13 +361,13 @@ public class CommandScheme {
     return object;
   }
 
-  protected void replaceInCache(DbClass entity, Object object) throws SQLException {
+  void replaceInCache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
     typeCache.put(entity.getPrimaryKeyAsString(object), object);
   }
 
-  protected Object removeFromCache(DbClass entity, Object object) throws SQLException {
+  Object removeFromCache(DbClass entity, Object object) throws SQLException {
     entity = entity.getRoot();
     Map<String, Object> typeCache = cache.get(entity.getName());
     if (typeCache != null) {
@@ -363,11 +379,11 @@ public class CommandScheme {
     return object;
   }
 
-  public void clearCache() {
+  void clearCache() {
     cache.clear();
   }
 
-  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
+  String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.TIMESTAMP_WITH_TIMEZONE) {
       return "TIMESTAMP WITH TIME ZONE";
     }
@@ -383,12 +399,12 @@ public class CommandScheme {
     return type.getName() + '(' + size + ',' + scale + ')';
   }
 
-  protected boolean execute(Connection connection, String sql) throws SQLException {
+  boolean execute(Connection connection, String sql) throws SQLException {
     log(sql);
     return connection.createStatement().execute(sql);
   }
 
-  protected JDBCType getJDBCType(Class<?> cls) throws SQLException {
+  JDBCType getJDBCType(Class<?> cls) throws SQLException {
     JDBCType type = typeMap.get(cls);
     if (type == null) {
       throw new SQLException("Type " + cls + " is not (yet) supported");
@@ -396,15 +412,15 @@ public class CommandScheme {
     return type;
   }
 
-  protected JDBCType getJDBCType(DbField attribute) throws SQLException {
+  JDBCType getJDBCType(DbField attribute) throws SQLException {
     return getJDBCType(attribute.getType());
   }
 
-  protected int getSize(DbField attribute) throws SQLException {
+  int getSize(DbField attribute) throws SQLException {
     return attribute.getSize();
   }
 
-  protected int getScale(DbField attribute) throws SQLException {
+  int getScale(DbField attribute) throws SQLException {
     return attribute.getScale();
   }
 
@@ -430,13 +446,12 @@ public class CommandScheme {
     }
   }
 
-  protected String getGeneratedClause() {
+  String getGeneratedClause() {
     return " GENERATED ALWAYS AS IDENTITY";
   }
 
-  protected void upgradeColumns(Connection connection, DbTable dbTable, DbClass entity)
-      throws SQLException {
-    TreeSet<String> fieldsToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+  void upgradeColumns(Connection connection, DbTable dbTable, DbClass entity) throws SQLException {
+    TreeSet<String> fieldsToRemove = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     fieldsToRemove.addAll(dbTable.getFields().keySet());
     if (entity.hasSubTypeField()) {
       if (!fieldsToRemove.remove(SUBTYPE_FIELD)) {
@@ -460,9 +475,9 @@ public class CommandScheme {
     }
   }
 
-  protected void upgradeIndices(Connection connection, DbTable dbTable, DbClass entity,
-      boolean create) throws SQLException {
-    TreeSet<String> indicesToRemove = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+  void upgradeIndices(Connection connection, DbTable dbTable, DbClass entity, boolean create)
+      throws SQLException {
+    TreeSet<String> indicesToRemove = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     indicesToRemove.addAll(dbTable.getIndices().keySet());
     for (DbSearchMethod index : entity.getIndices().values()) {
       if (!indicesToRemove.remove(INDEX_PREFIX + index.getName()) && create) {
@@ -484,8 +499,7 @@ public class CommandScheme {
     }
   }
 
-  protected void upgradeTable(Connection connection, DbTable dbTable, DbClass entity)
-      throws SQLException {
+  void upgradeTable(Connection connection, DbTable dbTable, DbClass entity) throws SQLException {
     if (dbTable == null) {
       createTable(connection, entity);
     } else {
@@ -495,8 +509,7 @@ public class CommandScheme {
     }
   }
 
-  public void upgradeForeignKey(Connection connection, DbTable table, DbRole role)
-      throws SQLException {
+  void upgradeForeignKey(Connection connection, DbTable table, DbRole role) throws SQLException {
     DbIndex fk = null;
     if (table != null) {
       fk = table.getForeignKeys().get(FOREIGN_KEY_PREFIX + role.getForeignKey().getName());
@@ -506,11 +519,11 @@ public class CommandScheme {
     }
   }
 
-  public void addSelectPage(StringBuilder sql) {
+  void addSelectPage(StringBuilder sql) {
     sql.append(" LIMIT ? OFFSET ?");
   }
 
-  public int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
+  int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
       int index) throws SQLException {
     stmt.setInt(index++, limit);
     CommandScheme.nextValue(sql, limit);
@@ -519,7 +532,7 @@ public class CommandScheme {
     return index;
   }
 
-  protected void removeFieldFromTable(Connection connection, DbClass entity, String columnName)
+  void removeFieldFromTable(Connection connection, DbClass entity, String columnName)
       throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
@@ -528,15 +541,14 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  protected void addFieldToTable(Connection connection, DbClass entity, DbField attribute)
+  void addFieldToTable(Connection connection, DbClass entity, DbField attribute)
       throws SQLException {
     StringBuilder sql = new StringBuilder();
     appendColumn(sql, entity, attribute, attribute.isNullable());
     addFieldToTable(connection, entity, sql.toString());
   }
 
-  protected void addFieldToTable(Connection connection, DbClass entity, String column)
-      throws SQLException {
+  void addFieldToTable(Connection connection, DbClass entity, String column) throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(entity.getName());
     sql.append(" ADD ");
@@ -544,7 +556,7 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  public void createTable(Connection connection, DbClass entity) throws SQLException {
+  void createTable(Connection connection, DbClass entity) throws SQLException {
     StringBuilder sql = new StringBuilder("CREATE TABLE ");
     sql.append(entity.getName());
     sql.append("(");
@@ -575,20 +587,19 @@ public class CommandScheme {
     }
   }
 
-  public void dropTable(Connection connection, String name) throws SQLException {
+  void dropTable(Connection connection, String name) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP TABLE ");
     sql.append(name);
     execute(connection, sql.toString());
   }
 
-  protected void dropIndex(Connection connection, DbClass entity, String indexName)
-      throws SQLException {
+  void dropIndex(Connection connection, DbClass entity, String indexName) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP INDEX ");
     sql.append(indexName);
     execute(connection, sql.toString());
   }
 
-  public void dropContraint(Connection connection, String tableName, String constraintName)
+  void dropContraint(Connection connection, String tableName, String constraintName)
       throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(tableName);
@@ -597,7 +608,7 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  public void createForeignKey(Connection connection, DbRole role) throws SQLException {
+  void createForeignKey(Connection connection, DbRole role) throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(role.getEntity().getName());
     sql.append(" ADD CONSTRAINT ");
@@ -618,8 +629,7 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  protected Statements getInsertStatement(Connection connection, DbClass entity)
-      throws SQLException {
+  Statements getInsertStatement(Connection connection, DbClass entity) throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getInsert() == null) {
       StringBuilder sql = new StringBuilder("INSERT INTO ");
@@ -659,13 +669,12 @@ public class CommandScheme {
     return stmts;
   }
 
-  protected PreparedStatement prepareInsertStatement(Connection connection, DbClass entity,
-      String sql) throws SQLException {
+  PreparedStatement prepareInsertStatement(Connection connection, DbClass entity, String sql)
+      throws SQLException {
     return connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
   }
 
-  protected Statements getUpdateStatement(Connection connection, DbClass entity)
-      throws SQLException {
+  Statements getUpdateStatement(Connection connection, DbClass entity) throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getUpdate() == null) {
       StringBuilder sql = new StringBuilder("UPDATE ");
@@ -704,8 +713,7 @@ public class CommandScheme {
     return stmts;
   }
 
-  protected Statements getDeleteStatement(Connection connection, DbClass entity)
-      throws SQLException {
+  Statements getDeleteStatement(Connection connection, DbClass entity) throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getDelete() == null) {
       StringBuilder sql = new StringBuilder("DELETE FROM ");
@@ -768,8 +776,7 @@ public class CommandScheme {
 
   }
 
-  protected Statements getRefreshStatement(Connection connection, DbClass entity)
-      throws SQLException {
+  Statements getRefreshStatement(Connection connection, DbClass entity) throws SQLException {
     Statements stmts = statements.computeIfAbsent(entity, e -> new Statements());
     if (stmts.getRefresh() == null) {
       List<DbClass> types = entity.getTypeHierarchy();
@@ -834,7 +841,7 @@ public class CommandScheme {
     return value.toString();
   }
 
-  public Object insert(Connection connection, DbClass entity, String label, Object object)
+  Object insert(Connection connection, DbClass entity, String label, Object object)
       throws SQLException {
     if (entity.getSuperClass() != null) {
       insert(connection, entity.getSuperClass(), label, object);
@@ -892,7 +899,7 @@ public class CommandScheme {
     return cache(entity, object);
   }
 
-  private void copy(DbClass cls, Object dest, Object src) throws SQLException {
+  private static void copy(DbClass cls, Object dest, Object src) throws SQLException {
     for (DbField field : cls.getFields()) {
       field.set(dest, field.get(src));
     }
@@ -904,7 +911,7 @@ public class CommandScheme {
     }
   }
 
-  public Object update(Connection connection, DbClass entity, Object object) throws SQLException {
+  Object update(Connection connection, DbClass entity, Object object) throws SQLException {
     Object oldObject = object;
     object = cache(entity, object);
     Object oldVersion = null;
@@ -967,8 +974,8 @@ public class CommandScheme {
     return object;
   }
 
-  public int setHierarchyValues(ResultSet rs, DbClass root, DbClass realClass, Object object,
-      int index) throws SQLException {
+  int setHierarchyValues(ResultSet rs, DbClass root, DbClass realClass, Object object, int index)
+      throws SQLException {
     for (DbClass type : root.getTypeHierarchy()) {
       if (type.getType().isAssignableFrom(realClass.getType())) {
         index = setValues(rs, type, object, index);
@@ -982,7 +989,7 @@ public class CommandScheme {
     return index;
   }
 
-  public Object refresh(Connection connection, DbClass entity, Object object) throws SQLException {
+  Object refresh(Connection connection, DbClass entity, Object object) throws SQLException {
     Statements stmts = getRefreshStatement(connection, entity);
     PreparedStatement stmt = stmts.getRefresh();
     StringBuilder sql = null;
@@ -1028,8 +1035,7 @@ public class CommandScheme {
     return object;
   }
 
-  protected int setPrimaryKey(ResultSet rs, DbClass cls, Object object, int index)
-      throws SQLException {
+  int setPrimaryKey(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
     for (DbField field : cls.getPrimaryKey().getFields()) {
       Object value = field.rsGet(rs, index++);
       if (rs.wasNull()) {
@@ -1040,7 +1046,7 @@ public class CommandScheme {
     return index;
   }
 
-  protected int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
+  int setValues(ResultSet rs, DbClass cls, Object object, int index) throws SQLException {
     for (DbField field : cls.getFields()) {
       if (!cls.getPrimaryKey().getFields().contains(field)) {
         Object value = field.rsGet(rs, index++);
@@ -1069,17 +1075,17 @@ public class CommandScheme {
     return index;
   }
 
-  public String getDatabaseName(Connection connection) throws SQLException {
+  String getDatabaseName(Connection connection) throws SQLException {
     return connection.getCatalog();
   }
 
-  public void createIndex(Connection connection, DbSearchMethod path) throws SQLException {
+  void createIndex(Connection connection, DbSearchMethod path) throws SQLException {
     String fields =
         path.getFields().stream().map(f -> f.getName()).collect(Collectors.joining(","));
     createIndex(connection, path.getEntity().getName(), path.getName(), fields, path.isUnique());
   }
 
-  public void createIndex(Connection connection, String tableName, String indexName, String fields,
+  void createIndex(Connection connection, String tableName, String indexName, String fields,
       boolean unique) throws SQLException {
     StringBuilder sql = new StringBuilder("CREATE ");
     if (unique) {
@@ -1096,7 +1102,7 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  protected void createParentKey(Connection connection, DbClass cls) throws SQLException {
+  void createParentKey(Connection connection, DbClass cls) throws SQLException {
     StringBuilder sql = new StringBuilder("ALTER TABLE ");
     sql.append(cls.getName());
     sql.append(" ADD CONSTRAINT ");
@@ -1115,14 +1121,14 @@ public class CommandScheme {
     execute(connection, sql.toString());
   }
 
-  public void upgradeParent(Connection connection, DbTable table, DbClass cls) throws SQLException {
+  void upgradeParent(Connection connection, DbTable table, DbClass cls) throws SQLException {
     String name = cls.getName() + "_parent";
     if (table == null || table.getForeignKeys().get(FOREIGN_KEY_PREFIX + name) == null) {
       createParentKey(connection, cls);
     }
   }
 
-  public void delete(Connection connection, DbClass entity, Object object) throws SQLException {
+  void delete(Connection connection, DbClass entity, Object object) throws SQLException {
     Object oldObject = object;
     object = removeFromCache(entity, object);
     Object oldVersion = null;

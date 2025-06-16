@@ -32,7 +32,7 @@ import com.palisand.bones.persist.StaleObjectException;
 import com.palisand.bones.persist.test.V2.TypeTest;
 
 class UpgradeTest {
-  private DB type = DB.H2;
+  private DB type = DB.ORA;
 
   public enum DB {
     H2, PG, ORA, MYS, MSSQL

@@ -12,9 +12,18 @@
 	<artifactId>bones-persist</artifactId>
 	<name>Bare bones object database layer</name>
 
-	<properties>
-		<maven.compiler.release>17</maven.compiler.release>
-	</properties>
+	<build>
+		<plugins>
+		     <plugin>
+		          <groupId>org.apache.maven.plugins</groupId>
+		          <artifactId>maven-javadoc-plugin</artifactId>
+		          <version>3.11.2</version>
+			      <configuration>
+				      <doclint>all,-missing</doclint>
+				  </configuration>
+		      </plugin>
+		 </plugins>
+	</build>
 
 	<dependencies>
 		<dependency>
@@ -25,6 +34,7 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>

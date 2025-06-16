@@ -15,6 +15,13 @@
 		<module>meta-test</module>
 		<module>persist</module>
 	</modules>
+	
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<maven.compiler.release>17</maven.compiler.release>
+	    <maven.compiler.target>17</maven.compiler.target>
+	    <maven.compiler.source>17</maven.compiler.source>
+	</properties>
 
 	<dependencyManagement>
 		<dependencies>

@@ -13,6 +13,9 @@ import com.palisand.bones.persist.Database.DbClass.DbField;
 import com.palisand.bones.persist.Database.RsGetter;
 import com.palisand.bones.persist.Database.StmtSetter;
 
+/**
+ * The CommandScheme for MS SQL Server
+ */
 public class MsSqlServerCommands extends CommandScheme {
   static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
   static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
@@ -32,7 +35,7 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  protected JDBCType getJDBCType(int type) {
+  JDBCType getJDBCType(int type) {
     if (type == -155) {
       return JDBCType.TIMESTAMP_WITH_TIMEZONE;
     }
@@ -50,7 +53,7 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  protected String typeName(JDBCType type, Class<?> cls, int size, int scale) {
+  String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.DOUBLE) {
       return "REAL";
     } else if (type == JDBCType.BOOLEAN) {
@@ -68,7 +71,7 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  protected int getSize(DbField attribute) throws SQLException {
+  int getSize(DbField attribute) throws SQLException {
     int size = attribute.getSize();
     JDBCType type = getJDBCType(attribute);
     if ((type == JDBCType.VARCHAR || type == JDBCType.VARBINARY) && size == 0) {
@@ -78,13 +81,12 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  protected String getGeneratedClause() {
+  String getGeneratedClause() {
     return " IDENTITY(1,1)";
   }
 
   @Override
-  protected void dropIndex(Connection connection, DbClass entity, String indexName)
-      throws SQLException {
+  void dropIndex(Connection connection, DbClass entity, String indexName) throws SQLException {
     StringBuilder sql = new StringBuilder("DROP INDEX ");
     sql.append(indexName);
     sql.append(" ON ").append(entity.getName());
@@ -92,12 +94,12 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  public void addSelectPage(StringBuilder sql) {
+  void addSelectPage(StringBuilder sql) {
     sql.append(" OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
   }
 
   @Override
-  public int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
+  int setSelectPageValues(PreparedStatement stmt, StringBuilder sql, int limit, int offset,
       int index) throws SQLException {
     stmt.setInt(index++, offset);
     CommandScheme.nextValue(sql, offset);
