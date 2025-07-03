@@ -33,14 +33,95 @@ import lombok.Getter;
  */
 public class Query<X> implements Closeable {
 
-  public static final String EQ = "=";
-  public static final String NOT_EQ = "<>";
-  public static final String LIKE = " LIKE ";
-  public static final String LT = "<";
-  public static final String GT = ">";
-
   private record Join(DbClass fromClass, String alias, DbClass toClass, DbSearchMethod role,
       String joinType) {
+  }
+
+  @FunctionalInterface
+  public interface BuilderConsumer<X> {
+    void accept(Query<X>.ConditionBuilder b) throws SQLException;
+  }
+
+  public class ConditionBuilder {
+    private final StringBuilder condition = new StringBuilder();
+
+    public ConditionBuilder sql(String sql) {
+      condition.append(' ').append(sql).append(' ');
+      return this;
+    }
+
+    public ConditionBuilder and() {
+      return sql("AND");
+    }
+
+    public ConditionBuilder or() {
+      return sql("OR");
+    }
+
+    public ConditionBuilder open() {
+      return sql("(");
+    }
+
+    public ConditionBuilder close() {
+      return sql(")");
+    }
+
+    String getCondition() {
+      return condition.toString();
+    }
+
+    public ConditionBuilder is(String path, Object value) throws SQLException {
+      return cond(path, value == null ? " IS " : " = ", value);
+    }
+
+    public ConditionBuilder isNot(String path, Object value) throws SQLException {
+      return cond(path, value == null ? " IS NOT " : " <> ", value);
+    }
+
+    public ConditionBuilder cond(String path, String operator, Object value) throws SQLException {
+      String[] parts = path.split("\\.");
+      String alias = parts[0];
+      for (int i = 1; i < parts.length - 1; ++i) {
+        alias = addJoin(alias, parts[i], " JOIN ", "x" + (aliasPostfix++));
+      }
+      String memberName = parts[parts.length - 1];
+      Object member = addParameter(alias, memberName);
+      if (member instanceof DbRole role) {
+        if (!role.isForeignKey()) {
+          role = role.getOpposite();
+          // TODO: add join
+        }
+        Separator sep = new Separator(" AND ");
+        DbSearchMethod foreignKey = role.getForeignKey();
+        DbClass type = Database.getDbClass(role.getType());
+        for (int i = 0; i < foreignKey.getFields().size(); ++i) {
+          DbField field = foreignKey.getFields().get(i);
+          DbField pkField = type.getPrimaryKey().getFields().get(i);
+          sep.next(condition);
+          condition.append(alias);
+          condition.append('.');
+          condition.append(field.getName());
+          condition.append(operator);
+          if (value instanceof Expr expr) {
+            condition.append(expr.getExpr());
+          } else {
+            condition.append('?');
+
+            Object key = pkField.get(value);
+            values.add(key);
+          }
+        }
+      } else if (member instanceof DbField) {
+        condition.append(alias).append('.').append(memberName).append(operator);
+        if (value instanceof Expr expr) {
+          condition.append(expr.getExpr());
+        } else {
+          condition.append('?');
+          values.add(value);
+        }
+      }
+      return this;
+    }
   }
 
   private class OrderedSet<Y> extends AbstractSet<Y> {
@@ -417,87 +498,20 @@ public class Query<X> implements Closeable {
    * @return
    * @throws SQLException
    */
-  public Query<X> where(String path, String operator, Object value) throws SQLException {
-    return addCondition(path, " WHERE ", operator, value);
-  }
-
-  private Query<X> addCondition(String path, String initialSeparator, String operator, Object value)
-      throws SQLException {
-    String[] parts = path.split("\\.");
-    String alias = parts[0];
-    for (int i = 1; i < parts.length - 1; ++i) {
-      alias = addJoin(alias, parts[i], " JOIN ", "x" + (aliasPostfix++));
-    }
-    String memberName = parts[parts.length - 1];
-    Object member = addParameter(alias, memberName);
-    if (member instanceof DbRole role) {
-      if (!role.isForeignKey()) {
-        role = role.getOpposite();
-        // TODO: add join
-      }
-      Separator sep = new Separator(" AND ", initialSeparator);
-      DbSearchMethod foreignKey = role.getForeignKey();
-      DbClass type = Database.getDbClass(role.getType());
-      for (int i = 0; i < foreignKey.getFields().size(); ++i) {
-        DbField field = foreignKey.getFields().get(i);
-        DbField pkField = type.getPrimaryKey().getFields().get(i);
-        sep.next(where);
-        where.append(alias);
-        where.append('.');
-        where.append(field.getName());
-        where.append(operator);
-        if (value instanceof Expr expr) {
-          where.append(expr.getExpr());
-        } else {
-          where.append('?');
-
-          Object key = pkField.get(value);
-          values.add(key);
-        }
-      }
-    } else if (member instanceof DbField) {
-      where.append(initialSeparator).append(alias).append('.').append(memberName).append(operator);
-      if (value instanceof Expr expr) {
-        where.append(expr.getExpr());
-      } else {
-        where.append('?');
-        values.add(value);
-      }
-    }
+  public Query<X> where(BuilderConsumer<X> consumer) throws SQLException {
+    where.append(" WHERE ");
+    ConditionBuilder builder = new ConditionBuilder();
+    consumer.accept(builder);
+    where.append(builder.getCondition());
     return this;
   }
 
-
-  /**
-   * The subsequent condition in the where clause. The path can include implicit joins and casts as
-   * described in {@link com.palisand.bones.persist.Query#join(String)}. The value may be a
-   * persistent object or simple value You can also use a
-   * {@link com.palisand.bones.persist.Query.Expr} That specifies a SQL expression.
-   * 
-   * @param path a path of roles and casts
-   * @param operator the operator in the condition
-   * @param value the value
-   * @return
-   * @throws SQLException
-   */
-  public Query<X> and(String path, String operator, Object value) throws SQLException {
-    return addCondition(path, " AND ", operator, value);
-  }
-
-  /**
-   * The subsequent condition in the where clause. The path can include implicit joins and casts as
-   * described in {@link com.palisand.bones.persist.Query#join(String)}. The value may be a
-   * persistent object or simple value You can also use a
-   * {@link com.palisand.bones.persist.Query.Expr} That specifies a SQL expression.
-   * 
-   * @param path a path of roles and casts
-   * @param operator the operator in the condition
-   * @param value the value
-   * @return
-   * @throws SQLException
-   */
-  public Query<X> or(String path, String operator, Object value) throws SQLException {
-    return addCondition(path, " OR ", operator, value);
+  public Query<X> having(BuilderConsumer<X> consumer) throws SQLException {
+    where.append(" HAVING ");
+    ConditionBuilder builder = new ConditionBuilder();
+    consumer.accept(builder);
+    where.append(builder.getCondition());
+    return this;
   }
 
   /**

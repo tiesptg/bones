@@ -27,9 +27,11 @@ public class V2 {
   @Mapped
   public static class Table {
 
-    @Id(generated = true) private long oid;
+    @Id(generated = true)
+    private long oid;
 
-    @Version private int oversion;
+    @Version
+    private int oversion;
 
   }
 
@@ -68,24 +70,29 @@ public class V2 {
   public static class Person extends Table {
 
     @Index("name")
-    @Db(size = 100) private String name;
+    @Db(size = 100)
+    private String name;
     private double wealth;
     private LocalDate birthday;
     private Integer children;
 
     private List<Person> friends;
 
-    @Relation(opposite = "residents") private House residence;
+    @Relation(opposite = "residents")
+    private House residence;
 
   }
 
   @Data
   public static class Friendship {
-    @Id private Person one;
-    @Id private Person other;
+    @Id
+    private Person one;
+    @Id
+    private Person other;
   }
 
   @Data
+  @EqualsAndHashCode(callSuper = true)
   public static class TypeTestWithLobs extends TypeTest {
     private Clob clobField;
     private Blob blobField;
@@ -94,15 +101,19 @@ public class V2 {
   @Data
   @Db(name = "DbTypeTest")
   public static class TypeTest {
-    @Id(generated = true) private long id;
-    @Id private short shortField;
+    @Id(generated = true)
+    private long id;
+    @Id
+    private short shortField;
     private OffsetDateTime dateField;
     private String stringField;
-    @Db(name = "intDbField") private int intField;
+    @Db(name = "intDbField")
+    private int intField;
     private Integer intObjectField;
     private boolean booleanField;
     private byte[] bytesField;
-    @Db(size = 10, scale = 2) private BigDecimal decimalField;
+    @Db(size = 10, scale = 2)
+    private BigDecimal decimalField;
     private BigInteger integerField;
     private LocalDate localDateField;
     private LocalDateTime localDateTimeField;
