@@ -40,10 +40,9 @@ class ParseTest {
 		private static final Pattern ALL = Pattern.compile(
 				"([a-zA-Z_]+[\\.a-zA-Z_0-9]*|[\\(\\)]|['][^']*[']|[<>!=]{1,2}|[\\+\\-\\*\\\\\\,]|[0-9]+[\\.]*[0-9Ee]*|\\?|@)\\s*");
 		private static final Pattern PATH = Pattern.compile("[a-zA-Z_]+[\\.a-zA-Z_0-9]*");
-		private static final Pattern KEYWORD = Pattern.compile("AND|OR|BETWEEN");
+		private static final Pattern KEYWORD = Pattern.compile("AND|OR|BETWEEN|SUM|AVG");
 		private static final Pattern COMPARER = Pattern.compile("[<>!=]{1,2}");
 		private static final Pattern OPERATOR = Pattern.compile("[\\+\\-\\*\\\\\\,]");
-		private static final Pattern LABEL = Pattern.compile("[a-zA-Z_0-9]+");
 
 		public Expr parse(String sql) {
 
