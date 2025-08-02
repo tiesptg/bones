@@ -10,6 +10,7 @@
 
 	<modules>
 		<module>core</module>
+		<module>log</module>
 		<module>meta</module>
 		<module>meta-maven-plugin</module>
 		<module>meta-test</module>
@@ -32,13 +33,13 @@
 			</dependency>
 			<dependency>
 				<groupId>com.palisand.bones</groupId>
-				<artifactId>bones-meta</artifactId>
+				<artifactId>bones-log</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>org.apache.logging.log4j</groupId>
-				<artifactId>log4j-core</artifactId>
-				<version>2.24.0</version>
+				<groupId>com.palisand.bones</groupId>
+				<artifactId>bones-meta</artifactId>
+				<version>${project.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.junit.jupiter</groupId>

@@ -22,6 +22,10 @@
 			<artifactId>bones-core</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>com.palisand.bones</groupId>
+			<artifactId>bones-log</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<scope>test</scope>

@@ -3,6 +3,7 @@ Bones is bare bones dependency injection framework. That can replace spring-cont
 It is meant to be mean and lean. It contains of only one class and a interface, but supports full dependencies
 including bidirectional or circular dependencies. It does not use classpath scanning of annotation magic. 
 It does not use reflection. All code is simple and transparant.
+But if you want classpath scanning there is support for it in this library
 
 # Usage
 At the moment this library is not yet registered in Maven Central, so you will have to build and install it
@@ -72,6 +73,39 @@ public class Main(String...args) {
 
 }
 ```
+
+If you need dependency injection with multiple scopes the library supports this with a hierarchy of Application contexts.
+The example above show the global scope. If you want add a session scope you can add an ApplicationContext at the sessionscope
+
+So at the start of the session you create a new ApplicationContext with the global ApplicationContext as it parent
+```
+HttpSession session = request.getSession();
+
+ApplicationContext sessionCtx = (ApplicationContext)session.getAttribute("CTX");
+if (sessionCtx == null) {
+  sessionCtx = new ApplicationContext(ctx);
+  session.setAttribute("CTX",sessionCtx);
+  sessionCtx.register(sessionObject);
+}
+SessionObject object = sessionCtx.get(SessionObject.class);
+```
+
+Even though this library does not need classpath scanning it has support for it. It will find classes in jars and directories on the classpath
+with the Classes.findClasses method. You can use a prefix to limit the search to one or a few packages and a consumer to test inclusion in the result.
+Let me give a few examples
+
+Find classes in package org.example (or subpackages) that are subclasses of Frame 
+
+```
+List<Class> frames = Classes.findClasses("org.example",cls -> Frame.class.isAssignableFrom(cls));
+```
+
+Find classes that have the FunctionalInterface annotation
+
+```
+List<FunctionalInterface> interfaces = Classes.findClasses("",cls -> cls.getAnnotation(FunctionInterface.class) != null);
+```
+
 # Why doesn't Bones implement JSR 330
 I like a library to have one clear method of doing things. JSR 330 offers many options and all of them have drawbacks.
 This means you have to decide if you want to use constructor, field or setter injection. In bones there is only one way.
