@@ -1,16 +1,14 @@
 package com.palisand.bones.tt;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import java.io.IOException;
-
 import org.junit.jupiter.api.Test;
 
 class TypedTextErrorsTest {
 
   @Test
   void emptyTest() {
-    Repository repository = new Repository();
+    Repository repository = Repository.getInstance();
     Exception ex = assertThrows(IOException.class, () -> {
       repository.read("src/test/resources/empty.tt");
     });
@@ -19,7 +17,7 @@ class TypedTextErrorsTest {
 
   @Test
   void typeTest() {
-    Repository repository = new Repository();
+    Repository repository = Repository.getInstance();
     IOException ex = assertThrows(IOException.class, () -> {
       repository.read("src/test/resources/notype.tt");
     });
@@ -28,7 +26,7 @@ class TypedTextErrorsTest {
 
   @Test
   void wrongTypeTest() {
-    Repository repository = new Repository();
+    Repository repository = Repository.getInstance();
     IOException ex = assertThrows(IOException.class, () -> {
       repository.read("src/test/resources/wrongtype.tt");
     });
@@ -37,7 +35,7 @@ class TypedTextErrorsTest {
 
   @Test
   void wrongMarginTest() {
-    Repository repository = new Repository();
+    Repository repository = Repository.getInstance();
     IOException ex = assertThrows(IOException.class, () -> {
       repository.read("src/test/resources/wrongmargin.tt");
     });

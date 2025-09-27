@@ -1,4 +1,4 @@
-com.palisand.bones.meta.Model>
+com.palisand.bones.meta.MetaModel>
 name:	Schema
 packageName:	com.palisand.bones.test
 entities:
@@ -14,23 +14,33 @@ entities:
 		name:	type
 		type:	ENUM
 		enumType:	#/enumTypes/DataType
+	-	ReferenceRole>
+		name:	inForeignKeys
+		multiple:	true
+		entity:	#/entities/ForeignKey
+		pointerPattern:	../keys/.*
+		opposite:	#/entities/ForeignKey/members/fields
+	-	ReferenceRole>
+		name:	inPrimaryKeys
+		multiple:	true
+		entity:	#/entities/PrimaryKey
+		pointerPattern:	../primaryKey/.*
+		opposite:	#/entities/PrimaryKey/members/fields
 	entityContainer:	#/entities/Table/members/fields
 	idAttribute:	members/name
+	referencedFrom:
+	-	.*/entities/ForeignKey/members/fields
+	-	.*/entities/PrimaryKey/members/fields
 -	Entity>
 	name:	Key
 	members:
 	-	Attribute>
 		name:	name
-	-	ReferenceRole>
-		name:	fields
-		multiple:	true
-		pointerPattern:	../fields/.*
-		entity:	#/entities/Field
+	idAttribute:	members/name
 	specialisations:
 	-	#/entities/ForeignKey
 	-	#/entities/PrimaryKey
 	abstractEntity:	true
-	idAttribute:	members/name
 -	Entity>
 	name:	Table
 	members:
@@ -55,11 +65,32 @@ entities:
 		name:	unique
 		type:	BOOLEAN
 		defaultValue:	false
+	-	ReferenceRole>
+		name:	fields
+		multiple:	true
+		notNull:	true
+		notEmpty:	true
+		entity:	#/entities/Field
+		pointerPattern:	../fields/.*
+		opposite:	#/entities/Field/members/inForeignKeys
 	entityContainer:	#/entities/Table/members/keys
+	referencedFrom:
+	-	.*/entities/Field/members/inForeignKeys
 	superEntity:	#/entities/Key
 -	Entity>
 	name:	PrimaryKey
+	members:
+	-	ReferenceRole>
+		name:	fields
+		multiple:	true
+		notNull:	true
+		notEmpty:	true
+		entity:	#/entities/Field
+		pointerPattern:	../fields/.*
+		opposite:	#/entities/Field/members/inPrimaryKeys
 	entityContainer:	#/entities/Table/members/primaryKey
+	referencedFrom:
+	-	.*/entities/Field/members/inPrimaryKeys
 	superEntity:	#/entities/Key
 -	Entity>
 	name:	Schema

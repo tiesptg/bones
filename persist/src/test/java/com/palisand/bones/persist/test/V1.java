@@ -6,25 +6,12 @@ import java.util.List;
 import com.palisand.bones.persist.Database.Db;
 import com.palisand.bones.persist.Database.Id;
 import com.palisand.bones.persist.Database.Index;
-import com.palisand.bones.persist.Database.Mapped;
 import com.palisand.bones.persist.Database.Relation;
-import com.palisand.bones.persist.Database.Version;
+import com.palisand.bones.persist.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 public class V1 {
-
-  @Data
-  @Mapped
-  public static class Table {
-
-    @Id(generated = true)
-    private long oid;
-
-    @Version
-    private int oversion;
-
-  }
 
   @Data
   @EqualsAndHashCode(callSuper = true)

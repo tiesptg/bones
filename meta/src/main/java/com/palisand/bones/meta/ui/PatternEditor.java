@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
 import javax.swing.BorderFactory;
 import javax.swing.InputMap;
 import javax.swing.JButton;
@@ -36,30 +35,29 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
-
 import com.palisand.bones.meta.ContainerRole;
 import com.palisand.bones.meta.Entity;
-import com.palisand.bones.meta.Model;
-import com.palisand.bones.tt.Document;
-
+import com.palisand.bones.meta.MetaModel;
+import com.palisand.bones.tt.Node;
+import com.palisand.bones.tt.Repository;
 import lombok.Getter;
 import lombok.Setter;
 
 public class PatternEditor extends JDialog implements TreeSelectionListener {
 
   private static final long serialVersionUID = -469430723877885985L;
-  
+
   record Branch(Entity entity, ContainerRole contained) {
-    
+
     boolean isUp() throws IOException {
       return contained == null && entity.getEntityContainer().get() != null;
     }
-    
+
     String getPart() {
       try {
         if (isUp()) {
           return "/..";
-        } 
+        }
         if (contained == null) {
           return "#";
         }
@@ -69,13 +67,13 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
       }
       return "<Error while processing>";
     }
-    
+
     @Override
     public String toString() {
       try {
         if (isUp()) {
           return "../ [" + entity.getName() + "]";
-        } 
+        }
         if (contained == null) {
           return "# [" + entity.getName() + "]";
         }
@@ -86,19 +84,19 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
       return "<Error while processing>";
     }
   }
-  
+
   @Setter
   @Getter
   class ModelTreeModel implements TreeModel {
     private final List<TreeModelListener> listeners = new ArrayList<>();
     private final DefaultTreeCellRenderer cellRenderer = new DefaultTreeCellRenderer();
     private final Entity context;
-    private boolean absolute; 
-    
+    private boolean absolute;
+
     ModelTreeModel(Entity entity) {
       context = entity;
     }
-    
+
     @Override
     public void addTreeModelListener(TreeModelListener l) {
       listeners.add(l);
@@ -108,33 +106,33 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     public void removeTreeModelListener(TreeModelListener l) {
       listeners.remove(l);
     }
-    
+
     private List<Branch> getChildren(Object object) {
       List<Branch> result = new ArrayList<>();
       try {
         if (object == this) {
-          if (!absolute && context != null && context.getEntityContainer().get() != null 
-              && context.getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
-            result.add(new Branch(context.getEntityContainer().get().getContainer(),null));
+          if (!absolute && context != null && context.getEntityContainer().get() != null && context
+              .getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
+            result.add(new Branch(context.getEntityContainer().get().getContainer(), null));
           }
-          for (Document document: context.getRepository().getLoadedDocuments()) {
-            if (document instanceof Model model) {
-              for (Entity entity: model.getEntities()) {
+          for (Node<?> document : Repository.getInstance().getLoadedDocuments()) {
+            if (document instanceof MetaModel model) {
+              for (Entity entity : model.getEntities()) {
                 if (entity.getEntityContainer().get() == null) {
-                  result.add(new Branch(entity,null));
+                  result.add(new Branch(entity, null));
                 }
               }
             }
           }
         } else if (object instanceof Branch branch) {
           Entity entity = branch.entity();
-          if (!absolute && branch.isUp() && entity.getEntityContainer().get() != null
-            && entity.getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
-            result.add(new Branch(entity.getEntityContainer().get().getContainer(),null));
+          if (!absolute && branch.isUp() && entity.getEntityContainer().get() != null && entity
+              .getEntityContainer().get().getContainer().getEntityContainer().get() != null) {
+            result.add(new Branch(entity.getEntityContainer().get().getContainer(), null));
           }
-          for (ContainerRole contained: entity.getContainerRoles()) {
+          for (ContainerRole contained : entity.getContainerRoles()) {
             if (contained.getEntity().get() != null) {
-              result.add(new Branch(contained.getEntity().get(),contained));
+              result.add(new Branch(contained.getEntity().get(), contained));
             }
           }
         }
@@ -143,13 +141,13 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
       }
       return result;
     }
-    
+
     public void setAbsolute(boolean value) {
       absolute = value;
-      TreeModelEvent event = new TreeModelEvent(this,new Object[] {this});
+      TreeModelEvent event = new TreeModelEvent(this, new Object[] {this});
       listeners.forEach(l -> l.treeStructureChanged(event));
     }
-    
+
 
     @Override
     public Object getChild(Object branch, int i) {
@@ -184,42 +182,42 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     public TreePath getPath(String pattern) {
       return null;
     }
-    
+
   }
-  
+
   private JTree tree = new JTree();
   private JTextField field = new JTextField();
   private JTextField relative = null;
   private JTextField external = null;
   private boolean accepted = false;
   private ModelTreeModel treeModel = null;
-  
-  public PatternEditor(JFrame frame, Entity context,String pattern) {
-    super(frame,"Choose Link Pattern",true);
+
+  public PatternEditor(JFrame frame, Entity context, String pattern) {
+    super(frame, "Choose Link Pattern", true);
     setLayout(new BorderLayout());
     treeModel = new ModelTreeModel(context);
     getRootPane().setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-    
+
     JPanel panel = new JPanel();
-    panel.setLayout(new GridLayout(2,2));
+    panel.setLayout(new GridLayout(2, 2));
     panel.add(new JLabel("Relative Path"));
     relative = makeBooleanField(false, value -> setRelative(value));
     panel.add(relative);
     panel.add(new JLabel("External File Allowed"));
-    external = makeBooleanField(false,value -> setExternal(value));
+    external = makeBooleanField(false, value -> setExternal(value));
     panel.add(external);
     add(panel, BorderLayout.NORTH);
-    
+
     JPanel middle = new JPanel();
     middle.setLayout(new BorderLayout());
-    middle.add(initTree(),BorderLayout.CENTER);
-    middle.add(field,BorderLayout.SOUTH);
-    add(middle,BorderLayout.CENTER);
-    
+    middle.add(initTree(), BorderLayout.CENTER);
+    middle.add(field, BorderLayout.SOUTH);
+    add(middle, BorderLayout.CENTER);
+
     JPanel buttons = new JPanel();
-    buttons.setLayout(new GridLayout(1,2));
-    add(buttons,BorderLayout.SOUTH);
-    
+    buttons.setLayout(new GridLayout(1, 2));
+    add(buttons, BorderLayout.SOUTH);
+
     JButton cancel = new JButton("Cancel");
     buttons.add(cancel);
     cancel.addActionListener(e -> setVisible(false));
@@ -230,12 +228,12 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
       setVisible(false);
     });
     setPattern(pattern);
-    
-    setSize(400,300);
+
+    setSize(400, 300);
     Rectangle rect = getParent().getBounds();
-    setLocation((rect.width - getWidth())/2+rect.x,(rect.height-getHeight())/2+rect.y);
+    setLocation((rect.width - getWidth()) / 2 + rect.x, (rect.height - getHeight()) / 2 + rect.y);
   }
-  
+
   private void setRelative(boolean value) {
     treeModel.setAbsolute(!value);
     if (value) {
@@ -244,11 +242,11 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     external.setEnabled(!value);
     treeModel.setAbsolute(!value);
   }
-  
+
   private void setExternal(boolean value) {
     resetPattern();
   }
-  
+
   private JTree initTree() {
     tree.setRootVisible(false);
     tree.setExpandsSelectedPaths(true);
@@ -258,20 +256,20 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     tree.addTreeSelectionListener(this);
     tree.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
     tree.setInputMap(JComponent.WHEN_FOCUSED, new InputMap());
-    
+
     tree.addFocusListener(new FocusListener() {
 
       @Override
       public void focusGained(FocusEvent arg0) {
         UIDefaults defaults = UIManager.getDefaults();
-        tree.setBorder(BorderFactory.createLineBorder(defaults.getColor("textHighlight"),2));
+        tree.setBorder(BorderFactory.createLineBorder(defaults.getColor("textHighlight"), 2));
       }
 
       @Override
       public void focusLost(FocusEvent arg0) {
         tree.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
       }
-      
+
     });
     tree.addKeyListener(new KeyAdapter() {
 
@@ -289,24 +287,24 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
         } else if (e.getKeyCode() == KeyEvent.VK_UP) {
           int newRow = tree.getLeadSelectionRow();
           if (newRow > 0) {
-            tree.setSelectionRow(newRow-1);
+            tree.setSelectionRow(newRow - 1);
           }
         } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
           int newRow = tree.getLeadSelectionRow();
-          if (newRow < tree.getRowCount()-1) {
-            tree.setSelectionRow(newRow+1);
+          if (newRow < tree.getRowCount() - 1) {
+            tree.setSelectionRow(newRow + 1);
           }
 
-         }
+        }
 
       }
-      
+
     });
     return tree;
   }
-  
 
-  
+
+
   private JTextField makeBooleanField(boolean value, Consumer<Boolean> action) {
     JTextField label = new JTextField("true");
     label.setEditable(false);
@@ -330,14 +328,15 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
 
       @Override
       public void keyReleased(KeyEvent e) {
-        if (label.isEnabled() && e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
+        if (label.isEnabled() && e.getKeyCode() == KeyEvent.VK_ENTER
+            || e.getKeyCode() == KeyEvent.VK_SPACE) {
           Boolean value = !Boolean.valueOf(label.getText());
           label.setText(value.toString());
           action.accept(label.getText().equals("true"));
           label.selectAll();
         }
       }
-      
+
     });
     label.addFocusListener(new FocusAdapter() {
 
@@ -348,7 +347,7 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     });
     return label;
   }
-  
+
   private void setPattern(String pattern) {
     if (pattern == null) {
       pattern = "";
@@ -360,13 +359,13 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     TreePath path = treeModel.getPath(pattern);
     tree.setSelectionPath(path);
   }
-  
+
   public String getPattern() {
     return field.getText();
   }
-  
+
   public static String editPattern(JFrame frame, Entity context, String pattern) {
-    PatternEditor dialog = new PatternEditor(frame,context,pattern);
+    PatternEditor dialog = new PatternEditor(frame, context, pattern);
     dialog.setVisible(true);
     if (!dialog.accepted) {
       return pattern;
@@ -378,7 +377,7 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
   public void valueChanged(TreeSelectionEvent event) {
     resetPattern();
   }
-  
+
   private void resetPattern() {
     StringBuilder sb = new StringBuilder();
     if (external.getText().equals("true")) {
@@ -387,7 +386,7 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     TreePath path = tree.getSelectionPath();
     if (path != null) {
       for (int i = 1; i < path.getPathCount(); ++i) {
-        String part = ((Branch)path.getPath()[i]).getPart();
+        String part = ((Branch) path.getPath()[i]).getPart();
         if (i == 1 && part.startsWith("/..")) {
           part = "..";
         }
@@ -396,5 +395,5 @@ public class PatternEditor extends JDialog implements TreeSelectionListener {
     }
     field.setText(sb.toString());
   }
-  
+
 }
