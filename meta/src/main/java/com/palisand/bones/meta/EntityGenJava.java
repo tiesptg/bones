@@ -133,42 +133,27 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     nl("@Setter");
     nl("@NoArgsConstructor");
     String gen = "";
-    if (entity.getSuperEntity().isPresent()) {
-      ContainerRole superRole = entity.getSuperEntity().get().getEntityContainer().get();
-      ContainerRole role = entity.getEntityContainer().get();
-      if (entity.isRootEntity()) {
-        nl("public abstract class %sGen extends %s<Node<?>> {", entity.getName(),
-            entity.getSuperEntity().get().getName());
-      } else if (role == null) {
-        if (superRole == null) {
-          nl("public abstract class %sGen<P extends Node<?>> extends %s<P> {", entity.getName(),
-              entity.getSuperEntity().get().getName());
-          gen = "<P>";
-        } else {
-          nl("public abstract class %sGen extends %s {", entity.getName(),
-              entity.getSuperEntity().get().getName());
-        }
-      } else {
-        if (superRole == null) {
-          nl("public abstract class %sGen extends %s<%s> {", entity.getName(),
-              entity.getSuperEntity().get().getName(), role.getContainer().getName());
-        } else {
-          // we have to assume superRole == role
-          nl("public abstract class %sGen extends %s {", entity.getName(),
-              entity.getSuperEntity().get().getName());
-        }
+    String superEntity = "Node";
+    String container = "Node<?>";
+    if (entity.isAbstractEntity()) {
+      if (entity.getSuperEntity().isPresent()) {
+        superEntity = entity.getSuperEntity().get().getName();
       }
-    } else if (!entity.isRootEntity()) {
-      ContainerRole role = entity.getEntityContainer().get();
-      if (role == null) {
-        nl("public abstract class %sGen<C extends Node<?>> extends Node<C> {", entity.getName());
-        gen = "<C>";
-      } else {
-        nl("public abstract class %sGen extends Node<%s> {", entity.getName(),
-            role.getContainer().getName());
-      }
+      nl("public abstract class %sGen<P extends Node<?>> extends %s<P> {", entity.getName(),
+          superEntity);
+      gen = "<P>";
     } else {
-      nl("public abstract class %sGen extends Node<Node<?>> {", entity.getName());
+      if (entity.getSuperEntity().isPresent()) {
+        superEntity = entity.getSuperEntity().get().getName();
+      }
+      if (!entity.isRootEntity()) {
+        ContainerRole role = entity.getEntityContainer().get();
+        container = role.getContainer().getName();
+        if (role.getContainer().isAbstractEntity()) {
+          container += "<?>";
+        }
+      }
+      nl("public abstract class %sGen extends %s<%s> {", entity.getName(), superEntity, container);
     }
     nl();
     incMargin();
