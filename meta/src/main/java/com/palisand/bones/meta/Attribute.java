@@ -10,6 +10,7 @@ import com.palisand.bones.tt.Rules.LinkRules;
 import com.palisand.bones.tt.Rules.NumberRules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
+import com.palisand.bones.tt.TextIgnore;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -42,7 +43,6 @@ public class Attribute extends Member {
 
   private Type type = Type.STRING;
   private String defaultValue = null;
-  private Boolean notNull = false;
   private Boolean multiLine = false;
   private Long minValue = null;
   private Long maxValue = null;
@@ -52,6 +52,7 @@ public class Attribute extends Member {
   private LinkList<Attribute, Entity> idFor =
       new LinkList<>(this, "#/entities/.*", entity -> entity.getIdAttribute());
 
+  @TextIgnore
   public String getJavaType() throws IOException {
     switch (type) {
       case STRING:
@@ -72,6 +73,7 @@ public class Attribute extends Member {
     throw new IOException("attribute " + getName() + " has unsupported type " + type);
   }
 
+  @TextIgnore
   public String getJavaDefaultValue() {
     if (getDefaultValue() != null) {
       return getDefaultValue();
