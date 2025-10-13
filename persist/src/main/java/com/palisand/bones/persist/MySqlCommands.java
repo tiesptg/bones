@@ -5,7 +5,7 @@ import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.util.UUID;
 import com.palisand.bones.persist.Database.DbClass;
-import com.palisand.bones.persist.Database.DbClass.DbField;
+import com.palisand.bones.persist.Database.DbField;
 
 /**
  * The command scheme for the MySQL database

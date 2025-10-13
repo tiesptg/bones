@@ -81,7 +81,7 @@ public class Classes {
             if (condition.apply(cls)) {
               result.add(cls);
             }
-          } catch (ClassNotFoundException | NoClassDefFoundError e2) {
+          } catch (Throwable e2) {
             // ignore
           }
         }

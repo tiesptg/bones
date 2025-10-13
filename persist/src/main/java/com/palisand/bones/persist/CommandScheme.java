@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
 import com.palisand.bones.persist.Database.DbClass;
-import com.palisand.bones.persist.Database.DbClass.DbField;
-import com.palisand.bones.persist.Database.DbClass.DbForeignKeyField;
-import com.palisand.bones.persist.Database.DbClass.DbRole;
-import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
+import com.palisand.bones.persist.Database.DbField;
+import com.palisand.bones.persist.Database.DbForeignKeyField;
+import com.palisand.bones.persist.Database.DbRole;
+import com.palisand.bones.persist.Database.DbSearchMethod;
 import com.palisand.bones.persist.Database.RsGetter;
 import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Data;
@@ -481,14 +481,14 @@ public class CommandScheme {
     indicesToRemove.addAll(dbTable.getIndices().keySet());
     for (DbSearchMethod index : entity.getIndices().values()) {
       if (!indicesToRemove.remove(INDEX_PREFIX + index.getName()) && create) {
-        createIndex(connection, index);
+        createIndex(connection, entity, index);
       }
     }
     for (DbRole role : entity.getForeignKeys()) {
       DbSearchMethod index = role.getForeignKey();
       if (!indicesToRemove.remove(INDEX_PREFIX + index.getName()) && create) {
         if (isIndexForFkNeeded()) {
-          createIndex(connection, index);
+          createIndex(connection, entity, index);
         }
       }
     }
@@ -580,10 +580,10 @@ public class CommandScheme {
     sql.append("))");
     execute(connection, sql.toString());
     for (DbRole role : entity.getForeignKeys()) {
-      createIndex(connection, role.getForeignKey());
+      createIndex(connection, entity, role.getForeignKey());
     }
     for (DbSearchMethod method : entity.getIndices().values()) {
-      createIndex(connection, method);
+      createIndex(connection, entity, method);
     }
   }
 
@@ -1079,10 +1079,10 @@ public class CommandScheme {
     return connection.getCatalog();
   }
 
-  void createIndex(Connection connection, DbSearchMethod path) throws SQLException {
+  void createIndex(Connection connection, DbClass table, DbSearchMethod path) throws SQLException {
     String fields =
         path.getFields().stream().map(f -> f.getName()).collect(Collectors.joining(","));
-    createIndex(connection, path.getEntity().getName(), path.getName(), fields, path.isUnique());
+    createIndex(connection, table.getName(), path.getName(), fields, path.isUnique());
   }
 
   void createIndex(Connection connection, String tableName, String indexName, String fields,

@@ -44,7 +44,6 @@ import java.util.function.Supplier;
 import com.palisand.bones.persist.CommandScheme.Metadata;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbIndex;
 import com.palisand.bones.persist.CommandScheme.Metadata.DbTable;
-import com.palisand.bones.persist.Database.DbClass.DbRole;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -77,6 +76,12 @@ public class Database {
   @FunctionalInterface
   interface StmtSetter {
     void set(PreparedStatement stmt, int pos, Object value) throws SQLException;
+  }
+
+  interface DbClassInner extends Cloneable {
+    void setEntity(DbClass entity);
+
+    Object clone() throws CloneNotSupportedException;
   }
 
   private static final Class<?>[] SUPPORTED_OBJECT_TYPES = {String.class, Boolean.class,
@@ -207,6 +212,331 @@ public class Database {
 
   @Setter
   @Getter
+  @RequiredArgsConstructor
+  static class DbSearchMethod implements DbClassInner {
+    private String name;
+    private List<DbField> fields = new ArrayList<>();
+    private boolean unique = false;
+    private DbClass entity;
+
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+      return super.clone();
+    }
+
+    @Override
+    public String toString() {
+      return getName();
+    }
+  }
+
+  @Setter
+  @Getter
+  @RequiredArgsConstructor
+  static class DbRole implements DbClassInner {
+    private Field field;
+    private DbSearchMethod foreignKey;
+    private Class<?> type;
+    private DbRole opposite;
+    private Method getter;
+    private Method setter;
+    private Id id = null;
+    private DbClass entity;
+
+    @Override
+    public String toString() {
+      return getName();
+    }
+
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+      return super.clone();
+    }
+
+    String getName() {
+      if (field == null) {
+        return foreignKey.getName();
+      }
+      return field.getName();
+    }
+
+    boolean isForeignKey() {
+      // TODO: this excludes one-to-one associations at this time
+      return !isMany();
+    }
+
+    Relation getRelation() {
+      return field.getAnnotation(Relation.class);
+    }
+
+    boolean isMany() {
+      return Collection.class.isAssignableFrom(field.getType());
+    }
+
+    boolean isPrimaryKeyRole() {
+      return id != null;
+    }
+
+    Object get(Object owner) throws SQLException {
+      try {
+        return getter.invoke(owner);
+      } catch (Exception ex) {
+        if (ex.getCause() != null) {
+          ex = (Exception) ex.getCause();
+        }
+        throw new SQLException("Could not get value of field " + field);
+      }
+    }
+
+    @SuppressWarnings("unchecked")
+    void set(Object owner, Object value) throws SQLException {
+      try {
+        if (isMany()) {
+          Collection<Object> col = (Collection<Object>) getter.invoke(owner);
+          if (col == null) {
+            if (field.getType() == List.class || field.getType() == Collection.class) {
+              col = new ArrayList<>();
+            } else if (field.getType() == Set.class) {
+              col = new HashSet<>();
+            } else {
+              col = (Collection<Object>) field.getType().getConstructor().newInstance();
+            }
+            setter.invoke(owner, col);
+          } else {
+            col.clear();
+          }
+          if (value != null) {
+            col.addAll((Collection<Object>) value);
+          }
+        } else {
+          setter.invoke(owner, value);
+        }
+      } catch (Exception ex) {
+        if (ex.getCause() != null) {
+          ex = (Exception) ex.getCause();
+        }
+        throw new SQLException("Could not set value of field " + field, ex);
+      }
+    }
+
+    DbSearchMethod getForeignKey() throws SQLException {
+      if (foreignKey == null) {
+        DbClass entity = Database.getDbClass(type);
+        foreignKey = new DbSearchMethod();
+        foreignKey.setEntity(getEntity());
+        foreignKey.setName(getEntity().getName() + '_' + getName());
+        foreignKey.setUnique(false);
+        entity.getPrimaryKey().getFields().forEach(field -> {
+          DbForeignKeyField copy = new DbForeignKeyField();
+          copy.setEntity(getEntity());
+          copy.setName(getName() + '_' + field.getName());
+          copy.setRsGetter(field.getRsGetter());
+          copy.setStmtSetter(field.getStmtSetter());
+          copy.setType(field.getType());
+          copy.setPrimaryKeyField(field);
+          copy.setRole(this);
+          foreignKey.getFields().add(copy);
+        });
+      }
+      return foreignKey;
+    }
+
+    DbRole getOpposite() throws SQLException {
+      if (opposite == null) {
+        Relation relation = getRelation();
+        DbClass other = Database.getDbClass(type);
+        if (other != null) {
+          if (relation != null) {
+            for (DbRole role : other.getForeignKeys()) {
+              if (role.getName().equals(relation.opposite())) {
+                opposite = role;
+                break;
+              }
+            }
+            for (DbRole role : other.getLinks()) {
+              if (role.getName().equals(relation.opposite())) {
+                opposite = role;
+                break;
+              }
+            }
+            if (opposite == null) {
+              throw new SQLException("Relation " + getName() + " points to not existing opposite "
+                  + relation.opposite());
+            }
+          } else {
+            for (DbRole role : other.getForeignKeys()) {
+              relation = role.getRelation();
+              if (relation != null && relation.opposite().equals(getName())) {
+                opposite = role;
+                break;
+              }
+            }
+            if (opposite == null) {
+              for (DbRole role : other.getLinks()) {
+                relation = role.getRelation();
+                if (relation != null && relation.opposite().equals(getName())) {
+                  opposite = role;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      return opposite;
+    }
+
+    String getTablename() throws SQLException {
+      DbClass entity = Database.getDbClass(getType());
+      return getName() + '_' + entity.getName();
+    }
+
+    DbRole getFirst() throws SQLException {
+      DbRole opposite = getOpposite();
+      if (opposite != null) {
+        if (getName().compareTo(opposite.getName()) > 0) {
+          return opposite;
+        }
+      }
+      return this;
+    }
+
+    DbRole getSecond() throws SQLException {
+      return getFirst().getOpposite();
+    }
+
+  }
+
+  @Setter
+  @Getter
+  @RequiredArgsConstructor
+  static class DbField implements DbClassInner {
+    private Field field;
+    private Method getter;
+    private Method setter;
+    private boolean nullable = true;
+    private Id id;
+    private Version version;
+    private RsGetter rsGetter;
+    private StmtSetter stmtSetter;
+    private Function<Object, Object> incrementer = null;
+    private int size = 0;
+    private int scale = 0;
+    private String name = null;
+    private DbClass entity;
+
+    @Override
+    public String toString() {
+      return getName();
+    }
+
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+      return super.clone();
+    }
+
+    public String getName() {
+      if (name == null) {
+        return field.getName();
+      }
+      return name;
+    }
+
+    Class<?> getType() {
+      return getter.getReturnType();
+    }
+
+    boolean isGenerated() {
+      return id == null ? false : id.generated();
+    }
+
+    boolean isVersion() {
+      return version != null;
+    }
+
+    Object get(Object owner) throws SQLException {
+      try {
+        return getter.invoke(owner);
+      } catch (Exception ex) {
+        if (ex.getCause() != null) {
+          ex = (Exception) ex.getCause();
+        }
+        throw new SQLException("Could not get value of field " + field);
+      }
+    }
+
+    Object inc(Object owner) throws SQLException {
+      Object oldVersion = get(owner);
+      set(owner, incrementer.apply(oldVersion));
+      return oldVersion;
+    }
+
+    void set(Object owner, Object value) throws SQLException {
+      try {
+        setter.invoke(owner, value);
+      } catch (Exception ex) {
+        if (ex.getCause() != null) {
+          ex = (Exception) ex.getCause();
+        }
+        throw new SQLException("Could not set value of field " + field + " to " + value, ex);
+      }
+    }
+
+    Object rsGet(ResultSet rs, int pos) throws SQLException {
+      return rsGetter.get(rs, pos);
+    }
+
+    void stmtSet(PreparedStatement stmt, int pos, Object value) throws SQLException {
+      stmtSetter.set(stmt, pos, value);
+    }
+  }
+
+  @Getter
+  @Setter
+  @RequiredArgsConstructor
+  static class DbForeignKeyField extends DbField implements DbClassInner {
+    private String name;
+    private Class<?> type;
+    private DbRole role;
+    private DbField primaryKeyField;
+
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+      return super.clone();
+    }
+
+    @Override
+    Object get(Object owner) throws SQLException {
+      Object other = role.get(owner);
+      if (other != null) {
+        return primaryKeyField.get(other);
+      }
+      return null;
+    }
+
+    @Override
+    Object rsGet(ResultSet rs, int pos) throws SQLException {
+      return primaryKeyField.rsGet(rs, pos);
+    }
+
+    void set(Object owner, Object value) throws SQLException {
+      if (value == null) {
+        role.set(owner, null);
+      } else {
+        Object child = role.get(owner);
+        if (child == null) {
+          DbClass cls = Database.getDbClass(role.getType());
+          child = cls.newInstance();
+          role.set(owner, child);
+        }
+        primaryKeyField.set(child, value);
+      }
+    }
+
+  }
+
+  @Setter
+  @Getter
   static class DbClass {
     private final Class<?> type;
     private final DbClass superClass;
@@ -222,321 +552,42 @@ public class Database {
     private String label;
     private String name = null;
 
-    @Setter
-    @Getter
-    @RequiredArgsConstructor
-    class DbSearchMethod {
-      private String name;
-      private List<DbField> fields = new ArrayList<>();
-      private boolean unique = false;
 
-      DbClass getEntity() {
-        return DbClass.this;
-      }
-
-      @Override
-      public String toString() {
-        return getName();
-      }
-    }
-
-    @Setter
-    @Getter
-    @RequiredArgsConstructor
-    class DbRole {
-      private Field field;
-      private DbSearchMethod foreignKey;
-      private Class<?> type;
-      private DbRole opposite;
-      private Method getter;
-      private Method setter;
-      private Id id = null;
-
-      @Override
-      public String toString() {
-        return getName();
-      }
-
-      String getName() {
-        if (field == null) {
-          return foreignKey.getName();
-        }
-        return field.getName();
-      }
-
-      boolean isForeignKey() {
-        // TODO: this excludes one-to-one associations at this time
-        return !isMany();
-      }
-
-      DbClass getEntity() {
-        return DbClass.this;
-      }
-
-      Relation getRelation() {
-        return field.getAnnotation(Relation.class);
-      }
-
-      boolean isMany() {
-        return Collection.class.isAssignableFrom(field.getType());
-      }
-
-      boolean isPrimaryKeyRole() {
-        return id != null;
-      }
-
-      Object get(Object owner) throws SQLException {
-        try {
-          return getter.invoke(owner);
-        } catch (Exception ex) {
-          if (ex.getCause() != null) {
-            ex = (Exception) ex.getCause();
-          }
-          throw new SQLException("Could not get value of field " + field);
-        }
-      }
-
-      @SuppressWarnings("unchecked")
-      void set(Object owner, Object value) throws SQLException {
-        try {
-          if (isMany()) {
-            Collection<Object> col = (Collection<Object>) getter.invoke(owner);
-            if (col == null) {
-              if (field.getType() == List.class || field.getType() == Collection.class) {
-                col = new ArrayList<>();
-              } else if (field.getType() == Set.class) {
-                col = new HashSet<>();
-              } else {
-                col = (Collection<Object>) field.getType().getConstructor().newInstance();
-              }
-              setter.invoke(owner, col);
-            } else {
-              col.clear();
-            }
-            if (value != null) {
-              col.addAll((Collection<Object>) value);
-            }
-          } else {
-            setter.invoke(owner, value);
-          }
-        } catch (Exception ex) {
-          if (ex.getCause() != null) {
-            ex = (Exception) ex.getCause();
-          }
-          throw new SQLException("Could not set value of field " + field, ex);
-        }
-      }
-
-      DbSearchMethod getForeignKey() throws SQLException {
-        if (foreignKey == null) {
-          DbClass entity = Database.getDbClass(type);
-          foreignKey = new DbSearchMethod();
-          foreignKey.setName(getEntity().getName() + '_' + getName());
-          foreignKey.setUnique(false);
-          entity.getPrimaryKey().getFields().forEach(field -> {
-            DbForeignKeyField copy = new DbForeignKeyField();
-            copy.setName(getName() + '_' + field.getName());
-            copy.setRsGetter(field.getRsGetter());
-            copy.setStmtSetter(field.getStmtSetter());
-            copy.setType(field.getType());
-            copy.setPrimaryKeyField(field);
-            copy.setRole(this);
-            foreignKey.getFields().add(copy);
-          });
-        }
-        return foreignKey;
-      }
-
-      DbRole getOpposite() throws SQLException {
-        if (opposite == null) {
-          Relation relation = getRelation();
-          DbClass other = Database.getDbClass(type);
-          if (other != null) {
-            if (relation != null) {
-              for (DbRole role : other.getForeignKeys()) {
-                if (role.getName().equals(relation.opposite())) {
-                  opposite = role;
-                  break;
-                }
-              }
-              for (DbRole role : other.getLinks()) {
-                if (role.getName().equals(relation.opposite())) {
-                  opposite = role;
-                  break;
-                }
-              }
-              if (opposite == null) {
-                throw new SQLException("Relation " + getName() + " points to not existing opposite "
-                    + relation.opposite());
-              }
-            } else {
-              for (DbRole role : other.getForeignKeys()) {
-                relation = role.getRelation();
-                if (relation != null && relation.opposite().equals(getName())) {
-                  opposite = role;
-                  break;
-                }
-              }
-              if (opposite == null) {
-                for (DbRole role : other.getLinks()) {
-                  relation = role.getRelation();
-                  if (relation != null && relation.opposite().equals(getName())) {
-                    opposite = role;
-                    break;
-                  }
-                }
-              }
-            }
-          }
-        }
-        return opposite;
-      }
-
-      String getTablename() throws SQLException {
-        DbClass entity = Database.getDbClass(getType());
-        return getName() + '_' + entity.getName();
-      }
-
-      DbRole getFirst() throws SQLException {
-        DbRole opposite = getOpposite();
-        if (opposite != null) {
-          if (getName().compareTo(opposite.getName()) > 0) {
-            return opposite;
-          }
-        }
-        return this;
-      }
-
-      DbRole getSecond() throws SQLException {
-        return getFirst().getOpposite();
-      }
-
-    }
-
-    @Setter
-    @Getter
-    @RequiredArgsConstructor
-    public class DbField {
-      private Field field;
-      private Method getter;
-      private Method setter;
-      private boolean nullable = true;
-      private Id id;
-      private Version version;
-      private RsGetter rsGetter;
-      private StmtSetter stmtSetter;
-      private Function<Object, Object> incrementer = null;
-      private int size = 0;
-      private int scale = 0;
-      private String name = null;
-
-      @Override
-      public String toString() {
-        return getName();
-      }
-
-      public String getName() {
-        if (name == null) {
-          return field.getName();
-        }
-        return name;
-      }
-
-      Class<?> getType() {
-        return getter.getReturnType();
-      }
-
-      DbClass getEntity() {
-        return DbClass.this;
-      }
-
-      boolean isGenerated() {
-        return id == null ? false : id.generated();
-      }
-
-      boolean isVersion() {
-        return version != null;
-      }
-
-      Object get(Object owner) throws SQLException {
-        try {
-          return getter.invoke(owner);
-        } catch (Exception ex) {
-          if (ex.getCause() != null) {
-            ex = (Exception) ex.getCause();
-          }
-          throw new SQLException("Could not get value of field " + field);
-        }
-      }
-
-      Object inc(Object owner) throws SQLException {
-        Object oldVersion = get(owner);
-        set(owner, incrementer.apply(oldVersion));
-        return oldVersion;
-      }
-
-      void set(Object owner, Object value) throws SQLException {
-        try {
-          setter.invoke(owner, value);
-        } catch (Exception ex) {
-          if (ex.getCause() != null) {
-            ex = (Exception) ex.getCause();
-          }
-          throw new SQLException("Could not set value of field " + field + " to " + value, ex);
-        }
-      }
-
-      Object rsGet(ResultSet rs, int pos) throws SQLException {
-        return rsGetter.get(rs, pos);
-      }
-
-      void stmtSet(PreparedStatement stmt, int pos, Object value) throws SQLException {
-        stmtSetter.set(stmt, pos, value);
-      }
-    }
-
-    @Getter
-    @Setter
-    @RequiredArgsConstructor
-    class DbForeignKeyField extends DbField {
-      private String name;
-      private Class<?> type;
-      private DbRole role;
-      private DbField primaryKeyField;
-
-      @Override
-      Object get(Object owner) throws SQLException {
-        Object other = role.get(owner);
-        if (other != null) {
-          return primaryKeyField.get(other);
-        }
-        return null;
-      }
-
-      @Override
-      Object rsGet(ResultSet rs, int pos) throws SQLException {
-        return primaryKeyField.rsGet(rs, pos);
-      }
-
-      void set(Object owner, Object value) throws SQLException {
-        if (value == null) {
-          role.set(owner, null);
-        } else {
-          Object child = role.get(owner);
-          if (child == null) {
-            DbClass cls = Database.getDbClass(role.getType());
-            child = cls.newInstance();
-            role.set(owner, child);
-          }
-          primaryKeyField.set(child, value);
-        }
-      }
-
-    }
 
     @Override
     public String toString() {
       return getName();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <X extends DbClassInner> List<X> cloneList(DbClass entity, List<X> fields) {
+      List<X> result = new ArrayList<>();
+      fields.forEach(field -> {
+        try {
+          X clone = (X) field.clone();
+          clone.setEntity(entity);
+          result.add(clone);
+        } catch (CloneNotSupportedException ex) {
+          // ignore
+        }
+      });
+      return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <X extends DbClassInner> Map<String, X> cloneMap(DbClass entity,
+        Map<String, X> objects) {
+      Map<String, X> result = new TreeMap<String, X>();
+      objects.entrySet().forEach(entry -> {
+        try {
+          X clone = (X) entry.getValue().clone();
+          clone.setEntity(entity);
+          result.put(entry.getKey(), clone);
+        } catch (CloneNotSupportedException ex) {
+          // ignore
+        }
+      });
+      return result;
     }
 
     private DbClass registerSuperClass(CommandScheme commands) throws SQLException {
@@ -544,9 +595,9 @@ public class Database {
       if (type.getSuperclass() != Object.class) {
         DbClass parent = Database.registerDbClass(commands, type.getSuperclass());
         if (parent.isMapped()) {
-          fields.addAll(parent.getFields());
-          indices.putAll(parent.getIndices());
-          foreignKeys.addAll(parent.getForeignKeys());
+          fields.addAll(cloneList(this, parent.getFields()));
+          indices.putAll(cloneMap(this, parent.getIndices()));
+          foreignKeys.addAll(cloneList(this, parent.getForeignKeys()));
           version = parent.getVersion();
           DbClass indirectParent = parent.getSuperClass();
           while (indirectParent != null && indirectParent.isMapped()) {
@@ -565,6 +616,7 @@ public class Database {
 
     private DbRole newRole(Field field, boolean collection) {
       DbRole role = new DbRole();
+      role.setEntity(this);
       if (collection) {
         role.setType(getGenericType(field.getGenericType(), 0));
       } else {
@@ -578,6 +630,7 @@ public class Database {
 
     private DbField newAttribute(CommandScheme commands, Field field) {
       DbField attribute = new DbField();
+      attribute.setEntity(this);
       attribute.setField(field);
       attribute.setGetter(getGetter(type, field));
       attribute.setSetter(getSetter(type, field));
@@ -602,6 +655,7 @@ public class Database {
         DbSearchMethod path = indices.get(index.value());
         if (path == null) {
           path = new DbSearchMethod();
+          path.setEntity(this);
           path.setName(getName() + '_' + index.value());
           indices.put(index.value(), path);
         }
@@ -718,6 +772,7 @@ public class Database {
     DbSearchMethod getPrimaryKey() throws SQLException {
       if (primaryKey == null) {
         primaryKey = new DbSearchMethod();
+        primaryKey.setEntity(this);
         primaryKey.setName("pk");
         primaryKey.setUnique(true);
         for (DbField field : getFields()) {

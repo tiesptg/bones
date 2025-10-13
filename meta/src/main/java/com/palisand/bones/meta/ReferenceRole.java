@@ -1,5 +1,6 @@
 package com.palisand.bones.meta;
 
+import java.io.IOException;
 import com.palisand.bones.meta.ui.PatternComponent;
 import com.palisand.bones.tt.Editor;
 import com.palisand.bones.tt.Link;
@@ -8,6 +9,7 @@ import com.palisand.bones.tt.Rules.LinkRules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.TextIgnore;
+import com.palisand.bones.tt.Validator;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -46,4 +48,10 @@ public class ReferenceRole extends Member {
     return Type.OBJECT;
   }
 
+  @Override
+  public void doValidate(Validator validator) throws IOException {
+    super.doValidate(validator);
+    validator.assertTrue("pointerPattern",
+        getContainer().getEntityOfPattern(pointerPattern) != null, "pattern is invalid");
+  }
 }

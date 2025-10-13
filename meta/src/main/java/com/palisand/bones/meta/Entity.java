@@ -84,17 +84,14 @@ public class Entity extends Item<MetaModel> {
   public Entity getEntityOfPattern(String pattern) throws IOException {
     String up = "../";
     if (pattern.startsWith(up)) {
-      return getEntityContainer().getContainer().getEntityOfPattern(pattern.substring(up.length()));
+      return getEntityContainer().get().getContainer()
+          .getEntityOfPattern(pattern.substring(up.length()));
     }
-    int pos = pattern.indexOf('#');
-    if (pos > 0) {
-      pattern = pattern.substring(pos + 2);
-    }
+    int pos = pattern.indexOf("#/");
     Entity entity = this;
-    if (pos != -1) {
-      while (entity.getEntityContainer() != null) {
-        entity = entity.getEntityContainer().getContainer();
-      }
+    if (pos >= 0) {
+      pattern = pattern.substring(pos + 2);
+      entity = getContainer().getModelRootEntity();
     }
     String[] parts = pattern.split("/");
     for (int i = 0; i < parts.length; i += 2) {
@@ -109,12 +106,12 @@ public class Entity extends Item<MetaModel> {
     return entity;
   }
 
-  public boolean validate(Validator validator) {
-    super.validate(validator);
+  @Override
+  public void doValidate(Validator validator) throws IOException {
+    super.doValidate(validator);
     if (!isAbstractEntity()) {
       validator.assertNotNull("entityContainer", getEntityContainer());
     }
-    return !validator.containsErrors();
   }
 
   public String getFullname() {

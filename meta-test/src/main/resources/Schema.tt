@@ -29,8 +29,8 @@ entities:
 	entityContainer:	#/entities/Table/members/fields
 	idAttribute:	members/name
 	referencedFrom:
-	-	.*/entities/ForeignKey/members/fields
-	-	.*/entities/PrimaryKey/members/fields
+	-	#/entities/ForeignKey/members/fields
+	-	#/entities/PrimaryKey/members/fields
 -	Entity>
 	name:	Key
 	members:
@@ -75,7 +75,7 @@ entities:
 		opposite:	#/entities/Field/members/inForeignKeys
 	entityContainer:	#/entities/Table/members/keys
 	referencedFrom:
-	-	.*/entities/Field/members/inForeignKeys
+	-	#/entities/Field/members/inForeignKeys
 	superEntity:	#/entities/Key
 -	Entity>
 	name:	PrimaryKey
@@ -90,7 +90,7 @@ entities:
 		opposite:	#/entities/Field/members/inPrimaryKeys
 	entityContainer:	#/entities/Table/members/primaryKey
 	referencedFrom:
-	-	.*/entities/Field/members/inPrimaryKeys
+	-	#/entities/Field/members/inPrimaryKeys
 	superEntity:	#/entities/Key
 -	Entity>
 	name:	Schema

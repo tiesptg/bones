@@ -103,7 +103,7 @@ public abstract class Node<N extends Node<?>> {
     return validator.containsErrors();
   }
 
-  protected void doValidate(Validator validator) {
+  protected void doValidate(Validator validator) throws IOException {
     // overrideable method to implement custom validations
   }
 

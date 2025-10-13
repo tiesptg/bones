@@ -20,10 +20,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.palisand.bones.persist.CommandScheme.Separator;
 import com.palisand.bones.persist.Database.DbClass;
-import com.palisand.bones.persist.Database.DbClass.DbField;
-import com.palisand.bones.persist.Database.DbClass.DbForeignKeyField;
-import com.palisand.bones.persist.Database.DbClass.DbRole;
-import com.palisand.bones.persist.Database.DbClass.DbSearchMethod;
+import com.palisand.bones.persist.Database.DbField;
+import com.palisand.bones.persist.Database.DbForeignKeyField;
+import com.palisand.bones.persist.Database.DbRole;
+import com.palisand.bones.persist.Database.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Getter;
 

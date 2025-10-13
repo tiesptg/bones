@@ -1,5 +1,6 @@
 package com.palisand.bones.meta;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import com.palisand.bones.tt.Node;
@@ -49,6 +50,16 @@ public class MetaModel extends Node<Node<?>> {
   public void addEnumType(EnumType type) {
     enumTypes.add(type);
     type.setContainer(this, "types");
+  }
+
+  @TextIgnore
+  public Entity getModelRootEntity() throws IOException {
+    for (Entity entity : entities) {
+      if (!entity.getEntityContainer().isPresent() && !entity.isAbstractEntity()) {
+        return entity;
+      }
+    }
+    return null;
   }
 
   @Override

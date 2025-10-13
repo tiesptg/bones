@@ -248,8 +248,25 @@ public class ObjectConverter implements Converter<Object> {
         properties.add(index++, property);
       }
     }
-    properties.sort((p1, p2) -> p1.getName().compareTo(p2.getName()));
+    properties.sort((p1, p2) -> {
+      int rt =
+          compareClasses(p1.getGetter().getDeclaringClass(), p2.getGetter().getDeclaringClass());
+      if (rt == 0) {
+        rt = p1.getName().compareTo(p2.getName());
+      }
+      return rt;
+    });
   }
+
+  private int compareClasses(Class<?> c1, Class<?> c2) {
+    if (c1 == c2)
+      return 0;
+    if (c1.isAssignableFrom(c2))
+      return -1;
+    return 1; // c2.isAssignableFrom(c1);
+  }
+
+
 
   @SuppressWarnings("unchecked")
   private void linkFromTypedText(Parser parser, Object result, Property property, Object value)
