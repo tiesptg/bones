@@ -23,11 +23,11 @@ import java.util.TreeMap;
  */
 public abstract class ApplicationContext {
   private final ApplicationContext parent;
-  private HashMap<Class<?>, Injectable> readyTyped = new HashMap<>();
-  private ArrayList<Injectable> allTyped = new ArrayList<>();
+  private HashMap<Class<?>, Object> readyTyped = new HashMap<>();
+  private ArrayList<Object> allTyped = new ArrayList<>();
 
-  private TreeMap<String, Injectable> readyNamed = new TreeMap<>();
-  private TreeMap<String, Injectable> allNamed = new TreeMap<>();
+  private TreeMap<String, Object> readyNamed = new TreeMap<>();
+  private TreeMap<String, Object> allNamed = new TreeMap<>();
 
   public ApplicationContext() {
     parent = null;
@@ -76,7 +76,7 @@ public abstract class ApplicationContext {
    * @see ApplicationContext#register(Injectable...)
    */
   @SuppressWarnings("unchecked")
-  public synchronized <A extends Injectable> A get(Class<A> type) {
+  public synchronized <A> A get(Class<A> type) {
     A result = (A) readyTyped.get(type);
     if (result != null) {
       return result;
@@ -85,7 +85,9 @@ public abstract class ApplicationContext {
       result = (A) allTyped.get(i);
       if (type.isAssignableFrom(result.getClass())) {
         readyTyped.put(type, result);
-        result.injectFrom(this);
+        if (result instanceof Injectable injectable) {
+          injectable.injectFrom(this);
+        }
         return result;
       }
     }
@@ -106,7 +108,7 @@ public abstract class ApplicationContext {
    * @see ApplicationContext#register(String, Injectable)
    */
   @SuppressWarnings("unchecked")
-  public synchronized <A extends Injectable> A get(String name) {
+  public synchronized <A> A get(String name) {
     A result = (A) readyNamed.get(name);
     if (result != null) {
       return result;
@@ -114,7 +116,9 @@ public abstract class ApplicationContext {
     result = (A) allNamed.get(name);
     if (result != null) {
       readyNamed.put(name, result);
-      result.injectFrom(this);
+      if (result instanceof Injectable injectable) {
+        injectable.injectFrom(this);
+      }
     } else {
       throw new IllegalArgumentException(
           "no instance with name '" + name + "' added to the context");
