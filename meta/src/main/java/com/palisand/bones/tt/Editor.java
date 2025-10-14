@@ -5,6 +5,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
+import com.palisand.bones.meta.ui.CustomEditor;
 
 @Retention(RUNTIME)
 @Target(METHOD)

@@ -26,7 +26,13 @@ public class Classes {
   public static Class<?> getGenericType(Type type, int position) {
     try {
       ParameterizedType pType = (ParameterizedType) type;
-      return (Class<?>) pType.getActualTypeArguments()[position];
+      Type typeResult = pType.getActualTypeArguments()[position];
+      if (typeResult instanceof Class cls) {
+        return cls;
+      }
+      if (typeResult instanceof ParameterizedType rType) {
+        return (Class<?>) rType.getRawType();
+      }
     } catch (Exception ex) {
       // ignore
     }
@@ -75,7 +81,7 @@ public class Classes {
             if (condition.apply(cls)) {
               result.add(cls);
             }
-          } catch (ClassNotFoundException | NoClassDefFoundError e2) {
+          } catch (Throwable e2) {
             // ignore
           }
         }

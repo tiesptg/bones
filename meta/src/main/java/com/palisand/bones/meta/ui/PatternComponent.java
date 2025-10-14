@@ -7,32 +7,30 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.function.Consumer;
-
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-
 import com.palisand.bones.meta.ReferenceRole;
-import com.palisand.bones.tt.CustomEditor;
 import com.palisand.bones.tt.Node;
 
 public class PatternComponent extends JTextField implements CustomEditor {
 
   private static final long serialVersionUID = 2888545899054208488L;
   private ReferenceRole role;
-  
+  private Consumer<Object> changeHandler;
+
   public void setNode(Node<?> node) {
-    role = (ReferenceRole)node;
+    role = (ReferenceRole) node;
   }
-  
+
   public PatternComponent() {
     addFocusListener(new FocusAdapter() {
       @Override
       public void focusGained(FocusEvent e) {
         selectAll();
       }
-      
+
     });
     addMouseListener(new MouseAdapter() {
 
@@ -51,17 +49,18 @@ public class PatternComponent extends JTextField implements CustomEditor {
           showPatternEditor();
         }
       }
-      
+
     });
   }
-  
+
   private void showPatternEditor() {
-    String pattern = PatternEditor.editPattern(getJFrame(),role.getContainer(),(String)getValue());
+    String pattern =
+        PatternEditor.editPattern(getJFrame(), role.getContainer(), (String) getValue());
     if (pattern != null && !pattern.equals(getValue())) {
       setValue(pattern);
     }
   }
-  
+
   private JFrame getJFrame() {
     return (JFrame) SwingUtilities.getWindowAncestor(this);
   }
@@ -72,6 +71,9 @@ public class PatternComponent extends JTextField implements CustomEditor {
       setText("");
     } else {
       setText(object.toString());
+    }
+    if (changeHandler != null) {
+      changeHandler.accept(getText());
     }
   }
 
@@ -91,13 +93,14 @@ public class PatternComponent extends JTextField implements CustomEditor {
 
   @Override
   public void onValueChanged(Consumer<Object> handler) {
+    changeHandler = handler;
     addKeyListener(new KeyAdapter() {
 
       @Override
       public void keyReleased(KeyEvent e) {
         handler.accept(getValue());
       }
-      
+
     });
   }
 

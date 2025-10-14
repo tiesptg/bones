@@ -9,7 +9,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import com.palisand.bones.persist.Database.DbClass;
-import com.palisand.bones.persist.Database.DbClass.DbField;
+import com.palisand.bones.persist.Database.DbField;
 import com.palisand.bones.persist.Database.RsGetter;
 import com.palisand.bones.persist.Database.StmtSetter;
 

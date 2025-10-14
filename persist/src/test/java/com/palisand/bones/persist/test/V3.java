@@ -1,6 +1,7 @@
 package com.palisand.bones.persist.test;
 
 import com.palisand.bones.persist.Database.Mapped;
+import com.palisand.bones.persist.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -10,7 +11,7 @@ public class V3 {
   @Data
   @EqualsAndHashCode(callSuper = true)
   @ToString(callSuper = true)
-  public static class A extends V1.Table {
+  public static class A extends Table {
     private String name;
   }
 

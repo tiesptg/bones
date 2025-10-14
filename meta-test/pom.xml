@@ -24,6 +24,7 @@
 				<version>${project.version}</version>
 				<executions>
 					<execution>
+					<?m2e ignore ?>
 						<goals>
 							<goal>generate-sources</goal>
 						</goals>
