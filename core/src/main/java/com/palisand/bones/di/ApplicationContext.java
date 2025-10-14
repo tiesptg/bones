@@ -21,7 +21,7 @@ import java.util.TreeMap;
  * @see Injectable
  *
  */
-public abstract class ApplicationContext {
+public class ApplicationContext {
   private final ApplicationContext parent;
   private HashMap<Class<?>, Object> readyTyped = new HashMap<>();
   private ArrayList<Object> allTyped = new ArrayList<>();
@@ -45,7 +45,7 @@ public abstract class ApplicationContext {
    * 
    * @see ApplicationContext#get(Class)
    */
-  protected void register(Injectable... components) {
+  protected void register(Object... components) {
     allTyped.addAll(Arrays.asList(components));
   }
 
@@ -58,10 +58,9 @@ public abstract class ApplicationContext {
    * 
    * @see ApplicationContext#get(String)
    */
-  protected void register(String name, Injectable component) {
+  protected void register(String name, Object component) {
     if (allNamed.put(name, component) != null) {
-      throw new IllegalArgumentException(
-          "Injectable with name '" + name + "' is already registered");
+      throw new IllegalArgumentException("Object with name '" + name + "' is already registered");
     }
   }
 
