@@ -25,6 +25,13 @@ public class Item<N extends Node<?>> extends Node<N> {
   private String name = null;
   private String description = null;
 
+  public String getName(String prefix) {
+    StringBuilder sb = new StringBuilder(prefix);
+    sb.append(Character.toUpperCase(getName().charAt(0)));
+    sb.append(getName().substring(1));
+    return sb.toString();
+  }
+
   @TextIgnore
   @Override
   public String getId() {

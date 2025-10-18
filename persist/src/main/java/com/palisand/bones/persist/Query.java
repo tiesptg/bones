@@ -26,6 +26,7 @@ import com.palisand.bones.persist.Database.DbRole;
 import com.palisand.bones.persist.Database.DbSearchMethod;
 import com.palisand.bones.persist.Database.StmtSetter;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * This class represent one database query
@@ -105,6 +106,7 @@ public class Query<X> implements Closeable {
   @Getter
   private boolean lastPage = false;
   @Getter
+  @Setter
   private int page = 1;
   @Getter
   private int rowsPerPage = 20;

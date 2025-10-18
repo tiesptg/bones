@@ -181,8 +181,12 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
-        nl("private %s %s = %s;", attribute.getJavaType(), attribute.getName(),
-            attribute.getJavaDefaultValue());
+        if (attribute.getJavaDefaultValue().contains("(")) {
+          nl("private %s %s;", attribute.getJavaType(), attribute.getName());
+        } else {
+          nl("private %s %s = %s;", attribute.getJavaType(), attribute.getName(),
+              attribute.getJavaDefaultValue());
+        }
       } else if (member instanceof ReferenceRole role) {
         if (role.isMultiple()) {
           nl("private final LinkList<%s%s,%s> %s = new LinkList<>((%s%s)this,\"%s\",obj -> obj.get%s());",
@@ -205,6 +209,24 @@ public class EntityGenJava extends JavaGenerator<Entity> {
 
       }
     }
+    for (Member member : entity.getMembers()) {
+      if (member instanceof Attribute attribute) {
+        if (attribute.getJavaDefaultValue().contains("(")) {
+          nl();
+          nl("public %s %s() {", attribute.getJavaType(), attribute.getName("get"));
+          incMargin();
+          nl("if (%s == null) {", attribute.getName());
+          incMargin();
+          nl("return %s;", attribute.getJavaDefaultValue());
+          decMargin();
+          nl("}");
+          nl("return %s;", attribute.getName());
+          decMargin();
+          nl("}");
+        }
+      }
+    }
+
     if (!entity.getSuperEntity().isPresent()) {
       nl();
       nl("@Override");

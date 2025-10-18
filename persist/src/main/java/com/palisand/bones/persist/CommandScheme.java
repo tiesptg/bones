@@ -1,5 +1,6 @@
 package com.palisand.bones.persist;
 
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Blob;
@@ -12,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -841,6 +843,15 @@ public class CommandScheme {
     return value.toString();
   }
 
+  private int toSqlType(JDBCType type) throws SQLException {
+    try {
+      Field field = Types.class.getField(type.name());
+      return (Integer) field.get(null);
+    } catch (Exception ex) {
+      throw new SQLException(ex);
+    }
+  }
+
   Object insert(Connection connection, DbClass entity, String label, Object object)
       throws SQLException {
     if (entity.getSuperClass() != null) {
@@ -863,7 +874,7 @@ public class CommandScheme {
         if (value != null) {
           field.stmtSet(stmt, index++, value);
         } else {
-          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, toSqlType(getJDBCType(field.getType())));
         }
         nextValue(sql, value);
       }
@@ -937,7 +948,7 @@ public class CommandScheme {
         if (value != null) {
           field.stmtSet(stmt, index++, value);
         } else {
-          stmt.setNull(index++, getJDBCType(field.getType()).ordinal());
+          stmt.setNull(index++, toSqlType(getJDBCType(field.getType())));
         }
         nextValue(sql, value);
       }

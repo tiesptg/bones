@@ -16,6 +16,7 @@ public abstract class CodeGenerator<X> {
   private String margin = "";
   private String marginStep = "  ";
   private LogFacade logger = new LogFacade() {};
+  private boolean skipGeneration = false;
 
   protected void incMargin() {
     margin += marginStep;
@@ -60,7 +61,7 @@ public abstract class CodeGenerator<X> {
       File manualFile = new File(srcDir, file);
       generationAllowed = !manualFile.exists();
     }
-    if (generationAllowed) {
+    if (generationAllowed && !skipGeneration) {
       File result = new File(rootDir, file);
       if (!result.getParentFile().exists() && !result.getParentFile().mkdirs()) {
         throw new IOException("Could not create parent directory of file " + file);
