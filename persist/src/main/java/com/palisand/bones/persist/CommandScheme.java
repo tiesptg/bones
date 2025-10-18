@@ -179,7 +179,6 @@ public class CommandScheme {
   }
 
   Metadata getMetadata(Connection connection) throws SQLException {
-    System.out.println("get metadata");
     DatabaseMetaData dbmd = connection.getMetaData();
     Metadata metadata = new Metadata();
     ResultSet tables = dbmd.getTables(connection.getCatalog(), connection.getSchema(), null,
