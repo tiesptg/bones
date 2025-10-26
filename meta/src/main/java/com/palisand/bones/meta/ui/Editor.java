@@ -191,6 +191,22 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
   }
 
+  private <X> void upInList(List<X> list, X object) {
+    int index = list.indexOf(object);
+    if (index > 0) {
+      list.remove(index);
+      list.add(index - 1, object);
+    }
+  }
+
+  private <X> void downInList(List<X> list, X object) {
+    int index = list.indexOf(object);
+    if (index != -1 && index < list.size() - 1) {
+      list.remove(index);
+      list.add(index + 1, object);
+    }
+  }
+
   private void init(JSplitPane pane) {
     pane.setBorder(BorderFactory.createEmptyBorder());
     pane.setResizeWeight(0.7);
@@ -554,25 +570,26 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
     field.setName(property.getName());
     if (property.isReadonly()) {
-      field.setEnabled(true);
+      field.setEnabled(false);
+    } else {
+      field.putClientProperty(RULE, property.getRules());
+      propertyEditors.add(field);
+      field.addFocusListener(new FocusAdapter() {
+        @Override
+        public void focusGained(FocusEvent e) {
+          field.selectAll();
+        }
+
+      });
+      field.addKeyListener(new KeyAdapter() {
+
+        @Override
+        public void keyReleased(KeyEvent e) {
+          setValue(node, property.getSetter(), field.getText());
+        }
+
+      });
     }
-    field.putClientProperty(RULE, property.getRules());
-    propertyEditors.add(field);
-    field.addFocusListener(new FocusAdapter() {
-      @Override
-      public void focusGained(FocusEvent e) {
-        field.selectAll();
-      }
-
-    });
-    field.addKeyListener(new KeyAdapter() {
-
-      @Override
-      public void keyReleased(KeyEvent e) {
-        setValue(node, property.getSetter(), field.getText());
-      }
-
-    });
     field.addKeyListener(escListener);
   }
 

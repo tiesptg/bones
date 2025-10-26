@@ -36,4 +36,5 @@ public class ContainerRole extends Member {
   public Type getType() {
     return Type.OBJECT;
   }
+
 }
