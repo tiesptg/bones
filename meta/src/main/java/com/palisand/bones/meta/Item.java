@@ -1,6 +1,7 @@
 package com.palisand.bones.meta;
 
 import java.io.IOException;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.RulesMap;
@@ -13,6 +14,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @EqualsAndHashCode(callSuper = true)
+@FieldOrder({"name", "description"})
 public class Item<N extends Node<?>> extends Node<N> {
   private static final RulesMap RULES =
       Rules.map().and("description", StringRules.builder().multiLine(true).build());

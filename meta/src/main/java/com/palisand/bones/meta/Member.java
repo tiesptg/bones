@@ -1,5 +1,6 @@
 package com.palisand.bones.meta;
 
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.Rules.StringRules;
@@ -10,6 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"multiple", "notNull", "enableWhen"})
 public abstract class Member extends Item<Entity> {
   private static final RulesMap RULES =
       Rules.map().and("name", StringRules.builder().notNull(true).pattern("[a-z]\\w+").build());

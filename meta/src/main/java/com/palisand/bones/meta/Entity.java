@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Rules;
@@ -19,6 +20,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"entityContainer", "idAttribute", "abstractEntity", "superEntity", "specialisations",
+    "members", "methods", "referencesFrom"})
 public class Entity extends Item<MetaModel> {
   private static final RulesMap RULES =
       Rules.map().and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())

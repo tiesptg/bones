@@ -3,6 +3,7 @@ package com.palisand.bones.meta;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
@@ -17,6 +18,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @NoArgsConstructor
+@FieldOrder({"name", "description", "packageName", "entities", "enumTypes"})
 public class MetaModel extends Node<Node<?>> {
   private static final RulesMap RULES = Rules.map()
       .and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())

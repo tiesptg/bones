@@ -1,6 +1,7 @@
 package com.palisand.bones.meta;
 
 import java.io.IOException;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Rules;
@@ -18,6 +19,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"type", "enumType", "defaultValue", "multiLine", "pattern", "minValue", "maxValue",
+    "idFor"})
 public class Attribute extends Member {
   private static final RulesMap RULES =
       Rules.map().and("type", EnumRules.builder().notNull(true).notAllowed(Type.OBJECT).build())

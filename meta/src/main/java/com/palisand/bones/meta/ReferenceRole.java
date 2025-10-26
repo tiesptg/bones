@@ -3,6 +3,7 @@ package com.palisand.bones.meta;
 import java.io.IOException;
 import com.palisand.bones.meta.ui.PatternComponent;
 import com.palisand.bones.tt.Editor;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.LinkRules;
@@ -17,6 +18,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"entity", "opposite", "pointerPattern", "external", "notEmpty"})
 public class ReferenceRole extends Member {
 
   private static final RulesMap RULES =

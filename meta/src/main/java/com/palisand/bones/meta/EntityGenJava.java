@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.palisand.bones.meta.generator.JavaGenerator;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
@@ -41,6 +42,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     if (entity.getReferenceRoles().stream().anyMatch(role -> role.isMultiple())) {
       addImport(LinkList.class);
+    }
+    if (!entity.getMembers().isEmpty()) {
+      addImport(FieldOrder.class);
     }
     if (!entity.getSuperEntity().isPresent()) {
       addImport(TextIgnore.class);
@@ -132,6 +136,13 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     nl("@Getter");
     nl("@Setter");
     nl("@NoArgsConstructor");
+    if (!entity.getMembers().isEmpty()) {
+      l("@FieldOrder({");
+      for (Member member : entity.getMembers()) {
+        l('"' + member.getName() + "\",");
+      }
+      nl("})");
+    }
     String gen = "";
     String superEntity = "Node";
     String container = "Node<?>";

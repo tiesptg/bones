@@ -248,14 +248,36 @@ public class ObjectConverter implements Converter<Object> {
         properties.add(index++, property);
       }
     }
+
     properties.sort((p1, p2) -> {
       int rt =
           compareClasses(p1.getGetter().getDeclaringClass(), p2.getGetter().getDeclaringClass());
       if (rt == 0) {
-        rt = p1.getName().compareTo(p2.getName());
+        rt = compareProperties(p1, p2);
       }
       return rt;
     });
+  }
+
+  private int compareProperties(Property p1, Property p2) {
+    FieldOrder fo = p1.getGetter().getDeclaringClass().getAnnotation(FieldOrder.class);
+    if (fo != null) {
+      int i1 = indexOf(fo.value(), p1.getName());
+      int i2 = indexOf(fo.value(), p2.getName());
+      if (i1 < 1000 || i2 < 1000) {
+        return i1 - i2;
+      }
+    }
+    return p1.getName().compareTo(p2.getName());
+  }
+
+  private int indexOf(String[] array, String value) {
+    for (int i = 0; i < array.length; ++i) {
+      if (array[i].equals(value)) {
+        return i;
+      }
+    }
+    return 1000;
   }
 
   private int compareClasses(Class<?> c1, Class<?> c2) {

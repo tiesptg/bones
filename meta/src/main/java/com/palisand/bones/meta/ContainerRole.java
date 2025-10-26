@@ -1,5 +1,6 @@
 package com.palisand.bones.meta;
 
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.BooleanRules;
@@ -13,6 +14,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"entity", "multiple", "notEmpty"})
 public class ContainerRole extends Member {
   private static final RulesMap RULES = Rules.map()
       .and("name", StringRules.builder().notNull(true).pattern("[a-z]\\w+").build())

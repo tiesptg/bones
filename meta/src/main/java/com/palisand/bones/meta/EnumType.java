@@ -2,6 +2,7 @@ package com.palisand.bones.meta;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
@@ -14,6 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@FieldOrder({"values", "typeFor"})
 public class EnumType extends Item<MetaModel> {
   private static final RulesMap RULES =
       Rules.map().and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
