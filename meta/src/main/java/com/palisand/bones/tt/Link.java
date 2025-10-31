@@ -66,7 +66,7 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
 
     @Override
     public void internalUnset(X node) throws IOException {
-      if (link != null && link.get().equals(node)) {
+      if (link != null && link.get() != null && link.get().equals(node)) {
         link = null;
         path = null;
       }

@@ -16,6 +16,7 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
+import com.palisand.bones.tt.ObjectConverter.Property;
 import com.palisand.bones.tt.Repository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -199,6 +200,68 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
     return new TreePath(list.toArray());
   }
 
+  @SuppressWarnings("unchecked")
+  public void up(TreePath path) {
+    try {
+      Object last = path.getLastPathComponent();
+      if (last instanceof Node<?> node) {
+        Node<?> container = node.getContainer();
+        ObjectConverter converter = (ObjectConverter) repository.getConverter(container.getClass());
+        Property containerProperty = converter.getProperty(node.getContainingAttribute());
+        if (containerProperty.isList()) {
+          List<Object> list = (List<Object>) containerProperty.get(container);
+          int index = upInList(list, node);
+          Node<?> down = (Node<?>) list.get(index + 1);
+          TreeModelEvent event = new TreeModelEvent(this, path.getParentPath(),
+              new int[] {getIndexOfChild(container, node), getIndexOfChild(container, down)},
+              new Object[] {node, down});
+          listeners.forEach(l -> l.treeStructureChanged(event));
+        }
+      }
+    } catch (Exception ex) {
+      ex.printStackTrace();
+    }
+  }
 
+  @SuppressWarnings("unchecked")
+  public void down(TreePath path) {
+    try {
+      Object last = path.getLastPathComponent();
+      if (last instanceof Node<?> node) {
+        Node<?> container = node.getContainer();
+        ObjectConverter converter = (ObjectConverter) repository.getConverter(container.getClass());
+        Property containerProperty = converter.getProperty(node.getContainingAttribute());
+        if (containerProperty.isList()) {
+          List<Object> list = (List<Object>) containerProperty.get(container);
+          int index = downInList(list, node);
+          Node<?> up = (Node<?>) list.get(index - 1);
+          TreeModelEvent event = new TreeModelEvent(this, path.getParentPath(),
+              new int[] {getIndexOfChild(container, up), getIndexOfChild(container, node)},
+              new Object[] {up, node});
+          listeners.forEach(l -> l.treeStructureChanged(event));
+        }
+      }
+    } catch (Exception ex) {
+      ex.printStackTrace();
+    }
+  }
+
+  private <X> int upInList(List<X> list, X object) {
+    int index = list.indexOf(object);
+    if (index > 0) {
+      list.remove(index);
+      list.add(--index, object);
+    }
+    return index;
+  }
+
+  private <X> int downInList(List<X> list, X object) {
+    int index = list.indexOf(object);
+    if (index != -1 && index < list.size() - 1) {
+      list.remove(index);
+      list.add(++index, object);
+    }
+    return index;
+  }
 
 }

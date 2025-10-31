@@ -91,7 +91,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
   private static final Logger LOG = Logger.getLogger(Editor.class);
   private JTree tree = new JTree();
   private JPanel properties = new JPanel();
-  @SuppressWarnings("serial")
   private JTable violations = new JTable() {
 
     @Override
@@ -191,22 +190,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
   }
 
-  private <X> void upInList(List<X> list, X object) {
-    int index = list.indexOf(object);
-    if (index > 0) {
-      list.remove(index);
-      list.add(index - 1, object);
-    }
-  }
-
-  private <X> void downInList(List<X> list, X object) {
-    int index = list.indexOf(object);
-    if (index != -1 && index < list.size() - 1) {
-      list.remove(index);
-      list.add(index + 1, object);
-    }
-  }
-
   private void init(JSplitPane pane) {
     pane.setBorder(BorderFactory.createEmptyBorder());
     pane.setResizeWeight(0.7);
@@ -241,6 +224,9 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   private void closeFiles() {
     repositoryModel.clear();
+    clearUI();
+    properties.validate();
+    top.validate();
   }
 
   private void openFile() {
@@ -928,18 +914,44 @@ public class Editor extends JFrame implements TreeSelectionListener {
     return null;
   }
 
-  private void deleteNode() {
+  private String registerAction(String label, char key, ActionListener listener) {
+    String chars = label.toLowerCase();
+    StringBuilder sb = new StringBuilder();
+    if (!keyListeners.containsKey(key)) {
+      int pos = label.indexOf(key);
+      if (pos != -1) {
+        sb.append(label.substring(0, pos));
+        sb.append("<u>");
+        sb.append(label.charAt(pos));
+        sb.append("</u>");
+        sb.append(label.substring(pos + 1));
+        keyListeners.put(key, listener);
+        return sb.toString();
+      }
+      sb.append(label);
+      sb.append(" (");
+      sb.append(key);
+      sb.append(")");
+      keyListeners.put(key, listener);
+      return sb.toString();
+    }
+    return null;
+  }
 
+  private void clearUI() {
+    keyListeners.clear();
+    properties.removeAll();
+    propertyEditors.clear();
+    buttons.removeAll();
   }
 
   @SuppressWarnings("unchecked")
   private <C extends Node<?>, X extends Node<?>> void select(C node) {
     selectedNode = node;
-    keyListeners.clear();
-    properties.removeAll();
-    propertyEditors.clear();
-    buttons.removeAll();
-    ActionListener deleteAction = e -> deleteNode();
+    clearUI();
+    ActionListener deleteAction = e -> deleteSelected();
+    String upLabel = registerAction("Up", e -> goUp());
+    String downLabel = registerAction("Down", e -> goDown());
     String deleteLabel = registerAction("Delete", deleteAction);
     ObjectConverter converter =
         (ObjectConverter) repositoryModel.getRepository().getConverter(node.getClass());
@@ -998,12 +1010,34 @@ public class Editor extends JFrame implements TreeSelectionListener {
     } catch (Exception ex) {
       handleException(ex);
     }
+    if (node.getContainer() != null) {
+      JButton up = new JButton("<html>" + upLabel);
+      up.addKeyListener(escListener);
+      up.addActionListener(e -> goUp());
+      buttons.add(up);
+      JButton down = new JButton("<html>" + downLabel);
+      down.addKeyListener(escListener);
+      down.addActionListener(e -> goDown());
+      buttons.add(down);
+    }
     JButton remove = new JButton("<html>" + deleteLabel);
     remove.addKeyListener(escListener);
-    remove.addActionListener((e) -> deleteSelected());
+    remove.addActionListener(deleteAction);
     buttons.add(remove);
     properties.validate();
     top.validate();
+  }
+
+  private void goUp() {
+    TreePath path = tree.getSelectionPath();
+    repositoryModel.up(path);
+    tree.setSelectionPath(path);
+  }
+
+  private void goDown() {
+    TreePath path = tree.getSelectionPath();
+    repositoryModel.down(path);
+    tree.setSelectionPath(path);
   }
 
   private void deleteSelected() {
