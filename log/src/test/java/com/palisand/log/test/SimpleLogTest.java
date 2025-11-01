@@ -48,4 +48,12 @@ class SimpleLogTest {
     assertEquals(5, count);
   }
 
+  @Test
+  void testConfig() {
+    System.setProperty("bones.log.file", "src/main/resources");
+    Logger.initialiseLoggingSystem();
+    Logger log = Logger.getLogger("x");
+    log.log("test").warn();
+  }
+
 }

@@ -207,7 +207,7 @@ public class Logger {
     initialiseLoggingSystem();
   }
 
-  private static void initialiseLoggingSystem() {
+  public static void initialiseLoggingSystem() {
     @SuppressWarnings("unused")
     boolean initialised = LogConfig.initialiseFromEnvironment() || LogConfig.initFromDefaultFile()
         || LogConfig.initDefault();

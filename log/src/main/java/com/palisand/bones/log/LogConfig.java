@@ -38,12 +38,19 @@ public class LogConfig {
   }
 
   static boolean initialiseFromEnvironment() {
+    String path = System.getProperty("bones.log.file");
+    if (path != null) {
+      return initFromFile(path);
+    }
     return false;
   }
 
   static boolean initFromDefaultFile() {
-    String defaultFile = "log.properties";
-    File file = new File(defaultFile);
+    return initFromFile("log.properties");
+  }
+
+  static boolean initFromFile(String path) {
+    File file = new File(path);
     if (file.exists() && file.canRead()) {
       try (Reader reader = new FileReader(file)) {
         Properties properties = new Properties();
@@ -55,7 +62,7 @@ public class LogConfig {
             .with(ex).warn();
       }
     }
-    try (InputStream in = Logger.class.getResourceAsStream(defaultFile)) {
+    try (InputStream in = Logger.class.getResourceAsStream(path)) {
       if (in != null) {
         Properties properties = new Properties();
         properties.load(in);
