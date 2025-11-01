@@ -3,7 +3,6 @@ package com.palisand.bones.log;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.SortedMap;
@@ -16,15 +15,12 @@ import lombok.Setter;
 public class Logger {
   private static final TreeMap<String, Logger> LOGGERS = new TreeMap<>();
 
-  private static final Logger LOG = Logger.getLogger(Logger.class);
   private final static Logger ROOT = new Logger("");
-  @Getter
-  private final String name;
-  @Getter
-  private Logger parent;
+  private static final Logger LOG = Logger.getLogger(Logger.class);
+  @Getter private final String name;
+  @Getter private Logger parent = ROOT;
   @Setter
-  @Getter
-  private Level level = null;
+  @Getter private Level level = null;
   private Message message = null;
   private List<Appender> appenders = null;
 
@@ -49,11 +45,11 @@ public class Logger {
     }
 
     public String getDate() {
-      return LocalDate.from(timestamp).toString();
+      return timestamp.toString().substring(0, 10);
     }
 
     public String getTime() {
-      return timestamp.toString().substring(15, 28);
+      return timestamp.toString().substring(11, 23);
     }
 
     public String getMessageString() {
@@ -168,7 +164,6 @@ public class Logger {
     }
   }
 
-
   private void sendToAppenders(Message msg) {
     if (appenders != null) {
       appenders.forEach(appender -> appender.log(msg));
@@ -193,7 +188,14 @@ public class Logger {
   private Logger(String name) {
     this.name = name;
     SortedMap<String, Logger> submap = LOGGERS.tailMap(name);
-    parent = submap.isEmpty() ? ROOT : submap.values().iterator().next();
+    if (!name.isEmpty()) {
+      if (!submap.isEmpty()) {
+        Logger first = submap.values().iterator().next();
+        if (first.getName().startsWith(name)) {
+          parent = first.parent;
+        }
+      }
+    }
     for (Entry<String, Logger> e : submap.entrySet()) {
       if (e.getKey().startsWith(name)) {
         e.getValue().parent = this;

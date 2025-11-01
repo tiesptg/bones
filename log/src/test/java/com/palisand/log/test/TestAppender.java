@@ -13,6 +13,7 @@ public class TestAppender extends SystemOutAppender {
 
   @SafeVarargs
   public TestAppender(Consumer<Message>... checks) {
+    setFormat("${date} ${time} ${level} [${location}] ${message}");
     this.checks = new ArrayDeque<>(Arrays.asList(checks));
   }
 

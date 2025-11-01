@@ -12,6 +12,7 @@ class SimpleLogTest {
   void testSimpleMessage() {
     Logger log = Logger.getLogger(SimpleLogTest.class);
     LogConfig config = new LogConfig();
+    config.setLevel(Level.ALL);
     String m = "First Message";
     config.getAppenders().add(new TestAppender(msg -> {
       assertEquals(m, msg.getMessage());
@@ -26,26 +27,26 @@ class SimpleLogTest {
   @Test
   void testLoggerHierarchy() {
     LogConfig config = new LogConfig();
-    for (int i = 0; i < 6; ++i) {
-      config.getAppenders().add(new TestAppender(msg -> count++));
-    }
+    config.setLevel(Level.ALL);
+    config.getAppenders().add(new TestAppender(msg -> count++, msg -> count++, msg -> count++,
+        msg -> count++, msg -> count++, msg -> count++));
     Logger.initialise(config);
-    Logger a = Logger.getLogger("a");
-    a.setLevel(Level.WARN);
     Logger b = Logger.getLogger("a.b");
     b.setLevel(Level.INFO);
     Logger c = Logger.getLogger("a.c");
+    Logger a = Logger.getLogger("a");
+    a.setLevel(Level.WARN);
     String m = "hello";
     a.log(m).info();
     assertEquals(0, count);
     b.log(m).info();
     c.log(m).info();
-    assertEquals(2, count);
+    assertEquals(1, count);
     a.setLevel(Level.DEBUG);
     a.log(m).info();
     b.log(m).info();
     c.log(m).info();
-    assertEquals(5, count);
+    assertEquals(4, count);
   }
 
   @Test

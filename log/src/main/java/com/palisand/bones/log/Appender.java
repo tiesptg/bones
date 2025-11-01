@@ -1,11 +1,11 @@
 package com.palisand.bones.log;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import com.palisand.bones.log.Logger.Message;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,7 +16,7 @@ public abstract class Appender {
   private static final Logger LOG = Logger.getLogger(Appender.class);
   private Level level = null;
   private String format;
-  private Stream<Function<Message, String>> fields;
+  private List<Function<Message, String>> fields;
 
   public void setFormat(String pattern) {
     StringBuilder result = new StringBuilder(pattern);
@@ -42,11 +42,11 @@ public abstract class Appender {
       offset += m.end() - m.start() - replacement.length();
     }
     format = result.toString();
-    fields = list.stream();
+    fields = list;
   }
 
   protected String formatMessage(Message msg) {
-    return String.format(format, fields.map(f -> f.apply(msg)).toArray());
+    return String.format(format, fields.stream().map(f -> f.apply(msg)).toArray());
   }
 
   public boolean isEnabled(Level level) {
