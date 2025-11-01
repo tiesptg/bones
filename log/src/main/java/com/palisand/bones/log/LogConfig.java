@@ -22,10 +22,12 @@ public class LogConfig {
 
   void init(Properties properties) {
     String handlers = properties.getProperty("appenders");
+    properties.remove("appenders");
     if (handlers != null) {
       String[] names = handlers.split(",");
       for (String name : names) {
         try {
+          name = name.trim();
           Appender appender = (Appender) Class.forName(name).getConstructor().newInstance();
           Properties appenderProps = getPropertiesWithPrefix(properties, name + '.');
           appender.init(appenderProps);
@@ -33,6 +35,28 @@ public class LogConfig {
         } catch (Exception ex) {
           LOG.log("Could not initialise Appender").with("name", name).with(ex).warn();
         }
+      }
+    }
+    String level = properties.getProperty("level");
+    if (level != null) {
+      properties.remove("level");
+      try {
+        this.level = Level.valueOf(level);
+      } catch (Exception ex) {
+        LOG.log("unknown level specification").with("level", level).warn();
+      }
+    }
+    while (!properties.isEmpty()) {
+      String key = (String) properties.propertyNames().nextElement();
+      try {
+        String name = key.substring(0, key.lastIndexOf('.'));
+        LogConfig config = new LogConfig();
+        config.setName(name);
+        Properties subProperties = getPropertiesWithPrefix(properties, name + '.');
+        config.init(subProperties);
+        subProperties.keySet().forEach(prop -> properties.remove(prop));
+      } catch (Exception ex) {
+        LOG.log("illegal logger property").with("property", key).with(ex).warn();
       }
     }
   }
@@ -80,13 +104,14 @@ public class LogConfig {
     LogConfig config = new LogConfig();
     Properties logProps = getPropertiesWithPrefix(properties, "bones.log.");
     config.init(logProps);
+    Logger.initialise(config);
   }
 
   static Properties getPropertiesWithPrefix(Properties properties, String prefix) {
     Properties result = new Properties();
     for (String key : properties.stringPropertyNames()) {
       if (key.startsWith(prefix)) {
-        result.put(key.substring(key.length()), properties.getProperty(key));
+        result.put(key.substring(prefix.length()), properties.getProperty(key));
       }
     }
     return result;

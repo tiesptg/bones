@@ -51,7 +51,7 @@ class SimpleLogTest {
 
   @Test
   void testConfig() {
-    System.setProperty("bones.log.file", "src/main/resources");
+    System.setProperty("bones.log.file", "src/test/resources/testlog.properties");
     Logger.initialiseLoggingSystem();
     Logger log = Logger.getLogger("x");
     log.log("test").warn();
