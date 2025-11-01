@@ -32,6 +32,7 @@ public class LogConfig {
           Properties appenderProps = getPropertiesWithPrefix(properties, name + '.');
           appender.init(appenderProps);
           getAppenders().add(appender);
+          appenderProps.keySet().forEach(prop -> properties.remove(prop));
         } catch (Exception ex) {
           LOG.log("Could not initialise Appender").with("name", name).with(ex).warn();
         }
