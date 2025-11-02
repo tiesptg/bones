@@ -97,15 +97,19 @@ public class Logger {
 
   private Logger(String name) {
     this.name = name;
-    SortedMap<String, Logger> submap = LOGGERS.tailMap(name);
-    if (!name.isEmpty()) {
-      if (!submap.isEmpty()) {
-        Logger first = submap.values().iterator().next();
-        if (first.getName().startsWith(name)) {
-          parent = first.parent;
-        }
+    int pos = name.lastIndexOf(".");
+    String parentName = name;
+    parent = ROOT;
+    while (pos != -1) {
+      parentName = parentName.substring(0, pos);
+      Logger candidate = LOGGERS.get(parentName);
+      if (candidate != null) {
+        parent = candidate;
+        break;
       }
+      pos = parentName.lastIndexOf(".");
     }
+    SortedMap<String, Logger> submap = LOGGERS.tailMap(name);
     for (Entry<String, Logger> e : submap.entrySet()) {
       if (e.getKey().startsWith(name)) {
         e.getValue().parent = this;
@@ -190,7 +194,7 @@ public class Logger {
     return initFromFile("log.properties");
   }
 
-  static boolean initFromFile(String path) {
+  public static boolean initFromFile(String path) {
     File file = new File(path);
     if (file.exists() && file.canRead()) {
       try (Reader reader = new FileReader(file)) {

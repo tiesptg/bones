@@ -32,7 +32,8 @@ public class Message {
     int i = 1;
     while (i < stack.length - 1
         && (stack[i].getClassName().startsWith(Message.class.getPackageName())
-            || stack[i].getClassName().startsWith("org.slf4j."))) {
+            || stack[i].getClassName().toLowerCase().contains("slf4j")
+            || stack[i].getClassName().toLowerCase().contains("logging"))) {
       ++i;
     }
     location = stack[i].toString();
