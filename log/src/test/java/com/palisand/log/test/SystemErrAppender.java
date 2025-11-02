@@ -6,5 +6,6 @@ public class SystemErrAppender extends PrintStreamAppender {
 
   public SystemErrAppender() {
     super(System.err);
+    setFormat("${time} ${location}: ${message}");
   }
 }

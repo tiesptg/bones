@@ -6,7 +6,6 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.palisand.bones.log.Logger.Message;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -58,6 +57,7 @@ public abstract class Appender {
   void init(Properties properties) {
     String strLevel = properties.getProperty("level");
     if (strLevel != null) {
+      strLevel = strLevel.trim();
       try {
         level = Level.valueOf(strLevel);
       } catch (Exception ex) {

@@ -1,14 +1,16 @@
 package com.palisand.bones.log;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.time.Instant;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,134 +19,42 @@ public class Logger {
 
   private final static Logger ROOT = new Logger("");
   private static final Logger LOG = Logger.getLogger(Logger.class);
-  @Getter private final String name;
-  @Getter private Logger parent = ROOT;
-  @Setter
-  @Getter private Level level = null;
-  private Message message = null;
-  private List<Appender> appenders = null;
-
   @Getter
-  public class Message {
-    private final Supplier<String> message;
-    private final String location;
-    private final Instant timestamp;
-    private Throwable throwable;
-    private Level level;
-    private TreeMap<String, Object> fields;
-
-    Message(String msg) {
-      this(() -> msg);
-    }
-
-    Message(Supplier<String> msgSupplier) {
-      message = msgSupplier;
-      StackTraceElement stack = Thread.currentThread().getStackTrace()[1];
-      location = stack.getClassName() + ":" + stack.getLineNumber();
-      timestamp = Instant.now();
-    }
-
-    public String getDate() {
-      return timestamp.toString().substring(0, 10);
-    }
-
-    public String getTime() {
-      return timestamp.toString().substring(11, 23);
-    }
-
-    public String getMessageString() {
-      StringWriter sb = new StringWriter();
-      if (message != null) {
-        sb.append(message.get());
-      }
-      if (fields != null) {
-        sb.append(fields.entrySet().stream().map(e -> e.getKey() + ": " + e.getValue())
-            .collect(Collectors.joining(" ")));
-      }
-      if (throwable != null) {
-        try (PrintWriter out = new PrintWriter(sb)) {
-          throwable.printStackTrace(out);
-        }
-      }
-      return sb.toString();
-    }
-
-    public Message with(String name, Object value) {
-      if (fields == null) {
-        fields = new TreeMap<>();
-      }
-      fields.put(name, value);
-      return this;
-    }
-
-    public Message with(Throwable throwable) {
-      this.throwable = throwable;
-      return this;
-    }
-
-    public String getMessage() {
-      return message.get();
-    }
-
-    public void fatal() {
-      log(Level.FATAL);
-    }
-
-    public void error() {
-      log(Level.ERROR);
-    }
-
-    public void warn() {
-      log(Level.WARN);
-    }
-
-    public void info() {
-      log(Level.INFO);
-    }
-
-    public void debug() {
-      log(Level.DEBUG);
-    }
-
-    public void trace() {
-      log(Level.TRACE);
-    }
-
-    private void log(Level level) {
-      this.level = level;
-      Logger.this.message = null;
-      append(this);
-    }
-
-  }
+  private final String name;
+  @Getter
+  private Logger parent = ROOT;
+  @Setter
+  @Getter
+  private Level level = null;
+  Message message = null;
+  private List<Appender> appenders = null;
 
   public static Logger getLogger(Class<?> cls) {
     return getLogger(cls.getName());
   }
 
-  public synchronized static Logger getLogger(String name) {
-    Logger result = LOGGERS.get(name);
-    if (result == null) {
-      result = new Logger(name);
-      LOGGERS.put(name, result);
+  public static Logger getLogger(String name) {
+    synchronized (LOGGERS) {
+      Logger result = LOGGERS.get(name);
+      if (result == null) {
+        result = new Logger(name);
+        LOGGERS.put(name, result);
+      }
+      return result;
     }
-    return result;
   }
 
-  private void copyFrom(LogConfig config) {
-    appenders = config.getAppenders();
-    level = config.getLevel();
-    config.getLoggers().forEach(logConfig -> {
-      final Logger logger = Logger.getLogger(logConfig.getName());
-      logger.copyFrom(logConfig);
-    });
+  public void clear() {
+    appenders = null;
+    level = null;
+    if (this == ROOT) {
+      synchronized (LOGGERS) {
+        LOGGERS.values().forEach(logger -> logger.clear());
+      }
+    }
   }
 
-  public static void initialise(LogConfig config) {
-    ROOT.copyFrom(config);
-  }
-
-  private boolean isEnabled(Level level) {
+  public boolean isEnabled(Level level) {
     return getActiveLevel().ordinal() >= level.ordinal();
   }
 
@@ -158,7 +68,7 @@ public class Logger {
     return level;
   }
 
-  private void append(Message msg) {
+  void append(Message msg) {
     if (isEnabled(msg.getLevel())) {
       sendToAppenders(msg);
     }
@@ -177,7 +87,7 @@ public class Logger {
     if (message != null) {
       throw new IllegalStateException("log statement not logged at " + message.getLocation());
     }
-    message = new Message(msg);
+    message = new Message(this, msg);
     return message;
   }
 
@@ -205,15 +115,131 @@ public class Logger {
     }
   }
 
+  public List<Appender> getAppenders() {
+    if (appenders == null) {
+      appenders = new ArrayList<>();
+    }
+    return appenders;
+  }
+
+  void init(Properties properties) {
+    String handlers = properties.getProperty("appenders");
+    properties.remove("appenders");
+    if (handlers != null) {
+      String[] names = handlers.split(",");
+      for (String name : names) {
+        try {
+          String cname = name.trim();
+          Appender appender = (Appender) Class.forName(cname).getConstructor().newInstance();
+          Properties appenderProps = getPropertiesWithPrefix(properties, cname + '.');
+          appenderProps.keySet().forEach(prop -> properties.remove(cname + "." + prop));
+          appender.init(appenderProps);
+          getAppenders().add(appender);
+        } catch (Exception ex) {
+          LOG.log("Could not initialise Appender").with("name", name).with(ex).warn();
+        }
+      }
+    }
+    String level = properties.getProperty("level");
+    if (level != null) {
+      level = level.trim();
+      properties.remove("level");
+      try {
+        this.level = Level.valueOf(level);
+      } catch (Exception ex) {
+        LOG.log("unknown level specification").with("level", level).warn();
+      }
+    }
+    while (this == ROOT && !properties.isEmpty()) {
+      String key = (String) properties.propertyNames().nextElement();
+      try {
+        String name = key.substring(0, key.lastIndexOf('.'));
+        Logger config = Logger.getLogger(name);
+        Properties subProperties = getPropertiesWithPrefix(properties, name + '.');
+        subProperties.keySet().forEach(prop -> properties.remove(name + "." + prop));
+        config.init(subProperties);
+      } catch (Exception ex) {
+        LOG.log("illegal logger property").with("property", key).with(ex).warn();
+      }
+    }
+  }
+
+
+
   static {
     initialiseLoggingSystem();
   }
 
   public static void initialiseLoggingSystem() {
-    @SuppressWarnings("unused")
-    boolean initialised = LogConfig.initialiseFromEnvironment() || LogConfig.initFromDefaultFile()
-        || LogConfig.initDefault();
-
+    if (initialiseFromEnvironment())
+      return;
+    if (initFromDefaultFile())
+      return;
+    initDefault();
   }
+
+  static boolean initialiseFromEnvironment() {
+    String path = System.getProperty("bones.log.file");
+    if (path != null) {
+      return initFromFile(path);
+    }
+    return false;
+  }
+
+  static boolean initFromDefaultFile() {
+    return initFromFile("log.properties");
+  }
+
+  static boolean initFromFile(String path) {
+    File file = new File(path);
+    if (file.exists() && file.canRead()) {
+      try (Reader reader = new FileReader(file)) {
+        Properties properties = new Properties();
+        properties.load(reader);
+        initFromProperties(properties);
+        return true;
+      } catch (IOException ex) {
+        LOG.log("Error while reading logging config").with("file-name", file.getAbsolutePath())
+            .with(ex).warn();
+      }
+    }
+    try (InputStream in = Logger.class.getResourceAsStream(path)) {
+      if (in != null) {
+        Properties properties = new Properties();
+        properties.load(in);
+        initFromProperties(properties);
+        return true;
+      }
+    } catch (IOException ex) {
+      LOG.log("Error while reading logging config from classpath")
+          .with("file-name", file.getAbsolutePath()).with(ex).warn();
+    }
+    return false;
+  }
+
+  static void initFromProperties(Properties properties) {
+    Properties logProps = getPropertiesWithPrefix(properties, "bones.log.");
+    ROOT.init(logProps);
+  }
+
+  static Properties getPropertiesWithPrefix(Properties properties, String prefix) {
+    Properties result = new Properties();
+    for (String key : properties.stringPropertyNames()) {
+      if (key.startsWith(prefix)) {
+        result.put(key.substring(prefix.length()), properties.getProperty(key));
+      }
+    }
+    return result;
+  }
+
+  static boolean initDefault() {
+    Appender appender = new SystemOutAppender();
+    appender.setFormat("${date} ${time} ${level} [${location}] ${message}");
+    ROOT.getAppenders().add(appender);
+    ROOT.setLevel(Level.ALL);
+    return true;
+  }
+
+
 
 }

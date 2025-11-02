@@ -5,7 +5,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Queue;
 import java.util.function.Consumer;
-import com.palisand.bones.log.Logger.Message;
+import com.palisand.bones.log.Message;
 import com.palisand.bones.log.SystemOutAppender;
 
 public class TestAppender extends SystemOutAppender {
