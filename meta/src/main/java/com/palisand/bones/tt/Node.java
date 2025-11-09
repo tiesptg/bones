@@ -3,6 +3,7 @@ package com.palisand.bones.tt;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.palisand.bones.tt.ObjectConverter.Property;
@@ -77,9 +78,9 @@ public abstract class Node<N extends Node<?>> {
     try {
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
       for (Property property : converter.getProperties()) {
-        Rules constr = (Rules) getConstraint(property.getName());
+        Rules constr = getConstraint(property.getName());
         Object value = property.getValue(this);
-        if (constr != null && constr.isEnabled((N) this)) {
+        if (constr != null && constr.isEnabled(this)) {
           constr.doValidate(validator, property.getName(), value);
         }
         if (value != null && Node.class.isAssignableFrom(property.getComponentType())
@@ -127,7 +128,18 @@ public abstract class Node<N extends Node<?>> {
 
   @Override
   public String toString() {
-    return getClass().getSimpleName() + ":" + getId();
+    List<String> list = new ArrayList<>();
+    Node<?> node = this;
+    while (node != node.getRootContainer()) {
+      list.add(node.getId());
+      node = node.getContainer();
+    }
+    if (list.isEmpty()) {
+      list.add(getId());
+    } else {
+      Collections.reverse(list);
+    }
+    return getClass().getSimpleName() + ":" + list.stream().collect(Collectors.joining("."));
   }
 
   private static String getRelativePath(String absoluteContextPath, String absolutePath) {
@@ -143,8 +155,8 @@ public abstract class Node<N extends Node<?>> {
 
   public String getExternalPath(Node<?> context) throws IOException {
     String absolutePath = getAbsolutePath();
-    Node<?> root = (Node<?>) getRootContainer();
-    Node<?> contextRoot = (Node<?>) context.getRootContainer();
+    Node<?> root = getRootContainer();
+    Node<?> contextRoot = context.getRootContainer();
     if (root.getContainingAttribute() == null) {
       throw new IOException(this + " should be saved before adding external links");
     }
@@ -160,7 +172,7 @@ public abstract class Node<N extends Node<?>> {
 
   @SuppressWarnings("unchecked")
   public void delete() throws IOException {
-    ObjectConverter converter = (ObjectConverter) ObjectConverter.getConverter(getClass());
+    ObjectConverter converter = ObjectConverter.getConverter(getClass());
     for (Property property : converter.getProperties().stream()
         .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
       if (property.isLink()) {
@@ -194,7 +206,7 @@ public abstract class Node<N extends Node<?>> {
 
   @SuppressWarnings("unchecked")
   void removeChild(Node<?> node) throws IOException {
-    ObjectConverter converter = (ObjectConverter) ObjectConverter.getConverter(getClass());
+    ObjectConverter converter = ObjectConverter.getConverter(getClass());
     Property property = converter.getProperty(node.getContainingAttribute());
     if (property.isList()) {
       List<Node<?>> list = (List<Node<?>>) property.getValue(this);

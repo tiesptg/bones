@@ -409,6 +409,7 @@ public class Repository {
     return null;
   }
 
+  @SuppressWarnings("unchecked")
   public <A extends Node<?>> List<A> find(Class<A> type, Node<?> context, String pattern)
       throws IOException {
     List<A> list = new ArrayList<>();
@@ -419,11 +420,15 @@ public class Repository {
       findFromNode(list, type, root, pattern, from[0]);
     } else if (index == 0) {
       assert pattern.charAt(1) == '/';
-      findFromNode(list, type, (Node<?>) context.getRootContainer(), pattern, 2);
+      if (pattern.equals("#/")) {
+        list.add((A) context.getRootContainer());
+      } else {
+        findFromNode(list, type, (Node<?>) context.getRootContainer(), pattern, 2);
+      }
     } else {
       assert pattern.charAt(index + 1) == '/';
       String filePattern = pattern.substring(0, index);
-      List<Node<?>> documents = getDocumentsFrom((Node<?>) context.getRootContainer(), filePattern);
+      List<Node<?>> documents = getDocumentsFrom(context.getRootContainer(), filePattern);
       for (Node<?> document : documents) {
         findFromNode(list, type, (Node<?>) document, pattern, index + 2);
       }

@@ -86,6 +86,9 @@ public class Entity extends Item<MetaModel> {
 
   public Entity getEntityOfPattern(String pattern) throws IOException {
     String up = "../";
+    if (pattern == null) {
+      return null;
+    }
     if (pattern.startsWith(up)) {
       return getEntityContainer().get().getContainer()
           .getEntityOfPattern(pattern.substring(up.length()));
@@ -96,15 +99,20 @@ public class Entity extends Item<MetaModel> {
       pattern = pattern.substring(pos + 2);
       entity = getContainer().getModelRootEntity();
     }
-    String[] parts = pattern.split("/");
-    for (int i = 0; i < parts.length; i += 2) {
-      String name = parts[i];
-      Optional<ContainerRole> contained =
-          entity.getContainerRoles().stream().filter(c -> c.getName().equals(name)).findFirst();
-      if (contained.isEmpty()) {
-        return null;
+    if (!pattern.isEmpty()) {
+      String[] parts = pattern.split("/");
+      for (int i = 0; i < parts.length; i += 2) {
+        String name = parts[i];
+        Optional<ContainerRole> contained =
+            entity.getContainerRoles().stream().filter(c -> c.getName().equals(name)).findFirst();
+        if (contained.isEmpty()) {
+          return null;
+        }
+        entity = contained.get().getEntity().get();
+        if (entity == null) {
+          return null;
+        }
       }
-      entity = contained.get().getEntity().get();
     }
     return entity;
   }

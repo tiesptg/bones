@@ -120,7 +120,7 @@ public class Classes {
         if (condition.apply(cls)) {
           result.add(cls);
         }
-      } catch (ClassNotFoundException e1) {
+      } catch (Throwable e1) {
         // ignore
       }
     }

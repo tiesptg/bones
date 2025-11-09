@@ -234,8 +234,7 @@ public class Rules {
             }
             check = noCycle.next(check);
           }
-        } catch (NullPointerException ex) {
-          ex.printStackTrace();
+        } catch (Exception ex) {
           // ignore because the path to root is finished
         }
       }
