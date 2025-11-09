@@ -93,8 +93,7 @@ public class ApplicationContext {
     if (parent != null) {
       return parent.get(type);
     }
-    throw new IllegalArgumentException(
-        "no instance of class " + type.getName() + " added to the context");
+    return null;
   }
 
   /**
@@ -118,9 +117,6 @@ public class ApplicationContext {
       if (result instanceof Injectable injectable) {
         injectable.injectFrom(this);
       }
-    } else {
-      throw new IllegalArgumentException(
-          "no instance with name '" + name + "' added to the context");
     }
     return result;
   }
