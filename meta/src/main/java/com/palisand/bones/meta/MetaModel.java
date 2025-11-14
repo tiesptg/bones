@@ -35,7 +35,6 @@ public class MetaModel extends Node<Node<?>> {
   private String description = null;
   private String packageName = "";
 
-
   private List<Entity> entities = new ArrayList<>();
   private List<EnumType> enumTypes = new ArrayList<>();
 
@@ -69,7 +68,7 @@ public class MetaModel extends Node<Node<?>> {
     validator
         .assertTrue("entities",
             getEntities().stream().filter(validator.checkException("entities",
-                entity -> entity.getEntityContainer().get() == null && !entity.isAbstractEntity()))
+                entity -> entity.getActiveContainer().get() == null && !entity.isAbstractEntity()))
                 .count() == 1,
             "The model should have exactly one entity that does not have an entitycontainer");
   }
