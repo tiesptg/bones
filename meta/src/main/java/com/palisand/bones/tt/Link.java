@@ -147,6 +147,9 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
     if (file != null) {
       result = file + result;
     }
+    if (result.endsWith("#")) {
+      result += '/';
+    }
     return result;
   }
 
@@ -160,13 +163,15 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
     return path;
   }
 
-  public void setPath(String path) {
-    if (!path.matches(pathPattern)) {
-      System.err.println("Path " + path + " does not comply with pattern " + pathPattern);
+  public void setPath(String path) throws IOException {
+    if (!path.replace('\n', ' ').matches(pathPattern)) {
+      throw new IOException(
+          "Illegal path: " + path + " does not match pattern [" + pathPattern + "]");
     }
     this.path = path;
   }
 
+  @Override
   public String toString() {
     try {
       if (get() != null) {
@@ -203,7 +208,8 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
     return getOppositeGetter().apply(get());
   }
 
-  public void changeId(String oldId, String newId) {
+  @Override
+  public void changeId(String oldId, String newId) throws IOException {
     if (path != null) {
       String[] parts = path.split("/");
       for (int i = 0; i < parts.length; ++i) {

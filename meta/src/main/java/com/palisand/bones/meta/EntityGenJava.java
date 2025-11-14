@@ -49,17 +49,13 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     if (!entity.getSuperEntity().isPresent()) {
       addImport(TextIgnore.class);
       addImport(Node.class);
-    } else {
-      ContainerRole superRole = entity.getSuperEntity().get().getEntityContainer().get();
-      ContainerRole role = entity.getEntityContainer().get();
-      if (role == null) {
-        if (superRole == null) {
-          addImport(Node.class);
-        }
-      }
+    }
+    if (!entity.getActiveContainer().isPresent()) {
+      addImport(Node.class);
     }
   }
 
+  @SuppressWarnings("incomplete-switch")
   private String getRuleType(Member member) throws IOException {
     switch (member.getType()) {
       case STRING:
@@ -144,28 +140,30 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       nl("})");
     }
     String gen = "";
+    String abstr = "";
     String superEntity = "Node";
-    String container = "Node<?>";
+    String container = "<P extends Node<?>>";
+    String superContainer = "<P>";
     if (entity.isAbstractEntity()) {
-      if (entity.getSuperEntity().isPresent()) {
-        superEntity = entity.getSuperEntity().get().getName();
-      }
-      nl("public abstract class %sGen<P extends Node<?>> extends %s<P> {", entity.getName(),
-          superEntity);
-      gen = "<P>";
-    } else {
-      if (entity.getSuperEntity().isPresent()) {
-        superEntity = entity.getSuperEntity().get().getName();
-      }
-      if (!entity.isRootEntity()) {
-        ContainerRole role = entity.getEntityContainer().get();
-        container = role.getContainer().getName();
-        if (role.getContainer().isAbstractEntity()) {
-          container += "<?>";
-        }
-      }
-      nl("public abstract class %sGen extends %s<%s> {", entity.getName(), superEntity, container);
+      abstr = " abstract";
     }
+    if (entity.getSuperEntity().isPresent()) {
+      superEntity = entity.getSuperEntity().get().getName();
+    }
+    if (entity.isRootEntity()) {
+      container = "";
+      superContainer = "<Node<?>>";
+    }
+    if (entity.getEntityContainer().isPresent()) {
+      container = "";
+      superContainer = '<' + entity.getEntityContainer().get().getContainer().getName() + '>';
+    } else if (entity.getSuperEntity().isPresent()
+        && entity.getSuperEntity().get().getActiveContainer().isPresent()) {
+      container = "";
+      superContainer = "";
+    }
+    nl("public%s class %sGen%s extends %s%s {", abstr, entity.getName(), container, superEntity,
+        superContainer);
     nl();
     incMargin();
     List<String> rules = getAllRules(entity);

@@ -350,7 +350,8 @@ public class Repository {
   }
 
   @SuppressWarnings("unchecked")
-  private <N extends Node<?>> N getFromPath(Node<?> context, String[] path, int offset) {
+  private <N extends Node<?>> N getFromPath(Node<?> context, String[] path, int offset)
+      throws IOException {
     if (offset < path.length) {
       if (path[offset].equals("..")) {
         return getFromPath(context.getContainer(), path, ++offset);
@@ -361,10 +362,9 @@ public class Repository {
       ObjectConverter converter = (ObjectConverter) getConverter(context.getClass());
       Property property = converter.getProperty(path[offset]);
       if (property == null) {
-        System.err.println(
+        throw new IOException(
             "property " + path[offset] + " not found in class " + converter.getType() + " path = "
                 + Arrays.stream(path).collect(Collectors.joining("/")) + " index = " + offset);
-        return null;
       }
       Object value = null;
       try {

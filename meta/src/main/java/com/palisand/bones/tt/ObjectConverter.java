@@ -112,7 +112,7 @@ public class ObjectConverter implements Converter<Object> {
     }
 
     public boolean isReadonly() {
-      return setter == null && !isLink() && !isList();
+      return setter == null && !isLink();
     }
 
     public boolean isTextIgnore() {
@@ -281,10 +281,12 @@ public class ObjectConverter implements Converter<Object> {
   }
 
   private int compareClasses(Class<?> c1, Class<?> c2) {
-    if (c1 == c2)
+    if (c1 == c2) {
       return 0;
-    if (c1.isAssignableFrom(c2))
+    }
+    if (c1.isAssignableFrom(c2)) {
       return -1;
+    }
     return 1; // c2.isAssignableFrom(c1);
   }
 
@@ -413,7 +415,7 @@ public class ObjectConverter implements Converter<Object> {
       out.print(getClassLabel(obj.getClass(), context));
       out.println('>');
       for (Property property : properties) {
-        if (!property.isTextIgnore()) {
+        if (!property.isTextIgnore() && !property.isReadonly()) {
           Object value = null;
           try {
             value = property.getGetter().invoke(obj);

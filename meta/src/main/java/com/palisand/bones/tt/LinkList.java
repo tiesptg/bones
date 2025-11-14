@@ -116,8 +116,10 @@ public class LinkList<C extends Node<?>, X extends Node<?>> implements AbstractL
   }
 
   @Override
-  public void changeId(String oldId, String newId) {
-    list.forEach(link -> link.changeId(oldId, newId));
+  public void changeId(String oldId, String newId) throws IOException {
+    for (Link<C, X> link : list) {
+      link.changeId(oldId, newId);
+    }
   }
 
 }

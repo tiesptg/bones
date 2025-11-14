@@ -8,6 +8,6 @@ public interface AbstractLink<C extends Node<?>, X extends Node<?>> {
 
   public void internalUnset(X node) throws IOException;
 
-  public void changeId(String oldId, String newId);
+  public void changeId(String oldId, String newId) throws IOException;
 
 }

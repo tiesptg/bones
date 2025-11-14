@@ -54,6 +54,7 @@ public class Entity extends Item<MetaModel> {
   private LinkList<Entity, ReferenceRole> referencedFrom =
       new LinkList<>(this, ".*#/entities/.*/members/.*", refrole -> refrole.getEntity());
 
+  @TextIgnore
   public Link<Entity, ContainerRole> getActiveContainer() throws IOException {
     Entity entity = this;
     while (!entity.getEntityContainer().isPresent() && entity.getSuperEntity().isPresent()) {
