@@ -1,19 +1,26 @@
 package com.palisand.bones.log;
 
 import java.io.PrintStream;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class PrintStreamAppender extends Appender {
 
-  private final PrintStream out;
+  private PrintStream outputStream;
 
   public PrintStreamAppender(PrintStream stream) {
-    out = stream;
+    outputStream = stream;
   }
 
   @Override
   public void log(Message msg) {
     if (isEnabled(msg.getLevel())) {
-      out.println(formatMessage(msg));
+      synchronized (this) {
+        outputStream.println(formatMessage(msg));
+      }
     }
   }
+
 }

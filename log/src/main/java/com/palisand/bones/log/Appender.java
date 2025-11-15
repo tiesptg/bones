@@ -54,23 +54,24 @@ public abstract class Appender {
 
   public abstract void log(Message msg);
 
-  void init(Properties properties) {
-    String strLevel = properties.getProperty("level");
-    if (strLevel != null) {
-      strLevel = strLevel.trim();
+  interface ThrowingConsumer {
+    void apply(String value) throws Exception;
+  }
+
+  protected void initProperty(Properties properties, String name, ThrowingConsumer setter) {
+    String value = properties.getProperty(name);
+    if (value != null) {
+      value = value.trim();
       try {
-        level = Level.valueOf(strLevel);
+        setter.apply(value);
       } catch (Exception ex) {
-        LOG.log("invalid value for level").with("value", strLevel).with(ex).warn();
+        LOG.log("invalid value for " + name).with("value", value).with(ex).warn();
       }
     }
-    String format = properties.getProperty("format");
-    if (format != null) {
-      try {
-        setFormat(format);
-      } catch (Exception ex) {
-        LOG.log("invalid value for format").with("value", strLevel).with(ex).warn();
-      }
-    }
+  }
+
+  public void init(Properties properties) {
+    initProperty(properties, "level", value -> level = Level.valueOf(value));
+    initProperty(properties, "format", value -> setFormat(value));
   }
 }

@@ -284,6 +284,12 @@ public class ObjectConverter implements Converter<Object> {
     if (c1 == c2) {
       return 0;
     }
+    if (c1.isInterface() && !c2.isInterface()) {
+      return 1;
+    }
+    if (c2.isInterface() && !c1.isInterface()) {
+      return -1;
+    }
     if (c1.isAssignableFrom(c2)) {
       return -1;
     }

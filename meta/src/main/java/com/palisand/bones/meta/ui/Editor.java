@@ -61,6 +61,8 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -105,15 +107,16 @@ public class Editor extends JFrame implements TreeSelectionListener {
   };
   private JPanel buttons = new JPanel();
   private JPanel top = new JPanel();
-  private Map<Class<?>, List<Class<?>>> concreteClasses = new HashMap<>();
+  private final Map<Class<?>, List<Class<?>>> concreteClasses = new HashMap<>();
   private final Repository repository = Repository.getInstance();
   private RepositoryModel repositoryModel = new RepositoryModel(Repository.getInstance());
   private File lastDirectory = new File(".").getAbsoluteFile();
+  private final List<String> recentDocuments = new ArrayList<>();
   private Node<?> selectedNode = null;
-  private List<JComponent> propertyEditors = new ArrayList<>();
+  private final List<JComponent> propertyEditors = new ArrayList<>();
   private ProblemsModel problemsModel = new ProblemsModel();
   private final Map<Character, ActionListener> keyListeners = new TreeMap<>();
-  private KeyAdapter escListener = new KeyAdapter() {
+  private final KeyAdapter escListener = new KeyAdapter() {
 
     @Override
     public void keyReleased(KeyEvent e) {
@@ -163,12 +166,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
     private int width;
     private int height;
     private String lastDirectory;
+    private List<String> recentDocuments;
   }
 
   private void saveConfig() {
     Rectangle rect = getBounds();
-    Config config =
-        new Config(rect.x, rect.y, rect.width, rect.height, lastDirectory.getAbsolutePath());
+    Config config = new Config(rect.x, rect.y, rect.width, rect.height,
+        lastDirectory.getAbsolutePath(), recentDocuments);
     try {
       repository.write("config.tt", config);
     } catch (Exception ex) {
@@ -181,6 +185,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
       Config config = (Config) repository.read("config.tt");
       setBounds(config.getLeft(), config.getTop(), config.getWidth(), config.getHeight());
       lastDirectory = new File(config.getLastDirectory());
+      recentDocuments.clear();
+      recentDocuments.addAll(config.recentDocuments);
     } catch (Exception ex) {
       if (!(ex instanceof FileNotFoundException)) {
         handleException(ex);
@@ -210,6 +216,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
     JMenuItem openM = new JMenuItem("Open");
     openM.addActionListener(e -> openFile());
     file.add(openM);
+    JMenu openRecentM = new JMenu("Open Recent");
+    file.add(openRecentM);
     JMenuItem saveM = new JMenuItem("Save");
     saveM.addActionListener(e -> saveToFile());
     file.add(saveM);
@@ -220,6 +228,31 @@ public class Editor extends JFrame implements TreeSelectionListener {
     JMenuItem quit = new JMenuItem("Quit");
     quit.addActionListener(e -> dispose());
     file.add(quit);
+
+    file.addMenuListener(new MenuListener() {
+
+      @Override
+      public void menuSelected(MenuEvent e) {
+        createRecentDocumentsMenu(openRecentM);
+      }
+
+      @Override
+      public void menuDeselected(MenuEvent e) {}
+
+      @Override
+      public void menuCanceled(MenuEvent e) {}
+
+    });
+  }
+
+  private void createRecentDocumentsMenu(JMenu recentDocumentsMenu) {
+    recentDocumentsMenu.removeAll();
+    for (String path : recentDocuments) {
+      File file = new File(path);
+      JMenuItem item = new JMenuItem(file.getName());
+      recentDocumentsMenu.add(item);
+      item.addActionListener(e -> openFile(path));
+    }
   }
 
   private void closeFiles() {
@@ -229,21 +262,36 @@ public class Editor extends JFrame implements TreeSelectionListener {
     top.validate();
   }
 
+  private void addRecentDocument(String absolutePath) {
+    recentDocuments.remove(absolutePath);
+    recentDocuments.add(0, absolutePath);
+    while (recentDocuments.size() > 5) {
+      recentDocuments.remove(5);
+    }
+  }
+
   private void openFile() {
     JFileChooser fc = new JFileChooser();
     fc.setCurrentDirectory(lastDirectory);
     fc.addChoosableFileFilter(new FileNameExtensionFilter("TypedText Files", ".tt"));
     if (JFileChooser.APPROVE_OPTION == fc.showOpenDialog(this)) {
-      try {
-        Node<?> doc = (Node<?>) repository.read(fc.getSelectedFile().getAbsolutePath());
-        addRoot(doc);
-        lastDirectory = fc.getSelectedFile().getParentFile();
-        saveConfig();
-        validateDocuments();
-      } catch (Exception ex) {
-        handleException(ex);
-      }
+      openFile(fc.getSelectedFile().getAbsolutePath());
     }
+  }
+
+  private void openFile(String absolutePath) {
+    try {
+      closeFiles();
+      Node<?> doc = (Node<?>) repository.read(absolutePath);
+      addRecentDocument(absolutePath);
+      addRoot(doc);
+      lastDirectory = new File(absolutePath).getParentFile();
+      saveConfig();
+      validateDocuments();
+    } catch (Exception ex) {
+      handleException(ex);
+    }
+
   }
 
   private void saveToFile() {
@@ -278,7 +326,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   private <A> A newInstance(Class<A> cls) {
     try {
-      return (A) cls.getConstructor().newInstance();
+      return cls.getConstructor().newInstance();
     } catch (Exception ex) {
       handleException(ex);
     }
@@ -532,12 +580,11 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
   }
 
-  @SuppressWarnings("unchecked")
   private <N extends Node<?>> void validateProperties() throws IOException {
     for (JComponent component : propertyEditors) {
       Rules rules = (Rules) component.getClientProperty(RULE);
       if (rules != null) {
-        component.setEnabled(rules.isEnabled((N) selectedNode));
+        component.setEnabled(rules.isEnabled(selectedNode));
       }
     }
   }
@@ -870,8 +917,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
     LinkListEditor editor = (LinkListEditor) ListEditor.dialogFor(Editor.this,
         "Edit " + property.getLabel(), property.getComponentType());
     try {
-      List<X> list = (List<X>) repository.find((Class<X>) property.getComponentType(), node,
-          value.getPattern());
+      List<X> list =
+          repository.find((Class<X>) property.getComponentType(), node, value.getPattern());
       List<X> candidates = list;
       // check whether this is an absolute or relative path
       editor.setOptions((List<Node<?>>) candidates);
@@ -910,30 +957,6 @@ public class Editor extends JFrame implements TreeSelectionListener {
         keyListeners.put(c, listener);
         return sb.toString();
       }
-    }
-    return null;
-  }
-
-  private String registerAction(String label, char key, ActionListener listener) {
-    String chars = label.toLowerCase();
-    StringBuilder sb = new StringBuilder();
-    if (!keyListeners.containsKey(key)) {
-      int pos = label.indexOf(key);
-      if (pos != -1) {
-        sb.append(label.substring(0, pos));
-        sb.append("<u>");
-        sb.append(label.charAt(pos));
-        sb.append("</u>");
-        sb.append(label.substring(pos + 1));
-        keyListeners.put(key, listener);
-        return sb.toString();
-      }
-      sb.append(label);
-      sb.append(" (");
-      sb.append(key);
-      sb.append(")");
-      keyListeners.put(key, listener);
-      return sb.toString();
     }
     return null;
   }

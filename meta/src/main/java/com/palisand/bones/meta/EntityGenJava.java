@@ -140,13 +140,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       nl("})");
     }
     String gen = "";
-    String abstr = "";
     String superEntity = "Node";
     String container = "<P extends Node<?>>";
     String superContainer = "<P>";
-    if (entity.isAbstractEntity()) {
-      abstr = " abstract";
-    }
     if (entity.getSuperEntity().isPresent()) {
       superEntity = entity.getSuperEntity().get().getName();
     }
@@ -162,7 +158,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       container = "";
       superContainer = "";
     }
-    nl("public%s class %sGen%s extends %s%s {", abstr, entity.getName(), container, superEntity,
+    nl("public abstract class %sGen%s extends %s%s {", entity.getName(), container, superEntity,
         superContainer);
     nl();
     incMargin();

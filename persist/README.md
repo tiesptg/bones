@@ -249,7 +249,7 @@ A Query is a Closeable object, so it is advisable to use a try with resources to
   database.transaction(connection, () -> {
     try (Query<Person> query = database.newQuery(connection, Person.class)
         .where("Person.residence.address.houseNumber", "=", 2)
-        .or("Person.residence|Apartment.floor", "=", 1).orderBy("Person.oid")) {
+        .or("#Person.residence|Apartment.floor", "=", 1).orderBy("Person.oid")) {
 	    for (Person person = query.next(); person != null; person = query.next()) {
 	      person.setResidence(database.refresh(connection, person.getResidence()));
 	      house.setAddress(database.refresh(connection, house.getAddress()));
@@ -261,7 +261,7 @@ A Query is a Closeable object, so it is advisable to use a try with resources to
 
 A more advance examples shows some other features. You can use implicite joins with . navigations of roles of relations. Both roles of a relation can be used.
 
-In the implicite joins in the "Person.residence|Apartment.floor" example you see that floor is a field of the Apartment class that is a subclass of House that is the type of the role residence of Person. 
+In the implicite joins in the "#Person.residence|Apartment.floor" example you see that floor is a field of the Apartment class that is a subclass of House that is the type of the role residence of Person. Any reference to a field with or with an implicit join should start with a hash '#'.
 
 You see the calls to refresh to get the field values of the related objects.
 
