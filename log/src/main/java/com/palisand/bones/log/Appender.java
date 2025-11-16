@@ -1,5 +1,6 @@
 package com.palisand.bones.log;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -70,7 +71,7 @@ public abstract class Appender {
     }
   }
 
-  public void init(Properties properties) {
+  public void init(Properties properties) throws IOException {
     initProperty(properties, "level", value -> level = Level.valueOf(value));
     initProperty(properties, "format", value -> setFormat(value));
   }

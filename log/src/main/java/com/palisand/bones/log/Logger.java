@@ -127,8 +127,11 @@ public class Logger {
   }
 
   void init(Properties properties) {
+    String formatKey = "format";
     String handlers = properties.getProperty("appenders");
     properties.remove("appenders");
+    String format = properties.getProperty(formatKey);
+    properties.remove(formatKey);
     if (handlers != null) {
       String[] names = handlers.split(",");
       for (String name : names) {
@@ -137,6 +140,10 @@ public class Logger {
           Appender appender = (Appender) Class.forName(cname).getConstructor().newInstance();
           Properties appenderProps = getPropertiesWithPrefix(properties, cname + '.');
           appenderProps.keySet().forEach(prop -> properties.remove(cname + "." + prop));
+          // make sure format inheritance works
+          if (format != null && !appenderProps.containsKey(formatKey)) {
+            appenderProps.setProperty(formatKey, format);
+          }
           appender.init(appenderProps);
           getAppenders().add(appender);
         } catch (Exception ex) {
@@ -175,10 +182,12 @@ public class Logger {
   }
 
   public static void initialiseLoggingSystem() {
-    if (initialiseFromEnvironment())
+    if (initialiseFromEnvironment()) {
       return;
-    if (initFromDefaultFile())
+    }
+    if (initFromDefaultFile()) {
       return;
+    }
     initDefault();
   }
 
@@ -221,7 +230,7 @@ public class Logger {
     return false;
   }
 
-  static void initFromProperties(Properties properties) {
+  public static void initFromProperties(Properties properties) {
     Properties logProps = getPropertiesWithPrefix(properties, "bones.log.");
     ROOT.init(logProps);
   }

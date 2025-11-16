@@ -19,8 +19,13 @@ public class PrintStreamAppender extends Appender {
     if (isEnabled(msg.getLevel())) {
       synchronized (this) {
         outputStream.println(formatMessage(msg));
+        outputStream.flush();
       }
     }
+  }
+
+  public void close() {
+    outputStream.close();
   }
 
 }
