@@ -474,7 +474,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private Editor() throws Exception {
-    setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    setDefaultCloseOperation(EXIT_ON_CLOSE);
     setFocusCycleRoot(true);
     setFocusTraversalPolicy(editorPolicy);
     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());

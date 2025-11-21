@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -326,10 +327,28 @@ public class CommandScheme {
   }
 
   RsGetter getRsGetter(Class<?> cls) {
+    if (cls.isEnum()) {
+      return (rs, pos) -> {
+        String value = rs.getString(pos);
+        if (rs.wasNull()) {
+          return null;
+        }
+        for (Object obj : cls.getEnumConstants()) {
+          Enum<?> en = (Enum<?>) obj;
+          if (en.name().equals(value)) {
+            return en;
+          }
+        }
+        return null;
+      };
+    }
     return RS_GETTERS.get(cls);
   }
 
   StmtSetter getStmtSetter(Class<?> cls) {
+    if (cls.isEnum()) {
+      return (rs, pos, value) -> rs.setString(pos, ((Enum<?>) value).name());
+    }
     return STMT_SETTERS.get(cls);
   }
 
@@ -406,6 +425,9 @@ public class CommandScheme {
   }
 
   JDBCType getJDBCType(Class<?> cls) throws SQLException {
+    if (cls.isEnum()) {
+      return typeMap.get(String.class);
+    }
     JDBCType type = typeMap.get(cls);
     if (type == null) {
       throw new SQLException("Type " + cls + " is not (yet) supported");
@@ -418,6 +440,10 @@ public class CommandScheme {
   }
 
   int getSize(DbField attribute) throws SQLException {
+    if (attribute.getType().isEnum()) {
+      return Arrays.stream(attribute.getType().getEnumConstants())
+          .mapToInt(o -> o.toString().length()).max().getAsInt();
+    }
     return attribute.getSize();
   }
 

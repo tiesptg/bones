@@ -519,6 +519,7 @@ public class Database {
       return primaryKeyField.rsGet(rs, pos);
     }
 
+    @Override
     void set(Object owner, Object value) throws SQLException {
       if (value == null) {
         role.set(owner, null);
@@ -824,9 +825,11 @@ public class Database {
         if (field.getAnnotation(DontPersist.class) == null) {
           if (Collection.class.isAssignableFrom(field.getType())) {
             links.add(newRole(field, true));
-          } else if (!field.getType().isPrimitive() && !isSupported(field.getType())) {
+          } else if (!field.getType().isPrimitive() && !field.getType().isEnum()
+              && !isSupported(field.getType())) {
             foreignKeys.add(newRole(field, false));
-          } else if (field.getType().isPrimitive() || isSupported(field.getType())) {
+          } else if (field.getType().isPrimitive() || field.getType().isEnum()
+              || isSupported(field.getType())) {
             DbField attribute = newAttribute(commands, field);
             DbField withVersion = initVersion(commands, attribute);
             if (withVersion != null) {
@@ -1033,8 +1036,9 @@ public class Database {
     Consumer<String> logger = commands.getLogger();
     try {
       commands.logger(str -> {
-        if (logger != null)
+        if (logger != null) {
           logger.accept("Verification Error: " + str);
+        }
         throw new RuntimeException(error);
       });
       upgrade(connection, persistentClasses);
@@ -1190,8 +1194,9 @@ public class Database {
    */
   @SuppressWarnings("unchecked")
   public <T> T refresh(Connection connection, T object) throws SQLException {
-    if (object == null)
+    if (object == null) {
       return null;
+    }
     CommandScheme commands = getCommands(connection);
     DbClass cls = Database.getDbClass(object.getClass());
     return (T) commands.refresh(connection, cls, object);

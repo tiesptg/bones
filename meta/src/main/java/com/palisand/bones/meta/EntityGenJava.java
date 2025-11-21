@@ -75,7 +75,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
           return "";
         }
         if (member.isMultiple()) {
-          return "List";
+          return "LinkList";
         }
         return "Link";
       }

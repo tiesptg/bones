@@ -2,6 +2,7 @@ package com.palisand.meta.maven;
 
 import java.io.File;
 import java.util.List;
+import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -37,6 +38,12 @@ public class MetaGenerator extends AbstractMojo {
   @Parameter(defaultValue = "${project}")
   private MavenProject project;
 
+  @Parameter(defaultValue = "false")
+  private boolean generatesResources;
+
+  @Parameter(defaultValue = "false")
+  private boolean generatesTestSources;
+
   private Repository repository = Repository.getInstance();
 
   @Override
@@ -46,7 +53,19 @@ public class MetaGenerator extends AbstractMojo {
       throw new MojoExecutionException(
           "output directory [" + outputDirectory + "] does not exist and cannot be created");
     }
-    project.addCompileSourceRoot(outputDirectory);
+    if (generatesResources) {
+      Resource resource = new Resource();
+      resource.setDirectory(outputDirectory);
+      if (generatesTestSources) {
+        project.addResource(resource);
+      } else {
+        project.addTestResource(resource);
+      }
+    } else if (generatesTestSources) {
+      project.addTestCompileSourceRoot(outputDirectory);
+    } else {
+      project.addCompileSourceRoot(outputDirectory);
+    }
     File modelFile = new File(project.getBasedir(), model);
     if (!modelFile.exists()) {
       throw new MojoExecutionException("model file [" + model + "] does not exist");

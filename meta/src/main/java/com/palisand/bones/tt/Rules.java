@@ -202,6 +202,25 @@ public class Rules {
   @Getter
   @Setter
   @SuperBuilder
+  public static class LinkListRules extends Rules {
+    @Builder.Default()
+    private boolean notEmpty = false;
+
+    @Override
+    protected void doValidate(Validator validator, String field, Object value) throws IOException {
+      super.doValidate(validator, field, value);
+      LinkList<?, ?> list = (LinkList<?, ?>) value;
+      if (notEmpty && list.isEmpty()) {
+        validator.addViolation(field, "Field " + field + " should not be empty");
+      }
+    }
+
+  }
+
+
+  @Getter
+  @Setter
+  @SuperBuilder
   public static class LinkRules extends Rules {
     @Builder.Default()
     private NextGetter noCycle = null;
