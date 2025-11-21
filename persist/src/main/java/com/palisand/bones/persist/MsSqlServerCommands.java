@@ -43,16 +43,6 @@ public class MsSqlServerCommands extends CommandScheme {
   }
 
   @Override
-  RsGetter getRsGetter(Class<?> cls) {
-    return RS_GETTERS.get(cls);
-  }
-
-  @Override
-  StmtSetter getStmtSetter(Class<?> cls) {
-    return STMT_SETTERS.get(cls);
-  }
-
-  @Override
   String typeName(JDBCType type, Class<?> cls, int size, int scale) {
     if (type == JDBCType.DOUBLE) {
       return "REAL";

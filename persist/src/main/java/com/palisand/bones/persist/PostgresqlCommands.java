@@ -35,14 +35,4 @@ public class PostgresqlCommands extends CommandScheme {
     return super.typeName(type, cls, size, scale);
   }
 
-  // @Override
-  // RsGetter getRsGetter(Class<?> cls) {
-  // return RS_GETTERS.get(cls);
-  // }
-  //
-  // @Override
-  // StmtSetter getStmtSetter(Class<?> cls) {
-  // return STMT_SETTERS.get(cls);
-  // }
-  //
 }
