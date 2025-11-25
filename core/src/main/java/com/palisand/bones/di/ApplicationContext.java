@@ -30,11 +30,12 @@ public class ApplicationContext {
   private TreeMap<String, Object> allNamed = new TreeMap<>();
 
   public ApplicationContext() {
-    parent = null;
+    this(null);
   }
 
   public ApplicationContext(ApplicationContext parent) {
     this.parent = parent;
+    register(this);
   }
 
   /**

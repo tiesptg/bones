@@ -18,7 +18,6 @@ import lombok.Setter;
 
 public class EntityGenJava extends JavaGenerator<Entity> {
 
-
   @Override
   public void config(Entity entity) {
     setPackageAndClass(entity.getContainer().getPackageName(), entity.getName() + "Gen");
@@ -101,6 +100,13 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     if (member.getEnabledWhen() != null) {
       rules.add(".enabled(object -> " + member.getEnabledWhen() + ")");
+    }
+    if (member instanceof Attribute attribute) {
+      if (attribute.getType() == Type.STRING) {
+        if (attribute.getMultiLine()) {
+          rules.add(".multiLine(true)");
+        }
+      }
     }
     if (member instanceof ContainerRole role) {
       if (role.isMultiple()) {
