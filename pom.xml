@@ -15,6 +15,7 @@
 		<module>meta-maven-plugin</module>
 		<module>meta-test</module>
 		<module>persist</module>
+		<module>validation</module>
 	</modules>
 	
 	<properties>

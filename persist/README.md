@@ -243,13 +243,16 @@ In this example I use an orderBy statement. This not always necessary, unless yo
 
 A Query is a Closeable object, so it is advisable to use a try with resources to close the Query when you are done.
 
+A query will create a PreparedStatement to execute the query. It holds a cache of those PreparedStatements to increase performance when possible. 
+
+It is not advisable to create the where clause on basis of input of user, because that can create security a possibility of SQL injection. Always use questionmarks and separate parameters for user input.
+
 ### Implicit joins
 
 ```
   database.transaction(connection, () -> {
     try (Query<Person> query = database.newQuery(connection, Person.class)
-        .where("Person.residence.address.houseNumber", "=", 2)
-        .or("#Person.residence|Apartment.floor", "=", 1).orderBy("Person.oid")) {
+        .where("Person.residence.address.houseNumber = ? or #Person.residence|Apartment.floor = ?", 2, 1).orderBy("Person.oid")) {
 	    for (Person person = query.next(); person != null; person = query.next()) {
 	      person.setResidence(database.refresh(connection, person.getResidence()));
 	      house.setAddress(database.refresh(connection, house.getAddress()));
@@ -262,6 +265,8 @@ A Query is a Closeable object, so it is advisable to use a try with resources to
 A more advance examples shows some other features. You can use implicite joins with . navigations of roles of relations. Both roles of a relation can be used.
 
 In the implicite joins in the "#Person.residence|Apartment.floor" example you see that floor is a field of the Apartment class that is a subclass of House that is the type of the role residence of Person. Any reference to a field with or with an implicit join should start with a hash '#'.
+
+Parameters in queries use JDBC style questionmarks to indicate its location. The value of the JDBC parameter is given as separate parameter to the where method. The order the parameters should follow the order of the questionmarks in the where clause.
 
 You see the calls to refresh to get the field values of the related objects.
 
