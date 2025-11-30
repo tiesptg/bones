@@ -12,11 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Predicate;
 import com.palisand.bones.validation.Rules.Rule;
 
 public class Validator {
   private final static Map<Class<?>, Rule> RULES = new HashMap<>();
-  private final Map<Class<?>, Property[]> classCache = new HashMap<>();
+  private final Map<Class<?>, Property<?>[]> classCache = new HashMap<>();
 
   static {
     Rules.register();
@@ -26,8 +27,14 @@ public class Validator {
     RULES.put(annotationClass, rule);
   }
 
-  private record Property(Field field, Method getter, Method setter, Map<Rule, ?> rules) {
+  private record Property<X>(Field field, Method getter, Method setter, Predicate<X> validWhen,
+      Map<Rule, ?> rules) {
 
+    void setToDefault(Object object) throws Exception {
+      if (!field.getType().isPrimitive()) {
+        setter.invoke(object, (Object) null);
+      }
+    }
   }
 
   private Method getGetter(Class<?> cls, Field field) {
@@ -62,7 +69,8 @@ public class Validator {
     return null;
   }
 
-  private void scanClass(List<Property> properties, Class<?> cls) {
+  @SuppressWarnings("unchecked")
+  private <X> void scanClass(List<Property<X>> properties, Class<X> cls) throws Exception {
     for (Field field : cls.getDeclaredFields()) {
       Map<Rule, Object> found = new HashMap<>();
       Arrays.stream(field.getAnnotations()).forEach(anno -> {
@@ -73,19 +81,26 @@ public class Validator {
       });
       Method getter = getGetter(cls, field);
       Method setter = getSetter(cls, field, field.getType());
-      properties.add(new Property(field, getter, setter, found));
+      ValidWhen validWhen = field.getAnnotation(ValidWhen.class);
+      Predicate<X> predicate = null;
+      if (validWhen != null) {
+        predicate = (Predicate<X>) validWhen.value().getDeclaredConstructor().newInstance();
+      }
+      properties.add(new Property<X>(field, getter, setter, predicate, found));
     }
     if (cls.getSuperclass() != Object.class) {
-      scanClass(properties, cls.getSuperclass());
+      scanClass(properties, (Class<X>) cls.getSuperclass());
     }
   }
 
-  private Property[] getProperties(Class<?> cls) {
-    Property[] properties = classCache.get(cls);
+  @SuppressWarnings("unchecked")
+  private <X> Property<X>[] getProperties(Class<X> cls) throws Exception {
+    Property<X>[] properties = (Property<X>[]) classCache.get(cls);
     if (properties == null) {
-      List<Property> result = new ArrayList<>();
+      List<Property<X>> result = new ArrayList<>();
       scanClass(result, cls);
       properties = result.toArray(size -> new Property[size]);
+      classCache.put(cls, properties);
     }
     return properties;
   }
@@ -101,23 +116,29 @@ public class Validator {
             && !Map.class.isAssignableFrom(obj.getClass()));
   }
 
-  private void validateBean(List<Violation> result, Set<Object> cycleChecker, Object object) {
-    for (Property property : getProperties(object.getClass())) {
-      try {
-        Object fieldValue = property.getter().invoke(object);
-        for (Entry<Rule, ?> entry : property.rules().entrySet()) {
-          Object newValue = entry.getKey().validate(result, entry.getValue(),
-              property.field().getName(), fieldValue);
-          if (newValue != fieldValue || !fieldValue.equals(newValue)) {
-            property.setter().invoke(object, newValue);
-            fieldValue = newValue;
+  @SuppressWarnings("unchecked")
+  private <X> void validateBean(List<Violation> result, Set<Object> cycleChecker, X object) {
+    try {
+      for (Property<X> property : (Property<X>[]) getProperties(object.getClass())) {
+        if (property.validWhen() == null || property.validWhen().test(object)) {
+          Object fieldValue = property.getter().invoke(object);
+          for (Entry<Rule, ?> entry : property.rules().entrySet()) {
+            Object newValue = entry.getKey().validate(result, entry.getValue(),
+                property.field().getName(), fieldValue);
+            if (newValue != fieldValue || (fieldValue != null && !fieldValue.equals(newValue))) {
+              property.setter().invoke(object, newValue);
+              fieldValue = newValue;
+            }
           }
+          validateObject(result, cycleChecker, fieldValue);
+        } else {
+          property.setToDefault(object);
         }
-        validateObject(result, cycleChecker, fieldValue);
-      } catch (Exception e) {
-        result.add(new Violation(property.field().getName(),
-            "Exception while checking value: " + e.toString(), object, null));
       }
+    } catch (Exception e) {
+      e.printStackTrace();
+      result.add(new Violation(object.getClass().getName(),
+          "Exception while checking value: " + e.toString(), object, null));
     }
   }
 
