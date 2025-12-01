@@ -2,6 +2,7 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.BooleanRules;
 import com.palisand.bones.tt.Rules.LinkRules;
@@ -16,14 +17,15 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"entity", "multiple", "notEmpty"})
 public class ContainerRole extends Member {
-  private static final RulesMap RULES = Rules.map()
-      .and("name", StringRules.builder().notNull(true).pattern("[a-z]\\w+").build())
+  private static final RulesMap<ContainerRole> RULES = Rules.<ContainerRole>map()
+      .and("name", StringRules.<ContainerRole>builder().notNull(true).pattern("[a-z]\\w+").build())
       .and("notEmpty",
-          BooleanRules.builder().enabled(object -> ((ContainerRole) object).isMultiple()).build())
-      .and("entity", LinkRules.builder().notNull(true).build());
+          BooleanRules.<ContainerRole>builder()
+              .enabled(object -> ((ContainerRole) object).isMultiple()).build())
+      .and("entity", LinkRules.<ContainerRole>builder().notNull(true).build());
 
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

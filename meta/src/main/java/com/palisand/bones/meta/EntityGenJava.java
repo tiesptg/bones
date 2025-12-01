@@ -27,10 +27,11 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     addImport(Getter.class);
     addImport(Setter.class);
     addImport(NoArgsConstructor.class);
-    if (!getAllRules(entity).isEmpty()) {
+    if (!getAllRules(entity, "").isEmpty()) {
       addImport(RulesMap.class);
       addImport(Rules.class);
       addImport(Rules.class.getName() + ".*");
+      addImport(Node.class);
     }
     if (entity.getContainerRoles().stream().anyMatch(role -> role.isMultiple())) {
       addImport(List.class);
@@ -82,10 +83,10 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     throw new IOException("Member " + member + " has no supported rules type");
   }
 
-  private List<String> getAllRules(Entity entity) throws IOException {
+  private List<String> getAllRules(Entity entity, String rulesGen) throws IOException {
     List<String> rules = new ArrayList<>();
     for (Member member : entity.getMembers()) {
-      String r = getRules(member);
+      String r = getRules(member, rulesGen);
       if (r != null) {
         rules.add(r);
       }
@@ -93,7 +94,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     return rules;
   }
 
-  private String getRules(Member member) throws IOException {
+  private String getRules(Member member, String rulesGen) throws IOException {
     List<String> rules = new ArrayList<>();
     if (member.isNotNull()) {
       rules.add(".notNull(true)");
@@ -106,6 +107,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
         if (attribute.getMultiLine()) {
           rules.add(".multiLine(true)");
         }
+      }
+      if (attribute.getPattern() != null) {
+        rules.add(String.format(".pattern(\"%s\")", attribute.getPattern()));
       }
     }
     if (member instanceof ContainerRole role) {
@@ -122,8 +126,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       }
     }
     if (!rules.isEmpty()) {
-      return String.format(".and(\"%s\",%sRules.builder()%s.build())", member.getName(),
-          getRuleType(member), rules.stream().collect(Collectors.joining()));
+      return String.format(".and(\"%s\",%sRules.<%sGen%s>builder()%s.build())", member.getName(),
+          getRuleType(member), member.getContainer().getName(), rulesGen,
+          rules.stream().collect(Collectors.joining()));
     }
     return null;
   }
@@ -149,29 +154,34 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     String superEntity = "Node";
     String container = "<P extends Node<?>>";
     String superContainer = "<P>";
+    String rulesGen = "<?>";
     if (entity.getSuperEntity().isPresent()) {
       superEntity = entity.getSuperEntity().get().getName();
     }
     if (entity.isRootEntity()) {
       container = "";
       superContainer = "<Node<?>>";
+      rulesGen = "";
     }
     if (entity.getEntityContainer().isPresent()) {
       container = "";
       superContainer = '<' + entity.getEntityContainer().get().getContainer().getName() + '>';
+      rulesGen = "";
     } else if (entity.getSuperEntity().isPresent()
         && entity.getSuperEntity().get().getActiveContainer().isPresent()) {
       container = "";
       superContainer = "";
+      rulesGen = "";
     }
     nl("public abstract class %sGen%s extends %s%s {", entity.getName(), container, superEntity,
         superContainer);
     nl();
     incMargin();
-    List<String> rules = getAllRules(entity);
+    List<String> rules = getAllRules(entity, rulesGen);
     if (!rules.isEmpty()) {
       margin();
-      l("private static final RulesMap RULES = Rules.map()");
+      l("private static final RulesMap<%sGen%s> RULES = Rules.<%sGen%s>map()", entity.getName(),
+          rulesGen, entity.getName(), rulesGen);
       incMargin();
       for (String str : rules) {
         nl();
@@ -182,8 +192,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       nl();
       decMargin();
       nl();
+      nl("@SuppressWarnings(\"unchecked\")");
       nl("@Override");
-      nl("public Rules getConstraint(String field) {");
+      nl("public Rules<? extends Node<?>> getConstraint(String field) {");
       incMargin();
       nl("return RULES.of(field,super::getConstraint);");
       decMargin();

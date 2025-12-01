@@ -23,20 +23,21 @@ import lombok.Setter;
 @FieldOrder({"entityContainer", "idAttribute", "abstractEntity", "superEntity", "specialisations",
     "members", "methods", "referencesFrom"})
 public class Entity extends Item<MetaModel> {
-  private static final RulesMap RULES =
-      Rules.map().and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
-          .and("entityContainer",
-              LinkRules.builder()
-                  .noCycle(link -> ((ContainerRole) link.get()).getContainer().getEntityContainer())
-                  .build())
-          .and("idAttribute",
-              LinkRules.builder().enabled(entity -> !((Entity) entity).getSuperEntity().isPresent())
-                  .notNull(true).build())
-          .and("superEntity", LinkRules.builder()
-              .enabled(entity -> entity.getContainingAttribute() != null).build());
+  private static final RulesMap<Entity> RULES = Rules.<Entity>map()
+      .and("name", StringRules.<Entity>builder().notNull(true).pattern("[A-Z]\\w+").build())
+      .and("entityContainer",
+          LinkRules.<Entity>builder()
+              .noCycle(link -> ((ContainerRole) link.get()).getContainer().getEntityContainer())
+              .build())
+      .and("idAttribute",
+          LinkRules.<Entity>builder().enabled(entity -> !entity.getSuperEntity().isPresent())
+              .notNull(true).build())
+      .and("superEntity", LinkRules.<Entity>builder()
+          .enabled(entity -> entity.getContainingAttribute() != null).build());
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<Entity> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

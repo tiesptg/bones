@@ -17,12 +17,13 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"values", "typeFor"})
 public class EnumType extends Item<MetaModel> {
-  private static final RulesMap RULES =
-      Rules.map().and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
-          .and("values", ListRules.builder().notEmpty(true).build());
+  private static final RulesMap<EnumType> RULES = Rules.<EnumType>map()
+      .and("name", StringRules.<EnumType>builder().notNull(true).pattern("[A-Z]\\w+").build())
+      .and("values", ListRules.<EnumType>builder().notEmpty(true).build());
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<EnumType> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

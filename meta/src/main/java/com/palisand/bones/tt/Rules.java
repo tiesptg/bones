@@ -17,26 +17,23 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @Setter
 @SuperBuilder
-public class Rules {
-  @Builder.Default
-  private EnabledChecker enabled = null;
-  @Builder.Default
-  private boolean notNull = false;
+public class Rules<N extends Node<?>> {
+  @Builder.Default private EnabledChecker<N> enabled = null;
+  @Builder.Default private boolean notNull = false;
 
   public enum Severity {
     ERROR, WARNING
   }
 
   @FunctionalInterface
-  public interface EnabledChecker {
-    boolean check(Node<?> node) throws IOException;
+  public interface EnabledChecker<N extends Node<?>> {
+    boolean check(N node) throws IOException;
   }
 
   @FunctionalInterface
   public interface NextGetter {
     Link<?, ?> next(Link<?, ?> t) throws IOException;
   }
-
 
   public record ConstraintViolation(Severity severity, Node<?> node, String field, String message,
       Exception exception) {
@@ -48,53 +45,50 @@ public class Rules {
     }
   }
 
-  public boolean isEnabled(Node<?> node) throws IOException {
+  public boolean isEnabled(N node) throws IOException {
     if (enabled != null) {
       return enabled.check(node);
     }
     return true;
   }
 
-  public static class RulesMap {
-    private final Map<String, Rules> propertyRules = new TreeMap<>();
+  public static class RulesMap<N extends Node<?>> {
+    private final Map<String, Rules<N>> propertyRules = new TreeMap<>();
 
-    public RulesMap and(String fieldName, Rules rules) {
+    public RulesMap<N> and(String fieldName, Rules<N> rules) {
       propertyRules.put(fieldName, rules);
       return this;
     }
 
-    public Rules of(String fieldName, Function<String, Rules> superRules) {
-      Rules rules = propertyRules.get(fieldName);
+    @SuppressWarnings("unchecked")
+    public <M extends Node<?>> Rules<M> of(String fieldName,
+        Function<String, Rules<M>> superRules) {
+      Rules<N> rules = propertyRules.get(fieldName);
       if (rules != null) {
-        return rules;
+        return (Rules<M>) rules;
       }
-      return superRules.apply(fieldName);
+      return (Rules<M>) superRules.apply(fieldName);
     }
   }
 
-  public static RulesMap map() {
-    return new RulesMap();
+  public static <N extends Node<?>> RulesMap<N> map() {
+    return new RulesMap<N>();
   }
 
   @SuperBuilder
-  public static class BooleanRules extends Rules {
+  public static class BooleanRules<N extends Node<?>> extends Rules<N> {
 
   }
 
   @Getter
   @Setter
   @SuperBuilder
-  public static class NumberRules extends Rules {
-    @Builder.Default
-    private Double max = null;
-    @Builder.Default
-    private Double min = null;
-    @Builder.Default
-    private boolean notZero = false;
-    @Builder.Default
-    private int size = 40;
-    @Builder.Default
-    private int scale = 0;
+  public static class NumberRules<N extends Node<?>> extends Rules<N> {
+    @Builder.Default private Double max = null;
+    @Builder.Default private Double min = null;
+    @Builder.Default private boolean notZero = false;
+    @Builder.Default private int size = 40;
+    @Builder.Default private int scale = 0;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -121,22 +115,15 @@ public class Rules {
     }
   }
 
-
   @Getter
   @Setter
   @SuperBuilder
-  public static class StringRules extends Rules {
-    @Builder.Default
-    private int maxLength = Integer.MAX_VALUE;
-    @Builder.Default
-    private int minLength = Integer.MIN_VALUE;
-    @Builder.Default
-    private boolean notEmpty = false;
-    @Builder.Default
-    private String pattern = null;
-    @Builder.Default
-    private boolean multiLine = false;
-
+  public static class StringRules<N extends Node<?>> extends Rules<N> {
+    @Builder.Default private int maxLength = Integer.MAX_VALUE;
+    @Builder.Default private int minLength = Integer.MIN_VALUE;
+    @Builder.Default private boolean notEmpty = false;
+    @Builder.Default private String pattern = null;
+    @Builder.Default private boolean multiLine = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -165,10 +152,9 @@ public class Rules {
   @Getter
   @Setter
   @SuperBuilder
-  public static class EnumRules extends Rules {
+  public static class EnumRules<N extends Node<?>> extends Rules<N> {
 
-    @Singular("notAllowed")
-    private List<Object> notAllowed;
+    @Singular("notAllowed") private List<Object> notAllowed;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -183,9 +169,8 @@ public class Rules {
   @Getter
   @Setter
   @SuperBuilder
-  public static class ListRules extends Rules {
-    @Builder.Default()
-    private boolean notEmpty = false;
+  public static class ListRules<N extends Node<?>> extends Rules<N> {
+    @Builder.Default() private boolean notEmpty = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -198,13 +183,11 @@ public class Rules {
 
   }
 
-
   @Getter
   @Setter
   @SuperBuilder
-  public static class LinkListRules extends Rules {
-    @Builder.Default()
-    private boolean notEmpty = false;
+  public static class LinkListRules<N extends Node<?>> extends Rules<N> {
+    @Builder.Default() private boolean notEmpty = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -217,13 +200,11 @@ public class Rules {
 
   }
 
-
   @Getter
   @Setter
   @SuperBuilder
-  public static class LinkRules extends Rules {
-    @Builder.Default()
-    private NextGetter noCycle = null;
+  public static class LinkRules<N extends Node<?>> extends Rules<N> {
+    @Builder.Default() private NextGetter noCycle = null;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -261,6 +242,5 @@ public class Rules {
     }
 
   }
-
 
 }

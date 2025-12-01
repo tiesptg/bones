@@ -20,14 +20,16 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"name", "description", "packageName", "entities", "enumTypes"})
 public class MetaModel extends Node<Node<?>> {
-  private static final RulesMap RULES = Rules.map()
-      .and("name", StringRules.builder().notNull(true).pattern("[A-Z]\\w+").build())
-      .and("description", StringRules.builder().multiLine(true).build())
-      .and("entities", ListRules.builder().notEmpty(true).notNull(true).build()).and("packageName",
-          StringRules.builder().notEmpty(true).pattern("[a-z0-9_]+(\\.[a-z0-9_]+)*").build());
+  private static final RulesMap<MetaModel> RULES = Rules.<MetaModel>map()
+      .and("name", StringRules.<MetaModel>builder().notNull(true).pattern("[A-Z]\\w+").build())
+      .and("description", StringRules.<MetaModel>builder().multiLine(true).build())
+      .and("entities", ListRules.<MetaModel>builder().notEmpty(true).notNull(true).build())
+      .and("packageName", StringRules.<MetaModel>builder().notEmpty(true)
+          .pattern("[a-z0-9_]+(\\.[a-z0-9_]+)*").build());
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<MetaModel> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

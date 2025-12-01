@@ -26,12 +26,9 @@ import lombok.NoArgsConstructor;
 
 public class ObjectConverter implements Converter<Object> {
   private static final Map<String, ObjectConverter> CONVERTERS = new TreeMap<>();
-  @Getter
-  private List<Property> properties = new ArrayList<>();
-  @Getter
-  private Method containerSetter = null;
-  @Getter
-  private Class<?> type;
+  @Getter private List<Property> properties = new ArrayList<>();
+  @Getter private Method containerSetter = null;
+  @Getter private Class<?> type;
 
   public Property getProperty(String name) {
     for (Property property : properties) {
@@ -59,7 +56,7 @@ public class ObjectConverter implements Converter<Object> {
     private Method setter;
     private Class<?> componentType;
     private Object defaultValue;
-    private Rules rules;
+    private Rules<?> rules;
     private Class<? extends CustomEditor> editor;
 
     public Class<?> getType() {
@@ -98,8 +95,6 @@ public class ObjectConverter implements Converter<Object> {
         throw new IOException(e.getCause());
       }
     }
-
-
 
     public boolean isList() {
       return List.class.isAssignableFrom(getter.getReturnType())
@@ -170,7 +165,7 @@ public class ObjectConverter implements Converter<Object> {
   }
 
   private void initRules(Node<?> node, Property property) {
-    Rules rules = node.getConstraint(property.getName());
+    Rules<?> rules = node.getConstraint(property.getName());
     Class<?> type = property.getType();
     if (rules == null) {
       if (type == String.class) {
@@ -295,8 +290,6 @@ public class ObjectConverter implements Converter<Object> {
     }
     return 1; // c2.isAssignableFrom(c1);
   }
-
-
 
   @SuppressWarnings("unchecked")
   private void linkFromTypedText(Parser parser, Object result, Property property, Object value)

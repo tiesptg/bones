@@ -5,6 +5,7 @@ import com.palisand.bones.meta.ui.PatternComponent;
 import com.palisand.bones.tt.Editor;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
+import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.LinkRules;
 import com.palisand.bones.tt.Rules.RulesMap;
@@ -21,16 +22,15 @@ import lombok.Setter;
 @FieldOrder({"entity", "opposite", "pointerPattern", "external", "notEmpty"})
 public class ReferenceRole extends Member {
 
-  private static final RulesMap RULES =
-      Rules.map().and("opposite", LinkRules.builder().notNull(true).build())
-          .and("entity", LinkRules.builder().notNull(true).build())
-          .and("pointerPattern", StringRules.builder().notEmpty(true).build());
+  private static final RulesMap<ReferenceRole> RULES = Rules.<ReferenceRole>map()
+      .and("opposite", LinkRules.<ReferenceRole>builder().notNull(true).build())
+      .and("entity", LinkRules.<ReferenceRole>builder().notNull(true).build())
+      .and("pointerPattern", StringRules.<ReferenceRole>builder().notEmpty(true).build());
 
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
-
 
   private String pointerPattern;
   private boolean external = false;

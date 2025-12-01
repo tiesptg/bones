@@ -580,11 +580,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private <N extends Node<?>> void validateProperties() throws IOException {
     for (JComponent component : propertyEditors) {
-      Rules rules = (Rules) component.getClientProperty(RULE);
+      Rules<N> rules = (Rules<N>) component.getClientProperty(RULE);
       if (rules != null) {
-        component.setEnabled(rules.isEnabled(selectedNode));
+        component.setEnabled(rules.isEnabled((N) selectedNode));
       }
     }
   }
@@ -592,7 +593,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   private <N extends Node<?>> void makeStringComponent(JPanel panel, N node, String value,
       Property property) {
     JTextComponent field;
-    if (((StringRules) property.getRules()).isMultiLine()) {
+    if (((StringRules<?>) property.getRules()).isMultiLine()) {
       field = new JTextArea(value, 5, 0);
       ((JTextArea) field).setLineWrap(true);
       ((JTextArea) field).setWrapStyleWord(true);
@@ -629,7 +630,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   @SuppressWarnings("unchecked")
   private <E extends Enum<E>> void makeEnumComponent(JPanel row, Node<?> node, Object value,
       Property property) {
-    Rules rules = property.getRules();
+    Rules<?> rules = property.getRules();
     E[] values = ((Class<E>) property.getType()).getEnumConstants();
     if (rules != null && !rules.isNotNull()) {
       E[] ne = Arrays.copyOf(values, 1);

@@ -16,12 +16,13 @@ import lombok.Setter;
 @EqualsAndHashCode(callSuper = true)
 @FieldOrder({"name", "description"})
 public class Item<N extends Node<?>> extends Node<N> {
-  private static final RulesMap RULES =
-      Rules.map().and("description", StringRules.builder().multiLine(true).build());
+  private static final RulesMap<Item<?>> RULES = Rules.<Item<?>>map().and("description",
+      StringRules.<Item<?>>builder().multiLine(true).build());
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Rules getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
+  public <M extends Node<?>> Rules<M> getConstraint(String field) {
+    return (Rules<M>) RULES.of(field, super::getConstraint);
   }
 
   private String name = null;

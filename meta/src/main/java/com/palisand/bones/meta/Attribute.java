@@ -4,6 +4,7 @@ import java.io.IOException;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
+import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.BooleanRules;
 import com.palisand.bones.tt.Rules.EnumRules;
@@ -22,25 +23,25 @@ import lombok.Setter;
 @FieldOrder({"type", "enumType", "defaultValue", "multiLine", "pattern", "minValue", "maxValue",
     "idFor"})
 public class Attribute extends Member {
-  private static final RulesMap RULES =
-      Rules.map().and("type", EnumRules.builder().notNull(true).notAllowed(Type.OBJECT).build())
-          .and("multiLine",
-              BooleanRules.builder()
-                  .enabled(attribute -> ((Attribute) attribute).getType() == Type.STRING).build())
-          .and("pattern",
-              StringRules.builder()
-                  .enabled(attribute -> ((Attribute) attribute).getType() == Type.STRING).build())
-          .and("maxValue",
-              NumberRules.builder()
-                  .enabled(attribute -> ((Attribute) attribute).getType().isNumber()).build())
-          .and("minValue",
-              NumberRules.builder()
-                  .enabled(attribute -> ((Attribute) attribute).getType().isNumber()).build())
-          .and("enumType", LinkRules.builder()
-              .enabled(attribute -> ((Attribute) attribute).getType() == Type.ENUM).build());
+  private static final RulesMap<Attribute> RULES = Rules.<Attribute>map()
+      .and("type", EnumRules.<Attribute>builder().notNull(true).notAllowed(Type.OBJECT).build())
+      .and("multiLine",
+          BooleanRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING)
+              .build())
+      .and("pattern",
+          StringRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING)
+              .build())
+      .and("maxValue",
+          NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType().isNumber())
+              .build())
+      .and("minValue",
+          NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType().isNumber())
+              .build())
+      .and("enumType", LinkRules.<Attribute>builder()
+          .enabled(attribute -> attribute.getType() == Type.ENUM).build());
 
   @Override
-  public Rules getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 
