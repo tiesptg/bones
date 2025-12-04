@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Retention(RUNTIME)
 @Target({FIELD, PARAMETER})
-public @interface SnakeCase {
-  boolean upperCase() default false;
+public @interface KebabCase {
+  boolean upperCase() default true;
 }

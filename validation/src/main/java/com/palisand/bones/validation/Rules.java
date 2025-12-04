@@ -18,7 +18,6 @@ public class Rules {
     Object validate(List<Violation> violations, Object spec, String fieldName, Object value);
   }
 
-
   private static void registerNotNull() {
     Validator.addRule(NotNull.class, (violations, spec, fieldName, value) -> {
       if (value == null) {
@@ -142,14 +141,81 @@ public class Rules {
 
   private static void registerUpperCase() {
     Validator.addRule(UpperCase.class, (violations, spec, fieldName, value) -> {
-      return value.toString().toUpperCase();
+      if (value != null && value.toString().matches(".[a-z].")) {
+        return value.toString().toUpperCase();
+      }
+      return null;
     });
   }
 
   private static void registerLowerCase() {
-    Validator.addRule(UpperCase.class, (violations, spec, fieldName, value) -> {
-      return value.toString().toLowerCase();
+    Validator.addRule(LowerCase.class, (violations, spec, fieldName, value) -> {
+      if (value != null && value.toString().matches(".[A-Z].")) {
+        return value.toString().toLowerCase();
+      }
+      return null;
     });
+  }
+
+  private static void registerCamelCase() {
+    Validator.addRule(CamelCase.class, (violations, spec, fieldName, value) -> {
+      if (value != null && value.toString().matches(".[\\-_].")) {
+        CamelCase cc = (CamelCase) spec;
+        return toCamelCase(value.toString(), cc.startsWithCapitel());
+      }
+      return null;
+    });
+  }
+
+  private static void registerSnakeCase() {
+    Validator.addRule(SnakeCase.class, (violations, spec, fieldName, value) -> {
+      if (value != null && value.toString().matches(".[\\-_].")) {
+        SnakeCase sc = (SnakeCase) spec;
+        return toSnakeOrKebabCase(value.toString(), sc.upperCase(), '_');
+      }
+      return null;
+    });
+  }
+
+  private static void registerKebabCase() {
+    Validator.addRule(SnakeCase.class, (violations, spec, fieldName, value) -> {
+      if (value != null && value.toString().matches(".[\\-_].")) {
+        SnakeCase sc = (SnakeCase) spec;
+        return toSnakeOrKebabCase(value.toString(), sc.upperCase(), '-');
+      }
+      return null;
+    });
+  }
+
+  private static String toCamelCase(String source, boolean firstUpperCase) {
+    StringBuilder sb = new StringBuilder(source);
+    for (int i = 0; i < sb.length(); ++i) {
+      if (!Character.isLetterOrDigit(sb.charAt(i))) {
+        sb.deleteCharAt(i);
+        sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));
+        --i;
+      }
+    }
+    if (sb.length() != 0 && firstUpperCase && Character.isUpperCase(sb.charAt(0))) {
+      sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
+    }
+    return sb.toString();
+  }
+
+  private static String toSnakeOrKebabCase(String source, boolean upperCase, char separator) {
+    StringBuilder sb = new StringBuilder(source);
+    for (int i = 0; i < sb.length(); ++i) {
+      if (Character.isUpperCase(i)) {
+        sb.insert(i, separator);
+        i += 2;
+      } else if (sb.charAt(i) != separator && !Character.isLetterOrDigit(sb.charAt(i))) {
+        sb.setCharAt(i, separator);
+      }
+    }
+    if (upperCase) {
+      return sb.toString().toUpperCase();
+    }
+    return sb.toString().toLowerCase();
   }
 
   static void register() {
@@ -163,6 +229,9 @@ public class Rules {
     registerAfter();
     registerUpperCase();
     registerLowerCase();
+    registerCamelCase();
+    registerSnakeCase();
+    registerKebabCase();
   }
 
   private static Instant convertToInstant(Object value) {

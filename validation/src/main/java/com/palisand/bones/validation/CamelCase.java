@@ -9,5 +9,5 @@ import java.lang.annotation.Target;
 @Retention(RUNTIME)
 @Target({FIELD, PARAMETER})
 public @interface CamelCase {
-  boolean StartsWithCapitel() default true;
+  boolean startsWithCapitel() default true;
 }
