@@ -18,8 +18,10 @@ import lombok.experimental.SuperBuilder;
 @Setter
 @SuperBuilder
 public class Rules<N extends Node<?>> {
-  @Builder.Default private EnabledChecker<N> enabled = null;
-  @Builder.Default private boolean notNull = false;
+  @Builder.Default
+  private EnabledChecker<N> enabled = null;
+  @Builder.Default
+  private boolean notNull = false;
 
   public enum Severity {
     ERROR, WARNING
@@ -60,14 +62,13 @@ public class Rules<N extends Node<?>> {
       return this;
     }
 
-    @SuppressWarnings("unchecked")
-    public <M extends Node<?>> Rules<M> of(String fieldName,
-        Function<String, Rules<M>> superRules) {
+    public Rules<? extends Node<?>> of(String fieldName,
+        Function<String, Rules<? extends Node<?>>> superRules) {
       Rules<N> rules = propertyRules.get(fieldName);
       if (rules != null) {
-        return (Rules<M>) rules;
+        return rules;
       }
-      return (Rules<M>) superRules.apply(fieldName);
+      return superRules.apply(fieldName);
     }
   }
 
@@ -84,11 +85,16 @@ public class Rules<N extends Node<?>> {
   @Setter
   @SuperBuilder
   public static class NumberRules<N extends Node<?>> extends Rules<N> {
-    @Builder.Default private Double max = null;
-    @Builder.Default private Double min = null;
-    @Builder.Default private boolean notZero = false;
-    @Builder.Default private int size = 40;
-    @Builder.Default private int scale = 0;
+    @Builder.Default
+    private Double max = null;
+    @Builder.Default
+    private Double min = null;
+    @Builder.Default
+    private boolean notZero = false;
+    @Builder.Default
+    private int size = 40;
+    @Builder.Default
+    private int scale = 0;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -119,11 +125,16 @@ public class Rules<N extends Node<?>> {
   @Setter
   @SuperBuilder
   public static class StringRules<N extends Node<?>> extends Rules<N> {
-    @Builder.Default private int maxLength = Integer.MAX_VALUE;
-    @Builder.Default private int minLength = Integer.MIN_VALUE;
-    @Builder.Default private boolean notEmpty = false;
-    @Builder.Default private String pattern = null;
-    @Builder.Default private boolean multiLine = false;
+    @Builder.Default
+    private int maxLength = Integer.MAX_VALUE;
+    @Builder.Default
+    private int minLength = Integer.MIN_VALUE;
+    @Builder.Default
+    private boolean notEmpty = false;
+    @Builder.Default
+    private String pattern = null;
+    @Builder.Default
+    private boolean multiLine = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -154,7 +165,8 @@ public class Rules<N extends Node<?>> {
   @SuperBuilder
   public static class EnumRules<N extends Node<?>> extends Rules<N> {
 
-    @Singular("notAllowed") private List<Object> notAllowed;
+    @Singular("notAllowed")
+    private List<Object> notAllowed;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -170,7 +182,8 @@ public class Rules<N extends Node<?>> {
   @Setter
   @SuperBuilder
   public static class ListRules<N extends Node<?>> extends Rules<N> {
-    @Builder.Default() private boolean notEmpty = false;
+    @Builder.Default()
+    private boolean notEmpty = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -187,7 +200,8 @@ public class Rules<N extends Node<?>> {
   @Setter
   @SuperBuilder
   public static class LinkListRules<N extends Node<?>> extends Rules<N> {
-    @Builder.Default() private boolean notEmpty = false;
+    @Builder.Default()
+    private boolean notEmpty = false;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {
@@ -204,7 +218,8 @@ public class Rules<N extends Node<?>> {
   @Setter
   @SuperBuilder
   public static class LinkRules<N extends Node<?>> extends Rules<N> {
-    @Builder.Default() private NextGetter noCycle = null;
+    @Builder.Default()
+    private NextGetter noCycle = null;
 
     @Override
     protected void doValidate(Validator validator, String field, Object value) throws IOException {

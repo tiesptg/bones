@@ -19,10 +19,9 @@ public class Item<N extends Node<?>> extends Node<N> {
   private static final RulesMap<Item<?>> RULES = Rules.<Item<?>>map().and("description",
       StringRules.<Item<?>>builder().multiLine(true).build());
 
-  @SuppressWarnings("unchecked")
   @Override
-  public <M extends Node<?>> Rules<M> getConstraint(String field) {
-    return (Rules<M>) RULES.of(field, super::getConstraint);
+  public Rules<? extends Node<?>> getConstraint(String field) {
+    return RULES.of(field, super::getConstraint);
   }
 
   private String name = null;

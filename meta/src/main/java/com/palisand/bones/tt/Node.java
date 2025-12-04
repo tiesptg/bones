@@ -13,7 +13,8 @@ import lombok.Setter;
 @Getter
 public abstract class Node<N extends Node<?>> {
   private N container;
-  @Setter private String containingAttribute;
+  @Setter
+  private String containingAttribute;
 
   @SuppressWarnings("unchecked")
   public void setContainer(Node<?> node, String attribute) {
@@ -67,7 +68,7 @@ public abstract class Node<N extends Node<?>> {
     }
   }
 
-  public <M extends Node<?>> Rules<M> getConstraint(String fieldName) {
+  public Rules<? extends Node<?>> getConstraint(String fieldName) {
     return null;
   }
 
@@ -77,7 +78,7 @@ public abstract class Node<N extends Node<?>> {
     try {
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
       for (Property property : converter.getProperties()) {
-        Rules<N> constr = getConstraint(property.getName());
+        Rules<N> constr = (Rules<N>) getConstraint(property.getName());
         Object value = property.getValue(this);
         if (constr != null && constr.isEnabled((N) this)) {
           constr.doValidate(validator, property.getName(), value);

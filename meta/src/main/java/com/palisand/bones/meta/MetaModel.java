@@ -27,9 +27,8 @@ public class MetaModel extends Node<Node<?>> {
       .and("packageName", StringRules.<MetaModel>builder().notEmpty(true)
           .pattern("[a-z0-9_]+(\\.[a-z0-9_]+)*").build());
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Rules<MetaModel> getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 
@@ -40,6 +39,7 @@ public class MetaModel extends Node<Node<?>> {
   private List<Entity> entities = new ArrayList<>();
   private List<EnumType> enumTypes = new ArrayList<>();
 
+  @Override
   @TextIgnore
   public String getId() {
     return name;

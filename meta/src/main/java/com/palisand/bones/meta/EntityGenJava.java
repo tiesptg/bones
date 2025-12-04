@@ -192,7 +192,6 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       nl();
       decMargin();
       nl();
-      nl("@SuppressWarnings(\"unchecked\")");
       nl("@Override");
       nl("public Rules<? extends Node<?>> getConstraint(String field) {");
       incMargin();

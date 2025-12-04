@@ -7,6 +7,7 @@ import java.util.Optional;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
+import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.LinkRules;
 import com.palisand.bones.tt.Rules.RulesMap;
@@ -35,9 +36,8 @@ public class Entity extends Item<MetaModel> {
       .and("superEntity", LinkRules.<Entity>builder()
           .enabled(entity -> entity.getContainingAttribute() != null).build());
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Rules<Entity> getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

@@ -17,7 +17,6 @@ public abstract class Member extends Item<Entity> {
   private static final RulesMap<Member> RULES = Rules.<Member>map().and("name",
       StringRules.<Member>builder().notNull(true).pattern("[a-z]\\w+").build());
 
-  @SuppressWarnings("unchecked")
   @Override
   public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);

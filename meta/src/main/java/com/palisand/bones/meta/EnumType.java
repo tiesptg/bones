@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.LinkList;
+import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.Rules;
 import com.palisand.bones.tt.Rules.ListRules;
 import com.palisand.bones.tt.Rules.RulesMap;
@@ -21,9 +22,8 @@ public class EnumType extends Item<MetaModel> {
       .and("name", StringRules.<EnumType>builder().notNull(true).pattern("[A-Z]\\w+").build())
       .and("values", ListRules.<EnumType>builder().notEmpty(true).build());
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Rules<EnumType> getConstraint(String field) {
+  public Rules<? extends Node<?>> getConstraint(String field) {
     return RULES.of(field, super::getConstraint);
   }
 

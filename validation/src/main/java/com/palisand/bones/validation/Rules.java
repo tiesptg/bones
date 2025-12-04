@@ -18,14 +18,17 @@ public class Rules {
     Object validate(List<Violation> violations, Object spec, String fieldName, Object value);
   }
 
-  static void register() {
+
+  private static void registerNotNull() {
     Validator.addRule(NotNull.class, (violations, spec, fieldName, value) -> {
       if (value == null) {
         violations.add(new Violation(fieldName, "value should not be null", value, spec));
       }
       return value;
     });
+  }
 
+  private static void registerNotEmpty() {
     Validator.addRule(NotEmpty.class, (violations, spec, fieldName, value) -> {
       if (value == null) {
         violations.add(new Violation(fieldName, "value should not be null", value, spec));
@@ -37,7 +40,9 @@ public class Rules {
       }
       return value;
     });
+  }
 
+  private static void registerNoXss() {
     Validator.addRule(NoXss.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         StringBuilder sb = new StringBuilder(value.toString());
@@ -62,7 +67,9 @@ public class Rules {
       return value;
 
     });
+  }
 
+  private static void registerRegexpPattern() {
     Validator.addRule(RegexpPattern.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         RegexpPattern pattern = (RegexpPattern) spec;
@@ -73,7 +80,9 @@ public class Rules {
       }
       return value;
     });
+  }
 
+  private static void registerMax() {
     Validator.addRule(Max.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         Max max = (Max) spec;
@@ -85,6 +94,9 @@ public class Rules {
       }
       return value;
     });
+  }
+
+  private static void registerMin() {
     Validator.addRule(Min.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         Min min = (Min) spec;
@@ -96,6 +108,9 @@ public class Rules {
       }
       return value;
     });
+  }
+
+  private static void registerBefore() {
     Validator.addRule(Before.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         Before before = (Before) spec;
@@ -108,6 +123,9 @@ public class Rules {
       }
       return value;
     });
+  }
+
+  private static void registerAfter() {
     Validator.addRule(After.class, (violations, spec, fieldName, value) -> {
       if (value != null) {
         After after = (After) spec;
@@ -120,6 +138,31 @@ public class Rules {
       }
       return value;
     });
+  }
+
+  private static void registerUpperCase() {
+    Validator.addRule(UpperCase.class, (violations, spec, fieldName, value) -> {
+      return value.toString().toUpperCase();
+    });
+  }
+
+  private static void registerLowerCase() {
+    Validator.addRule(UpperCase.class, (violations, spec, fieldName, value) -> {
+      return value.toString().toLowerCase();
+    });
+  }
+
+  static void register() {
+    registerNotNull();
+    registerNotEmpty();
+    registerNoXss();
+    registerRegexpPattern();
+    registerMax();
+    registerMin();
+    registerBefore();
+    registerAfter();
+    registerUpperCase();
+    registerLowerCase();
   }
 
   private static Instant convertToInstant(Object value) {
