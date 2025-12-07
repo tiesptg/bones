@@ -1,5 +1,6 @@
 package com.palisand.bones.validation;
 
+import java.lang.annotation.Annotation;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -8,33 +9,63 @@ import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.UnsupportedTemporalTypeException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
-import com.palisand.bones.validation.Validator.Violation;
+import java.util.Map;
+import com.palisand.bones.Classes.Property;
+import com.palisand.bones.Names;
 
 public class Rules {
+  private final static Map<Class<?>, Rule> RULES = new HashMap<>();
+
+  public static Rule getRule(Class<?> annotationClass) {
+    return RULES.get(annotationClass);
+  }
+
+  @FunctionalInterface
+  public interface PredicateWithException<A> {
+    boolean test(A a) throws Exception;
+  }
+
+  public static <A extends Annotation> void addRule(Class<A> annotationClass, Rule rule) {
+    RULES.put(annotationClass, rule);
+  }
+
+  public enum Severity {
+    ERROR, WARNING
+  }
+
+  public record Violation(Severity severity, Object ownerOfField, Property<?> property,
+      String message, Exception exception) {
+
+  }
 
   @FunctionalInterface
   public interface Rule {
-    Object validate(List<Violation> violations, Object spec, String fieldName, Object value);
+    Object validate(List<Violation> violations, Object ownerOfField, Object spec,
+        Property<?> property, Object value) throws Exception;
   }
 
   private static void registerNotNull() {
-    Validator.addRule(NotNull.class, (violations, spec, fieldName, value) -> {
-      if (value == null) {
-        violations.add(new Violation(fieldName, "value should not be null", value, spec));
+    addRule(NotNull.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value == null || (value instanceof String str && str.isBlank())) {
+        violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+            "value should not be null", null));
       }
       return value;
     });
   }
 
   private static void registerNotEmpty() {
-    Validator.addRule(NotEmpty.class, (violations, spec, fieldName, value) -> {
+    addRule(NotEmpty.class, (violations, ownerOfField, spec, property, value) -> {
       if (value == null) {
-        violations.add(new Violation(fieldName, "value should not be null", value, spec));
+        violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+            "value should not be null", null));
       }
       if (value instanceof Collection collection) {
         if (collection.isEmpty()) {
-          violations.add(new Violation(fieldName, "value should not be empty", value, spec));
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value should not be empty", null));
         }
       }
       return value;
@@ -42,8 +73,8 @@ public class Rules {
   }
 
   private static void registerNoXss() {
-    Validator.addRule(NoXss.class, (violations, spec, fieldName, value) -> {
-      if (value != null) {
+    addRule(NoXss.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null && value.toString().matches(".*[\\<\\>].*")) {
         StringBuilder sb = new StringBuilder(value.toString());
         for (int i = 0; i < sb.length(); ++i) {
           switch (sb.charAt(i)) {
@@ -55,12 +86,10 @@ public class Rules {
               sb.replace(i, ++i, "&gt;");
               i += 2;
               break;
-            case '&':
-              sb.replace(i, ++i, "&amp;");
-              i += 3;
-              break;
           }
         }
+        violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+            "value constains < or > characters. This may indicate a XSS attack", null));
         return sb.toString();
       }
       return value;
@@ -69,12 +98,12 @@ public class Rules {
   }
 
   private static void registerRegexpPattern() {
-    Validator.addRule(RegexpPattern.class, (violations, spec, fieldName, value) -> {
+    addRule(RegexPattern.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
-        RegexpPattern pattern = (RegexpPattern) spec;
+        RegexPattern pattern = (RegexPattern) spec;
         if (value.toString().matches(pattern.value())) {
-          violations.add(new Violation(fieldName,
-              "value does not conform to pattern :'" + pattern.value() + "'", value, spec));
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value does not conform to pattern :'" + pattern.value() + "'", null));
         }
       }
       return value;
@@ -82,13 +111,14 @@ public class Rules {
   }
 
   private static void registerMax() {
-    Validator.addRule(Max.class, (violations, spec, fieldName, value) -> {
+    addRule(Max.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
         Max max = (Max) spec;
         Number number = (Number) value;
         if ((max.inclusive() && number.doubleValue() > max.value())
             || (!max.inclusive() && number.doubleValue() >= max.value())) {
-          violations.add(new Violation(fieldName, "number is too large", value, spec));
+          violations.add(
+              new Violation(Severity.ERROR, ownerOfField, property, "number is too large", null));
         }
       }
       return value;
@@ -96,13 +126,14 @@ public class Rules {
   }
 
   private static void registerMin() {
-    Validator.addRule(Min.class, (violations, spec, fieldName, value) -> {
+    addRule(Min.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
         Min min = (Min) spec;
         Number number = (Number) value;
         if ((min.inclusive() && number.doubleValue() < min.value())
             || (!min.inclusive() && number.doubleValue() <= min.value())) {
-          violations.add(new Violation(fieldName, "number is too small", value, spec));
+          violations.add(
+              new Violation(Severity.ERROR, ownerOfField, property, "number is too small", null));
         }
       }
       return value;
@@ -110,14 +141,14 @@ public class Rules {
   }
 
   private static void registerBefore() {
-    Validator.addRule(Before.class, (violations, spec, fieldName, value) -> {
+    addRule(Before.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
         Before before = (Before) spec;
         Instant instant = parseIsoInstant(before.value());
         Instant timestamp = convertToInstant(value);
         if (timestamp.isAfter(instant)) {
-          violations.add(
-              new Violation(fieldName, "value should be before " + before.value(), value, spec));
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value should be before " + before.value(), null));
         }
       }
       return value;
@@ -125,14 +156,14 @@ public class Rules {
   }
 
   private static void registerAfter() {
-    Validator.addRule(After.class, (violations, spec, fieldName, value) -> {
+    addRule(After.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
         After after = (After) spec;
         Instant instant = parseIsoInstant(after.value());
         Instant timestamp = convertToInstant(value);
         if (timestamp.isBefore(instant)) {
-          violations.add(
-              new Violation(fieldName, "value should be before " + after.value(), value, spec));
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value should be before " + after.value(), null));
         }
       }
       return value;
@@ -140,8 +171,10 @@ public class Rules {
   }
 
   private static void registerUpperCase() {
-    Validator.addRule(UpperCase.class, (violations, spec, fieldName, value) -> {
-      if (value != null && value.toString().matches(".[a-z].")) {
+    addRule(UpperCase.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null && value.toString().matches(".*[a-z].*")) {
+        violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+            "value contains non uppercase characters", null));
         return value.toString().toUpperCase();
       }
       return null;
@@ -149,8 +182,10 @@ public class Rules {
   }
 
   private static void registerLowerCase() {
-    Validator.addRule(LowerCase.class, (violations, spec, fieldName, value) -> {
-      if (value != null && value.toString().matches(".[A-Z].")) {
+    addRule(LowerCase.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null && value.toString().matches(".*[A-Z].*")) {
+        violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+            "value contains non lowercase characters", null));
         return value.toString().toLowerCase();
       }
       return null;
@@ -158,67 +193,64 @@ public class Rules {
   }
 
   private static void registerCamelCase() {
-    Validator.addRule(CamelCase.class, (violations, spec, fieldName, value) -> {
-      if (value != null && value.toString().matches(".[\\-_].")) {
+    addRule(CamelCase.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null && value.toString().matches(".*[\\-_\\s].*")) {
         CamelCase cc = (CamelCase) spec;
-        return toCamelCase(value.toString(), cc.startsWithCapitel());
+        String result = Names.toCamelCase(value.toString(), cc.startsWithCapitel());
+        if (!result.equals(value)) {
+          violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+              "value was not camel case", null));
+          return result;
+        }
       }
       return null;
     });
   }
 
   private static void registerSnakeCase() {
-    Validator.addRule(SnakeCase.class, (violations, spec, fieldName, value) -> {
-      if (value != null && value.toString().matches(".[\\-_].")) {
+    addRule(SnakeCase.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null) {
         SnakeCase sc = (SnakeCase) spec;
-        return toSnakeOrKebabCase(value.toString(), sc.upperCase(), '_');
+        String result = Names.toSeparatedCase(value.toString(), sc.upperCase(), '_');
+        if (!result.equals(value)) {
+          violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+              "value was not snake case", null));
+          return result;
+        }
       }
       return null;
     });
   }
 
   private static void registerKebabCase() {
-    Validator.addRule(SnakeCase.class, (violations, spec, fieldName, value) -> {
-      if (value != null && value.toString().matches(".[\\-_].")) {
-        SnakeCase sc = (SnakeCase) spec;
-        return toSnakeOrKebabCase(value.toString(), sc.upperCase(), '-');
+    addRule(KebabCase.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null) {
+        KebabCase sc = (KebabCase) spec;
+        String result = Names.toSeparatedCase(value.toString(), sc.upperCase(), '-');
+        if (!result.equals(value)) {
+          violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+              "value was not kebab case", null));
+          return result;
+        }
       }
       return null;
     });
   }
 
-  private static String toCamelCase(String source, boolean firstUpperCase) {
-    StringBuilder sb = new StringBuilder(source);
-    for (int i = 0; i < sb.length(); ++i) {
-      if (!Character.isLetterOrDigit(sb.charAt(i))) {
-        sb.deleteCharAt(i);
-        sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));
-        --i;
+  private static void registerNotAllowed() {
+    addRule(NotAllowed.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null) {
+        NotAllowed na = (NotAllowed) spec;
+        if (value.toString().equals(na.value())) {
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value " + value + " is not allowed", null));
+        }
       }
-    }
-    if (sb.length() != 0 && firstUpperCase && Character.isUpperCase(sb.charAt(0))) {
-      sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
-    }
-    return sb.toString();
+      return null;
+    });
   }
 
-  private static String toSnakeOrKebabCase(String source, boolean upperCase, char separator) {
-    StringBuilder sb = new StringBuilder(source);
-    for (int i = 0; i < sb.length(); ++i) {
-      if (Character.isUpperCase(i)) {
-        sb.insert(i, separator);
-        i += 2;
-      } else if (sb.charAt(i) != separator && !Character.isLetterOrDigit(sb.charAt(i))) {
-        sb.setCharAt(i, separator);
-      }
-    }
-    if (upperCase) {
-      return sb.toString().toUpperCase();
-    }
-    return sb.toString().toLowerCase();
-  }
-
-  static void register() {
+  static {
     registerNotNull();
     registerNotEmpty();
     registerNoXss();
@@ -232,6 +264,7 @@ public class Rules {
     registerCamelCase();
     registerSnakeCase();
     registerKebabCase();
+    registerNotAllowed();
   }
 
   private static Instant convertToInstant(Object value) {

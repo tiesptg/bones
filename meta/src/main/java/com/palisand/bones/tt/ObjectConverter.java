@@ -5,33 +5,28 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import com.palisand.bones.di.Classes;
+import com.palisand.bones.Classes;
+import com.palisand.bones.Classes.Property;
 import com.palisand.bones.meta.ui.CustomEditor;
 import com.palisand.bones.tt.Repository.Parser;
 import com.palisand.bones.tt.Repository.Token;
-import com.palisand.bones.tt.Rules.BooleanRules;
-import com.palisand.bones.tt.Rules.EnumRules;
-import com.palisand.bones.tt.Rules.LinkRules;
-import com.palisand.bones.tt.Rules.ListRules;
-import com.palisand.bones.tt.Rules.NumberRules;
-import com.palisand.bones.tt.Rules.StringRules;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 public class ObjectConverter implements Converter<Object> {
   private static final Map<String, ObjectConverter> CONVERTERS = new TreeMap<>();
-  @Getter private List<Property> properties = new ArrayList<>();
+  @Getter private List<EditorProperty<?>> properties = new ArrayList<>();
   @Getter private Method containerSetter = null;
   @Getter private Class<?> type;
 
-  public Property getProperty(String name) {
-    for (Property property : properties) {
+  public EditorProperty<?> getProperty(String name) {
+    for (EditorProperty<?> property : properties) {
       if (property.getName().equals(name)) {
         return property;
       }
@@ -49,18 +44,18 @@ public class ObjectConverter implements Converter<Object> {
   }
 
   @Data
+  @EqualsAndHashCode(callSuper = true)
   @NoArgsConstructor
-  public static class Property {
-    private String name;
-    private Method getter;
-    private Method setter;
+  public static class EditorProperty<X> extends Property<X> {
     private Class<?> componentType;
-    private Object defaultValue;
-    private Rules<?> rules;
     private Class<? extends CustomEditor> editor;
 
+    public String getName() {
+      return getField().getName();
+    }
+
     public Class<?> getType() {
-      return getter.getReturnType();
+      return getField().getType();
     }
 
     public Class<?> getComponentType() {
@@ -70,12 +65,12 @@ public class ObjectConverter implements Converter<Object> {
       return getType();
     }
 
-    public Object get(Object target) throws IOException {
-      return invoke(getter, target);
+    public Object getValue(Object target) throws IOException {
+      return invoke(getGetter(), target);
     }
 
-    public void set(Object target, Object value) throws IOException {
-      invoke(setter, target, value);
+    public void setValue(Object target, Object value) throws IOException {
+      invoke(getSetter(), target, value);
     }
 
     private Object invoke(Method method, Object target, Object... parameters) throws IOException {
@@ -97,41 +92,33 @@ public class ObjectConverter implements Converter<Object> {
     }
 
     public boolean isList() {
-      return List.class.isAssignableFrom(getter.getReturnType())
-          || LinkList.class.isAssignableFrom(getter.getReturnType());
+      return List.class.isAssignableFrom(getGetter().getReturnType())
+          || LinkList.class.isAssignableFrom(getGetter().getReturnType());
     }
 
     public boolean isLink() {
-      return Link.class.isAssignableFrom(getter.getReturnType())
-          || LinkList.class.isAssignableFrom(getter.getReturnType());
+      return Link.class.isAssignableFrom(getGetter().getReturnType())
+          || LinkList.class.isAssignableFrom(getGetter().getReturnType());
     }
 
     public boolean isReadonly() {
-      return setter == null && !isLink();
+      return getSetter() == null && !isLink();
     }
 
     public boolean isTextIgnore() {
-      return getter.getAnnotation(TextIgnore.class) != null || isReadonly();
+      return getField().getAnnotation(TextIgnore.class) != null || isReadonly();
     }
 
     public boolean hasTextIgnoreAnnotation() {
-      return getter.getAnnotation(TextIgnore.class) != null;
+      return getField().getAnnotation(TextIgnore.class) != null;
     }
 
     public String getLabel() {
-      return Character.toUpperCase(name.charAt(0)) + name.substring(1);
-    }
-
-    public Object getValue(Object object) throws IOException {
-      try {
-        return getter.invoke(object);
-      } catch (Exception e) {
-        throw new IOException(e.getCause() != null ? e.getCause() : e);
-      }
+      return Character.toUpperCase(getName().charAt(0)) + getName().substring(1);
     }
 
     public boolean isDefault(Object value) {
-      if (value == null && defaultValue == null) {
+      if (value == null && getDefaultValue() == null) {
         return true;
       }
       if (value instanceof LinkList linkList) {
@@ -140,108 +127,36 @@ public class ObjectConverter implements Converter<Object> {
       if (value instanceof List list) {
         return list.isEmpty();
       }
-      if (value == null || defaultValue == null) {
+      if (value == null || getDefaultValue() == null) {
         return false;
       }
-      if (value.equals(defaultValue)) {
+      if (value.equals(getDefaultValue())) {
         return true;
       }
       return false;
     }
   }
 
-  private boolean isPropertyGetter(Method method, StringBuilder name) {
-    if (!Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0
-        && method.getAnnotation(TextIgnore.class) == null) {
-      if (method.getName().startsWith("get")
-          || ((method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)
-              && method.getName().startsWith("is"))) {
-        name.setLength(0);
-        name.append(method.getName().substring(method.getName().startsWith("g") ? 3 : 2));
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private void initRules(Node<?> node, Property property) {
-    Rules<?> rules = node.getConstraint(property.getName());
-    Class<?> type = property.getType();
-    if (rules == null) {
-      if (type == String.class) {
-        rules = StringRules.builder().build();
-      } else if (type == Integer.class || type == Double.class || type == int.class
-          || type == double.class || type == Long.class || type == long.class || type == Float.class
-          || type == float.class) {
-        rules = NumberRules.builder().build();
-      } else if (type == Boolean.class) {
-        rules = BooleanRules.builder().build();
-      } else if (type == List.class) {
-        rules = ListRules.builder().build();
-      } else if (type == Link.class) {
-        rules = LinkRules.builder().build();
-      } else if (type.isEnum()) {
-        rules = EnumRules.builder().build();
-      } else {
-        rules = Rules.builder().build();
-      }
-    }
-    property.setRules(rules);
-  }
-
-  private ObjectConverter(Class<?> cls) {
-    Object object = newInstance(cls);
+  @SuppressWarnings("unchecked")
+  private <X> ObjectConverter(Class<X> cls) {
     type = cls;
-    StringBuilder name = new StringBuilder();
-    int index = 0;
-    Class<?> ref = cls;
-    System.out.println("Class: " + cls.getName());
-    for (Method method : cls.getMethods()) {
-      if (isPropertyGetter(method, name) && method.getDeclaringClass() != Object.class
-          && method.getDeclaringClass() != Node.class) {
-        name.insert(0, "set");
-        Property property = new Property();
-        property.setGetter(method);
-        if (method.getAnnotation(Editor.class) != null) {
-          Editor editor = method.getAnnotation(Editor.class);
-          property.setEditor(editor.value());
-        }
-        try {
-          Method setter = cls.getMethod(name.toString(), method.getReturnType());
-          if (!Modifier.isStatic(setter.getModifiers())
-              && setter.getAnnotation(TextIgnore.class) == null) {
-            property.setSetter(setter);
-          }
-        } catch (NoSuchMethodException ex) {
-          // ignore
-        }
-        name.delete(0, 3);
-        name.setCharAt(0, Character.toLowerCase(name.charAt(0)));
-        property.setName(name.toString());
-        System.out.println("- Property: " + name);
-        if (object instanceof Node<?> node) {
-          initRules(node, property);
-        }
-        if (!Node.class.isAssignableFrom(property.getType())
-            && !Link.class.isAssignableFrom(property.getType())
-            && !List.class.isAssignableFrom(property.getType())) {
-          try {
-            property.setDefaultValue(property.getGetter().invoke(object));
-          } catch (Exception ex) {
-            // ignore
-          }
-        }
-        if (property.isLink()) {
-          property.setComponentType(Classes.getGenericType(method.getGenericReturnType(), 1));
-        } else if (property.isList()) {
-          property.setComponentType(Classes.getGenericType(method.getGenericReturnType(), 0));
-        }
-        if (ref != method.getDeclaringClass()) {
-          index = 0;
-          ref = method.getDeclaringClass();
-        }
-        properties.add(index++, property);
-      }
+    try {
+      properties = (List<EditorProperty<?>>) (Object) (Classes.getProperties(cls,
+          () -> new EditorProperty<X>(), property -> {
+            if (property.getField().getAnnotation(Editor.class) != null) {
+              Editor editor = property.getField().getAnnotation(Editor.class);
+              property.setEditor(editor.value());
+            }
+            if (property.isLink()) {
+              property.setComponentType(
+                  Classes.getGenericType(property.getField().getGenericType(), 1));
+            } else if (property.isList()) {
+              property.setComponentType(
+                  Classes.getGenericType(property.getField().getGenericType(), 0));
+            }
+          }));
+    } catch (Exception ex) {
+      throw new IllegalArgumentException(ex);
     }
 
     properties.sort((p1, p2) -> {
@@ -254,7 +169,7 @@ public class ObjectConverter implements Converter<Object> {
     });
   }
 
-  private int compareProperties(Property p1, Property p2) {
+  private int compareProperties(EditorProperty<?> p1, EditorProperty<?> p2) {
     FieldOrder fo = p1.getGetter().getDeclaringClass().getAnnotation(FieldOrder.class);
     if (fo != null) {
       int i1 = indexOf(fo.value(), p1.getName());
@@ -292,8 +207,8 @@ public class ObjectConverter implements Converter<Object> {
   }
 
   @SuppressWarnings("unchecked")
-  private void linkFromTypedText(Parser parser, Object result, Property property, Object value)
-      throws Exception {
+  private void linkFromTypedText(Parser parser, Object result, EditorProperty<?> property,
+      Object value) throws Exception {
     if (property.isList()) {
       List<String> list = (List<String>) value;
       LinkList<?, ?> linkList = (LinkList<?, ?>) property.getGetter().invoke(result);
@@ -302,7 +217,7 @@ public class ObjectConverter implements Converter<Object> {
         parser.addToRead(path);
       }
     } else {
-      Link<?, ?> link = (Link<?, ?>) property.getter.invoke(result);
+      Link<?, ?> link = (Link<?, ?>) property.get(result);
       link.setPath((String) value);
       parser.addToRead(link.getPath());
     }
@@ -335,7 +250,7 @@ public class ObjectConverter implements Converter<Object> {
 
     Object result = newInstance(converter.type);
     String newMargin = margin + Repository.MARGIN_STEP;
-    Property property = null;
+    EditorProperty<?> property = null;
     for (token = parser.nextToken(in); !isEnd(token, margin); token = parser.nextToken(in)) {
       property = converter.getProperty(token.label());
       parser.consumeLastToken();
@@ -350,9 +265,12 @@ public class ObjectConverter implements Converter<Object> {
           if (property.isLink()) {
             linkFromTypedText(parser, result, property, value);
           } else {
-            property.setter.invoke(result, value);
+            property.setValue(result, value);
           }
         } catch (Exception ex) {
+          if (ex instanceof IOException ioe) {
+            throw ioe;
+          }
           throw new IOException(ex);
         }
       } else {
@@ -379,7 +297,7 @@ public class ObjectConverter implements Converter<Object> {
     return cls.getName();
   }
 
-  private Object linkToTypedText(Object object, Property property, Object value)
+  private Object linkToTypedText(Object object, EditorProperty<?> property, Object value)
       throws IOException {
     Object result = null;
     if (property.isList()) {
@@ -413,7 +331,7 @@ public class ObjectConverter implements Converter<Object> {
     } else {
       out.print(getClassLabel(obj.getClass(), context));
       out.println('>');
-      for (Property property : properties) {
+      for (EditorProperty<?> property : properties) {
         if (!property.isTextIgnore() && !property.isReadonly()) {
           Object value = null;
           try {

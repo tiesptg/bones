@@ -3,14 +3,11 @@ package com.palisand.bones.meta;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import com.palisand.bones.meta.generator.JavaGenerator;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.RulesMap;
 import com.palisand.bones.tt.TextIgnore;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,12 +24,6 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     addImport(Getter.class);
     addImport(Setter.class);
     addImport(NoArgsConstructor.class);
-    if (!getAllRules(entity, "").isEmpty()) {
-      addImport(RulesMap.class);
-      addImport(Rules.class);
-      addImport(Rules.class.getName() + ".*");
-      addImport(Node.class);
-    }
     if (entity.getContainerRoles().stream().anyMatch(role -> role.isMultiple())) {
       addImport(List.class);
       addImport(ArrayList.class);
@@ -53,84 +44,6 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     if (!entity.getActiveContainer().isPresent()) {
       addImport(Node.class);
     }
-  }
-
-  @SuppressWarnings("incomplete-switch")
-  private String getRuleType(Member member) throws IOException {
-    switch (member.getType()) {
-      case STRING:
-        return "String";
-      case BOOLEAN:
-        return "Boolean";
-      case INTEGER:
-      case DOUBLE:
-        return "Number";
-      case ENUM:
-        return "Enum";
-      case OBJECT: {
-        if (member instanceof ContainerRole role) {
-          if (role.isMultiple()) {
-            return "List";
-          }
-          return "";
-        }
-        if (member.isMultiple()) {
-          return "LinkList";
-        }
-        return "Link";
-      }
-    }
-    throw new IOException("Member " + member + " has no supported rules type");
-  }
-
-  private List<String> getAllRules(Entity entity, String rulesGen) throws IOException {
-    List<String> rules = new ArrayList<>();
-    for (Member member : entity.getMembers()) {
-      String r = getRules(member, rulesGen);
-      if (r != null) {
-        rules.add(r);
-      }
-    }
-    return rules;
-  }
-
-  private String getRules(Member member, String rulesGen) throws IOException {
-    List<String> rules = new ArrayList<>();
-    if (member.isNotNull()) {
-      rules.add(".notNull(true)");
-    }
-    if (member.getEnabledWhen() != null) {
-      rules.add(".enabled(object -> " + member.getEnabledWhen() + ")");
-    }
-    if (member instanceof Attribute attribute) {
-      if (attribute.getType() == Type.STRING) {
-        if (attribute.getMultiLine()) {
-          rules.add(".multiLine(true)");
-        }
-      }
-      if (attribute.getPattern() != null) {
-        rules.add(String.format(".pattern(\"%s\")", attribute.getPattern()));
-      }
-    }
-    if (member instanceof ContainerRole role) {
-      if (role.isMultiple()) {
-        if (role.isNotEmpty()) {
-          rules.add(".notEmpty(true)");
-        }
-      }
-    } else if (member instanceof ReferenceRole role) {
-      if (role.isMultiple()) {
-        if (role.isNotEmpty()) {
-          rules.add(".notEmpty(true)");
-        }
-      }
-    }
-    if (!rules.isEmpty()) {
-      return String.format(".and(\"%s\",%sRules.<%sGen%s>builder()%s.build())", member.getName(),
-          getRuleType(member), member.getContainer().getName(), rulesGen,
-          rules.stream().collect(Collectors.joining()));
-    }
-    return null;
   }
 
   @Override
@@ -177,29 +90,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
         superContainer);
     nl();
     incMargin();
-    List<String> rules = getAllRules(entity, rulesGen);
-    if (!rules.isEmpty()) {
-      margin();
-      l("private static final RulesMap<%sGen%s> RULES = Rules.<%sGen%s>map()", entity.getName(),
-          rulesGen, entity.getName(), rulesGen);
-      incMargin();
-      for (String str : rules) {
-        nl();
-        margin();
-        l(str);
-      }
-      l(";");
-      nl();
-      decMargin();
-      nl();
-      nl("@Override");
-      nl("public Rules<? extends Node<?>> getConstraint(String field) {");
-      incMargin();
-      nl("return RULES.of(field,super::getConstraint);");
-      decMargin();
-      nl("}");
-      nl();
-    }
+    // TODO: RULES
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
         if (attribute.getJavaDefaultValue().contains("(")) {

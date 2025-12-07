@@ -6,15 +6,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.palisand.bones.tt.ObjectConverter.Property;
+import com.palisand.bones.Classes.Property;
+import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.validation.Rules.Violation;
+import com.palisand.bones.validation.Validatable;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
-public abstract class Node<N extends Node<?>> {
+public abstract class Node<N extends Node<?>> implements Validatable {
   private N container;
-  @Setter
-  private String containingAttribute;
+  @Setter private String containingAttribute;
 
   @SuppressWarnings("unchecked")
   public void setContainer(Node<?> node, String attribute) {
@@ -37,7 +39,7 @@ public abstract class Node<N extends Node<?>> {
   public void beforeIdChange(String oldId, String newId) throws IOException {
     if (oldId != null) {
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
-      for (Property property : converter.getProperties()) {
+      for (EditorProperty<?> property : converter.getProperties()) {
         if (property.isLink()) {
           if (property.isList()) {
             LinkList<?, ?> list = (LinkList<?, ?>) property.get(this);
@@ -68,44 +70,18 @@ public abstract class Node<N extends Node<?>> {
     }
   }
 
-  public Rules<? extends Node<?>> getConstraint(String fieldName) {
+  protected Property<?> getProperty(List<Property<?>> properties, String name) {
+    for (Property<?> property : properties) {
+      if (property.getField().getName().equals(name)) {
+        return property;
+      }
+    }
     return null;
   }
 
-  @SuppressWarnings("unchecked")
-  public boolean validate(Validator validator) {
-    validator.setNode(this);
-    try {
-      ObjectConverter converter = ObjectConverter.getConverter(getClass());
-      for (Property property : converter.getProperties()) {
-        Rules<N> constr = (Rules<N>) getConstraint(property.getName());
-        Object value = property.getValue(this);
-        if (constr != null && constr.isEnabled((N) this)) {
-          constr.doValidate(validator, property.getName(), value);
-        }
-        if (value != null && Node.class.isAssignableFrom(property.getComponentType())
-            && !property.isLink() && !property.isReadonly()) {
-          if (property.isList()) {
-            List<Node<?>> list = (List<Node<?>>) value;
-            for (Node<?> child : list) {
-              child.validate(validator);
-            }
-          } else {
-            Node<?> node = (Node<?>) value;
-            node.validate(validator);
-          }
-          validator.setNode(this);
-        }
-      }
-      doValidate(validator);
-    } catch (Exception ex) {
-      validator.addViolation(null, ex);
-    }
-    return validator.containsErrors();
-  }
+  @Override
+  public void doValidate(List<Violation> result, List<Property<?>> properties) throws Exception {
 
-  protected void doValidate(Validator validator) throws IOException {
-    // overrideable method to implement custom validations
   }
 
   List<String> getPathList() {
@@ -173,7 +149,7 @@ public abstract class Node<N extends Node<?>> {
   @SuppressWarnings("unchecked")
   public void delete() throws IOException {
     ObjectConverter converter = ObjectConverter.getConverter(getClass());
-    for (Property property : converter.getProperties().stream()
+    for (EditorProperty<?> property : converter.getProperties().stream()
         .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
       if (property.isLink()) {
         // set links to null
@@ -207,7 +183,7 @@ public abstract class Node<N extends Node<?>> {
   @SuppressWarnings("unchecked")
   void removeChild(Node<?> node) throws IOException {
     ObjectConverter converter = ObjectConverter.getConverter(getClass());
-    Property property = converter.getProperty(node.getContainingAttribute());
+    EditorProperty<?> property = converter.getProperty(node.getContainingAttribute());
     if (property.isList()) {
       List<Node<?>> list = (List<Node<?>>) property.getValue(this);
       list.remove(node);

@@ -1,12 +1,9 @@
 package com.palisand.bones.meta;
 
-import java.io.IOException;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.TextIgnore;
+import com.palisand.bones.validation.NoXss;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,17 +12,12 @@ import lombok.Setter;
 @Getter
 @EqualsAndHashCode(callSuper = true)
 @FieldOrder({"name", "description"})
-public class Item<N extends Node<?>> extends Node<N> {
-  private static final RulesMap<Item<?>> RULES = Rules.<Item<?>>map().and("description",
-      StringRules.<Item<?>>builder().multiLine(true).build());
+public abstract class Item<N extends Node<?>> extends Node<N> {
 
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
-  }
+  @MultiLine
+  @NoXss private String description = null;
 
-  private String name = null;
-  private String description = null;
+  public abstract String getName();
 
   public String getName(String prefix) {
     StringBuilder sb = new StringBuilder(prefix);
@@ -37,12 +29,7 @@ public class Item<N extends Node<?>> extends Node<N> {
   @TextIgnore
   @Override
   public String getId() {
-    return name;
-  }
-
-  public void setName(String name) throws IOException {
-    beforeIdChange(getName(), name);
-    this.name = name;
+    return getName();
   }
 
 }

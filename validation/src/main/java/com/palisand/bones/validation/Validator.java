@@ -1,113 +1,19 @@
 package com.palisand.bones.validation;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Predicate;
+import com.palisand.bones.Classes;
+import com.palisand.bones.Classes.Property;
 import com.palisand.bones.validation.Rules.Rule;
+import com.palisand.bones.validation.Rules.Severity;
+import com.palisand.bones.validation.Rules.Violation;
 
 public class Validator {
-  private final static Map<Class<?>, Rule> RULES = new HashMap<>();
-  private final Map<Class<?>, Property<?>[]> classCache = new HashMap<>();
-
-  static {
-    Rules.register();
-  }
-
-  public static <A extends Annotation> void addRule(Class<A> annotationClass, Rule rule) {
-    RULES.put(annotationClass, rule);
-  }
-
-  private record Property<X>(Field field, Method getter, Method setter, Predicate<X> validWhen,
-      Map<Rule, ?> rules) {
-
-    void setToDefault(Object object) throws Exception {
-      if (!field.getType().isPrimitive()) {
-        setter.invoke(object, (Object) null);
-      }
-    }
-  }
-
-  private Method getGetter(Class<?> cls, Field field) {
-    String postFix = field.getName();
-    postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
-    Method result = null;
-    try {
-      result = cls.getMethod("get" + postFix);
-      return result;
-    } catch (NoSuchMethodException e) {
-      try {
-        result = cls.getMethod("is" + postFix);
-        if (result.getReturnType() == boolean.class || result.getReturnType() == Boolean.class) {
-          return result;
-        }
-      } catch (NoSuchMethodException e1) {
-        // ignore
-      }
-    }
-    return null;
-  }
-
-  private Method getSetter(Class<?> cls, Field field, Class<?> type) {
-    String postFix = field.getName();
-    postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
-    Method result = null;
-    try {
-      result = cls.getMethod("set" + postFix, type);
-      return result;
-    } catch (NoSuchMethodException e) {
-    }
-    return null;
-  }
-
-  @SuppressWarnings("unchecked")
-  private <X> void scanClass(List<Property<X>> properties, Class<X> cls) throws Exception {
-    for (Field field : cls.getDeclaredFields()) {
-      Map<Rule, Object> found = new HashMap<>();
-      Arrays.stream(field.getAnnotations()).forEach(anno -> {
-        Rule rule = RULES.get(anno.annotationType());
-        if (rule != null) {
-          found.put(rule, anno);
-        }
-      });
-      Method getter = getGetter(cls, field);
-      Method setter = getSetter(cls, field, field.getType());
-      ValidWhen validWhen = field.getAnnotation(ValidWhen.class);
-      Predicate<X> predicate = null;
-      if (validWhen != null) {
-        predicate = (Predicate<X>) validWhen.value().getDeclaredConstructor().newInstance();
-      }
-      properties.add(new Property<X>(field, getter, setter, predicate, found));
-    }
-    if (cls.getSuperclass() != Object.class) {
-      scanClass(properties, (Class<X>) cls.getSuperclass());
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private <X> Property<X>[] getProperties(Class<X> cls) throws Exception {
-    Property<X>[] properties = (Property<X>[]) classCache.get(cls);
-    if (properties == null) {
-      List<Property<X>> result = new ArrayList<>();
-      scanClass(result, cls);
-      properties = result.toArray(size -> new Property[size]);
-      classCache.put(cls, properties);
-    }
-    return properties;
-  }
-
-  public record Violation(String field, String message, Object offendingValue, Object annotation) {
-
-  }
 
   private boolean isLeaf(Object obj) {
     return obj == null || obj.getClass().isPrimitive()
@@ -118,17 +24,23 @@ public class Validator {
 
   @SuppressWarnings("unchecked")
   private <X> void validateBean(List<Violation> result, Set<Object> cycleChecker, X object) {
+    Property<X> ref = null;
     try {
-      for (Property<X> property : (Property<X>[]) getProperties(object.getClass())) {
-        if (property.validWhen() == null || property.validWhen().test(object)) {
-          Object fieldValue = property.getter().invoke(object);
-          for (Entry<Rule, ?> entry : property.rules().entrySet()) {
-            Object newValue = entry.getKey().validate(result, entry.getValue(),
-                property.field().getName(), fieldValue);
+      List<Property<X>> properties = Classes.getProperties((Class<X>) object.getClass());
+      for (Property<X> property : properties) {
+        ref = property;
+        if (property.getValidWhen() == null || property.getValidWhen().test(object)) {
+          Object fieldValue = property.get(object);
+          for (Entry<Rule, ?> entry : property.getRules().entrySet()) {
+            Object newValue =
+                entry.getKey().validate(result, object, entry.getValue(), property, fieldValue);
             if (newValue != fieldValue || (fieldValue != null && !fieldValue.equals(newValue))) {
-              property.setter().invoke(object, newValue);
+              property.set(object, newValue);
               fieldValue = newValue;
             }
+          }
+          if (object instanceof Validatable valid) {
+            valid.doValidate(result, (List<Property<?>>) (Object) properties);
           }
           validateObject(result, cycleChecker, fieldValue);
         } else {
@@ -137,8 +49,8 @@ public class Validator {
       }
     } catch (Exception e) {
       e.printStackTrace();
-      result.add(new Violation(object.getClass().getName(),
-          "Exception while checking value: " + e.toString(), object, null));
+      result.add(new Violation(Severity.ERROR, object, ref,
+          "Exception while checking value: " + e.toString(), e));
     }
   }
 

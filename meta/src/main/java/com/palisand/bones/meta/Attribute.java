@@ -4,15 +4,11 @@ import java.io.IOException;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
-import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.BooleanRules;
-import com.palisand.bones.tt.Rules.EnumRules;
-import com.palisand.bones.tt.Rules.LinkRules;
-import com.palisand.bones.tt.Rules.NumberRules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.TextIgnore;
+import com.palisand.bones.validation.NotAllowed;
+import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.PredicateWithException;
+import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,40 +19,40 @@ import lombok.Setter;
 @FieldOrder({"type", "enumType", "defaultValue", "multiLine", "pattern", "minValue", "maxValue",
     "idFor"})
 public class Attribute extends Member {
-  private static final RulesMap<Attribute> RULES = Rules.<Attribute>map()
-      .and("type", EnumRules.<Attribute>builder().notNull(true).notAllowed(Type.OBJECT).build())
-      .and("multiLine",
-          BooleanRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING)
-              .build())
-      .and("pattern",
-          StringRules.<Attribute>builder().enabled(attribute -> attribute.getType() == Type.STRING)
-              .build())
-      .and("maxValue",
-          NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType().isNumber())
-              .build())
-      .and("minValue",
-          NumberRules.<Attribute>builder().enabled(attribute -> attribute.getType().isNumber())
-              .build())
-      .and("enumType", LinkRules.<Attribute>builder()
-          .enabled(attribute -> attribute.getType() == Type.ENUM).build());
 
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
+  public static class TypeIsString implements PredicateWithException<Attribute> {
+    @Override
+    public boolean test(Attribute a) throws Exception {
+      return a.getType() == Type.STRING;
+    }
   }
 
-  private Type type = Type.STRING;
+  public static class TypeIsNumber implements PredicateWithException<Attribute> {
+    @Override
+    public boolean test(Attribute a) throws Exception {
+      return a.getType().isNumber();
+    }
+  }
+
+  public static class TypeIsEnum implements PredicateWithException<Attribute> {
+    @Override
+    public boolean test(Attribute a) throws Exception {
+      return a.getType() == Type.ENUM;
+    }
+  }
+
+  @NotAllowed("OBJECT")
+  @NotNull private Type type = Type.STRING;
   private String defaultValue = null;
-  private Boolean multiLine = false;
-  private Long minValue = null;
-  private Long maxValue = null;
+  @ValidWhen(TypeIsString.class) private Boolean multiLine = false;
+  @ValidWhen(TypeIsNumber.class) private Long minValue = null;
+  @ValidWhen(TypeIsNumber.class) private Long maxValue = null;
   private String pattern = null;
-  private Link<Attribute, EnumType> enumType =
+  @ValidWhen(TypeIsEnum.class) private Link<Attribute, EnumType> enumType =
       Link.newLink(this, ".*#/enumTypes/.*", type -> type.getTypeFor());
   private LinkList<Attribute, Entity> idFor =
       new LinkList<>(this, "#/entities/.*", entity -> entity.getIdAttribute());
 
-  @TextIgnore
   public String getJavaType() throws IOException {
     switch (type) {
       case STRING:

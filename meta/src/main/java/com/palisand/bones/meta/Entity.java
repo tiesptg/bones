@@ -7,13 +7,11 @@ import java.util.Optional;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
-import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.LinkRules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.TextIgnore;
-import com.palisand.bones.tt.Validator;
+import com.palisand.bones.validation.CamelCase;
+import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.PredicateWithException;
+import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -24,36 +22,55 @@ import lombok.Setter;
 @FieldOrder({"entityContainer", "idAttribute", "abstractEntity", "superEntity", "specialisations",
     "members", "methods", "referencesFrom"})
 public class Entity extends Item<MetaModel> {
-  private static final RulesMap<Entity> RULES = Rules.<Entity>map()
-      .and("name", StringRules.<Entity>builder().notNull(true).pattern("[A-Z]\\w+").build())
-      .and("entityContainer",
-          LinkRules.<Entity>builder()
-              .noCycle(link -> ((ContainerRole) link.get()).getContainer().getEntityContainer())
-              .build())
-      .and("idAttribute",
-          LinkRules.<Entity>builder().enabled(entity -> !entity.getSuperEntity().isPresent())
-              .notNull(true).build())
-      .and("superEntity", LinkRules.<Entity>builder()
-          .enabled(entity -> entity.getContainingAttribute() != null).build());
 
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
+  public static class IdNecessary implements PredicateWithException<Entity> {
+
+    @Override
+    public boolean test(Entity entity) throws Exception {
+      Entity e = entity;
+      while (e.getSuperEntity().isPresent()) {
+        e = e.getSuperEntity().get();
+        if (e.getIdAttribute().isPresent()) {
+          return false;
+        }
+      }
+      return true;
+    }
+
   }
 
-  private final Link<Entity, Entity> superEntity =
+  public static class NotAbstract implements PredicateWithException<Entity> {
+
+    @Override
+    public boolean test(Entity a) throws Exception {
+      return !a.isAbstractEntity();
+    }
+
+  }
+
+  @NotNull
+  @CamelCase private String name;
+  @NoCycle private final Link<Entity, Entity> superEntity =
       Link.newLink(this, ".*#/entities/.*", obj -> obj.getSpecialisations());
   private boolean abstractEntity = false;
   private final LinkList<Entity, Entity> specialisations =
       new LinkList<>(this, ".*#/entities/.*", obj -> obj.getSuperEntity());
   private List<Member> members = new ArrayList<>();
   private List<Method> methods = new ArrayList<>();
-  private Link<Entity, ContainerRole> entityContainer =
+  @NoCycle
+  @ValidWhen(NotAbstract.class)
+  @NotNull private Link<Entity, ContainerRole> entityContainer =
       Link.newLink(this, ".*#/entities/.*/members/.*", contained -> contained.getEntity());
-  private Link<Entity, Attribute> idAttribute =
+  @ValidWhen(IdNecessary.class)
+  @NotNull private Link<Entity, Attribute> idAttribute =
       Link.newLink(this, "members/.*", attr -> attr.getIdFor());
   private LinkList<Entity, ReferenceRole> referencedFrom =
       new LinkList<>(this, ".*#/entities/.*/members/.*", refrole -> refrole.getEntity());
+
+  public void setName(String name) throws IOException {
+    beforeIdChange(this.name, name);
+    this.name = name;
+  }
 
   @TextIgnore
   public Link<Entity, ContainerRole> getActiveContainer() throws IOException {
@@ -125,14 +142,6 @@ public class Entity extends Item<MetaModel> {
       }
     }
     return entity;
-  }
-
-  @Override
-  public void doValidate(Validator validator) throws IOException {
-    super.doValidate(validator);
-    if (!isAbstractEntity()) {
-      validator.assertNotNull("entityContainer", getEntityContainer());
-    }
   }
 
   public String getFullname() {

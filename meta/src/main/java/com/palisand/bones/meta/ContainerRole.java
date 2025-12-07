@@ -2,12 +2,9 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
-import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.BooleanRules;
-import com.palisand.bones.tt.Rules.LinkRules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
+import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.PredicateWithException;
+import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,22 +14,19 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"entity", "multiple", "notEmpty"})
 public class ContainerRole extends Member {
-  private static final RulesMap<ContainerRole> RULES = Rules.<ContainerRole>map()
-      .and("name", StringRules.<ContainerRole>builder().notNull(true).pattern("[a-z]\\w+").build())
-      .and("notEmpty",
-          BooleanRules.<ContainerRole>builder()
-              .enabled(object -> ((ContainerRole) object).isMultiple()).build())
-      .and("entity", LinkRules.<ContainerRole>builder().notNull(true).build());
+  private static class IsMultiple implements PredicateWithException<ContainerRole> {
 
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
+    @Override
+    public boolean test(ContainerRole a) throws Exception {
+      return a.isMultiple();
+    }
+
   }
 
-  private Link<ContainerRole, Entity> entity =
+  @NotNull private Link<ContainerRole, Entity> entity =
       Link.newLink(this, ".*#/entities/.*", entity -> entity.getEntityContainer());
   private boolean multiple = true;
-  private boolean notEmpty = false;
+  @ValidWhen(IsMultiple.class) private boolean notEmpty = false;
 
   @Override
   public Type getType() {

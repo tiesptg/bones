@@ -1,17 +1,15 @@
 package com.palisand.bones.meta;
 
-import java.io.IOException;
+import java.util.List;
+import com.palisand.bones.Classes.Property;
 import com.palisand.bones.meta.ui.PatternComponent;
 import com.palisand.bones.tt.Editor;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
-import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.LinkRules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
 import com.palisand.bones.tt.TextIgnore;
-import com.palisand.bones.tt.Validator;
+import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.Severity;
+import com.palisand.bones.validation.Rules.Violation;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,22 +20,12 @@ import lombok.Setter;
 @FieldOrder({"entity", "opposite", "pointerPattern", "external", "notEmpty"})
 public class ReferenceRole extends Member {
 
-  private static final RulesMap<ReferenceRole> RULES = Rules.<ReferenceRole>map()
-      .and("opposite", LinkRules.<ReferenceRole>builder().notNull(true).build())
-      .and("entity", LinkRules.<ReferenceRole>builder().notNull(true).build())
-      .and("pointerPattern", StringRules.<ReferenceRole>builder().notEmpty(true).build());
-
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
-  }
-
-  private String pointerPattern;
+  @NotNull private String pointerPattern;
   private boolean external = false;
   private boolean notEmpty = false;
-  private final Link<ReferenceRole, ReferenceRole> opposite =
+  @NotNull private final Link<ReferenceRole, ReferenceRole> opposite =
       Link.newLink(this, ".*#/entities/.*/members/.*", role -> role.getOpposite());
-  private final Link<ReferenceRole, Entity> entity =
+  @NotNull private final Link<ReferenceRole, Entity> entity =
       Link.newLink(this, ".*#/entities/.*", entity -> entity.getReferencedFrom());
 
   @Editor(PatternComponent.class)
@@ -51,9 +39,12 @@ public class ReferenceRole extends Member {
   }
 
   @Override
-  public void doValidate(Validator validator) throws IOException {
-    super.doValidate(validator);
-    validator.assertTrue("pointerPattern",
-        getContainer().getEntityOfPattern(pointerPattern) != null, "pattern is invalid");
+  public void doValidate(List<Violation> violations, List<Property<?>> properties)
+      throws Exception {
+    super.doValidate(violations, properties);
+    if (getContainer().getEntityOfPattern(pointerPattern) == null) {
+      violations.add(new Violation(Severity.ERROR, this, getProperty(properties, "pointerPattern"),
+          "pattern is invalid", null));
+    }
   }
 }

@@ -1,4 +1,4 @@
-package com.palisand.bones.validation;
+package com.palisand.bones.meta;
 
 import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.ElementType.PARAMETER;
@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Retention(RUNTIME)
 @Target({FIELD, PARAMETER})
-public @interface RegexpPattern {
-  String value();
+public @interface NoCycle {
+
 }

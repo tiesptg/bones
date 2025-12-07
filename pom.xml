@@ -27,11 +27,16 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<dependency>
-				<groupId>com.palisand.bones</groupId>
-				<artifactId>bones-core</artifactId>
-				<version>${project.version}</version>
-			</dependency>
+      <dependency>
+        <groupId>com.palisand.bones</groupId>
+        <artifactId>bones-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.palisand.bones</groupId>
+        <artifactId>bones-validation</artifactId>
+        <version>${project.version}</version>
+      </dependency>
 			<dependency>
 				<groupId>com.palisand.bones</groupId>
 				<artifactId>bones-log</artifactId>

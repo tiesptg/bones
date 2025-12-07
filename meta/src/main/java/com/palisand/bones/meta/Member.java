@@ -1,10 +1,8 @@
 package com.palisand.bones.meta;
 
+import java.io.IOException;
 import com.palisand.bones.tt.FieldOrder;
-import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.Rules;
-import com.palisand.bones.tt.Rules.RulesMap;
-import com.palisand.bones.tt.Rules.StringRules;
+import com.palisand.bones.validation.CamelCase;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,14 +12,13 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"multiple", "notNull", "enableWhen"})
 public abstract class Member extends Item<Entity> {
-  private static final RulesMap<Member> RULES = Rules.<Member>map().and("name",
-      StringRules.<Member>builder().notNull(true).pattern("[a-z]\\w+").build());
 
-  @Override
-  public Rules<? extends Node<?>> getConstraint(String field) {
-    return RULES.of(field, super::getConstraint);
+  public void setName(String name) throws IOException {
+    beforeIdChange(this.name, name);
+    this.name = name;
   }
 
+  @CamelCase(startsWithCapitel = false) private String name;
   private boolean multiple;
   private boolean notNull;
   private String enabledWhen = null;

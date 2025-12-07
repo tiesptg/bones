@@ -19,7 +19,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>com.palisand.bones</groupId>
-			<artifactId>bones-core</artifactId>
+			<artifactId>bones-validation</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.palisand.bones</groupId>

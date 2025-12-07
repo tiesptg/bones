@@ -1,6 +1,7 @@
 package com.palisand.meta.maven;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
@@ -15,34 +16,28 @@ import com.palisand.bones.meta.generator.GeneratorConfig;
 import com.palisand.bones.meta.generator.LogFacade;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
-import com.palisand.bones.tt.ObjectConverter.Property;
+import com.palisand.bones.tt.ObjectConverter.EditorProperty;
 import com.palisand.bones.tt.Repository;
-import com.palisand.bones.tt.Rules.ConstraintViolation;
-import com.palisand.bones.tt.Rules.Severity;
-import com.palisand.bones.tt.Validator;
+import com.palisand.bones.validation.Rules.Severity;
+import com.palisand.bones.validation.Rules.Violation;
+import com.palisand.bones.validation.Validator;
 
 @Mojo(name = "generate-sources", requiresProject = true,
     defaultPhase = LifecyclePhase.GENERATE_SOURCES)
 public class MetaGenerator extends AbstractMojo {
 
   @Parameter(property = "outputDirectory",
-      defaultValue = "${project.build.directory}/generated-sources/meta-generator")
-  private String outputDirectory;
+      defaultValue = "${project.build.directory}/generated-sources/meta-generator") private String outputDirectory;
 
-  @Parameter(property = "model")
-  private String model;
+  @Parameter(property = "model") private String model;
 
-  @Parameter(property = "generatorConfig")
-  private GeneratorConfig generatorConfig;
+  @Parameter(property = "generatorConfig") private GeneratorConfig generatorConfig;
 
-  @Parameter(defaultValue = "${project}")
-  private MavenProject project;
+  @Parameter(defaultValue = "${project}") private MavenProject project;
 
-  @Parameter(defaultValue = "false")
-  private boolean generatesResources;
+  @Parameter(defaultValue = "false") private boolean generatesResources;
 
-  @Parameter(defaultValue = "false")
-  private boolean generatesTestSources;
+  @Parameter(defaultValue = "false") private boolean generatesTestSources;
 
   private Repository repository = Repository.getInstance();
 
@@ -73,8 +68,8 @@ public class MetaGenerator extends AbstractMojo {
     try {
       repository.read(modelFile.getAbsolutePath());
       Validator validator = new Validator();
-      repository.getLoadedDocuments().forEach(doc -> doc.validate(validator));
-      List<ConstraintViolation> problems = validator.getViolations();
+      List<Violation> problems = new ArrayList<>();
+      repository.getLoadedDocuments().forEach(doc -> problems.addAll(validator.validate(doc)));
       problems.forEach(violation -> {
         switch (violation.severity()) {
           case ERROR:
@@ -116,7 +111,7 @@ public class MetaGenerator extends AbstractMojo {
       generator.doGenerate(outputDirectory, getSourceDirectory(), node);
     }
     ObjectConverter converter = (ObjectConverter) repository.getConverter(node.getClass());
-    for (Property property : converter.getProperties()) {
+    for (EditorProperty<?> property : converter.getProperties()) {
       if (Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
         if (property.isList()) {
           List<Node<?>> list = (List<Node<?>>) property.getGetter().invoke(node);

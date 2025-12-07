@@ -23,7 +23,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import com.palisand.bones.log.Logger;
-import com.palisand.bones.tt.ObjectConverter.Property;
+import com.palisand.bones.tt.ObjectConverter.EditorProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -35,8 +35,7 @@ public class Repository {
   private static final String EXTENSION = ".tt";
   private static final Class<?> ROOT_CONTEXT = Object.class;
   private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
-  @Getter
-  private final Map<String, SoftReference<Node<?>>> documents = new TreeMap<>();
+  @Getter private final Map<String, SoftReference<Node<?>>> documents = new TreeMap<>();
 
   public record Token(String margin, String label, char delimiter, int line, int charInLine) {
 
@@ -150,7 +149,6 @@ public class Repository {
       }
       return lastToken = new Token(margin, sb.toString(), c, labelAtLine, labelAtChar);
     }
-
 
   }
 
@@ -360,7 +358,7 @@ public class Repository {
         return getFromPath((Node<?>) context.getRootContainer(), path, ++offset);
       }
       ObjectConverter converter = (ObjectConverter) getConverter(context.getClass());
-      Property property = converter.getProperty(path[offset]);
+      EditorProperty<?> property = converter.getProperty(path[offset]);
       if (property == null) {
         throw new IOException(
             "property " + path[offset] + " not found in class " + converter.getType() + " path = "
@@ -471,7 +469,7 @@ public class Repository {
     int endProperty = pattern.indexOf('/', startIndex);
     assert endProperty != -1;
     String name = pattern.substring(startIndex, endProperty);
-    Property property = converter.getProperty(name);
+    EditorProperty<?> property = converter.getProperty(name);
     if (property != null && !property.isLink()) {
       if (property.isList()) {
         int idEnd = pattern.indexOf('/', endProperty + 1);
