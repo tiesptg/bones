@@ -1,6 +1,7 @@
 package com.palisand.bones.tt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -211,7 +212,6 @@ class TypedTextTest {
           + "		list:\n" + "		-	X>\n" + "			any:	false\n"
           + "	age:	40\n" + "\tdone:	true\n" + "\tdummyobject:\tG>\n" + "\t\tignore: text";
 
-
   @Test
   void testUnknownField() throws IOException {
     Repository rep = Repository.getInstance();
@@ -243,5 +243,9 @@ class TypedTextTest {
     assertEquals(2, check.getEntities().get(0).getSpecialisations().getList().size());
   }
 
+  @Test
+  void checkRegex() {
+    assertTrue("com.palisand.bon3s.test".matches("[a-z0-9]+(\\.[a-z0-9]+)*"));
+  }
 
 }

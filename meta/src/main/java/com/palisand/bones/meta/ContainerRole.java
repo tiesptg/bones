@@ -14,7 +14,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"entity", "multiple", "notEmpty"})
 public class ContainerRole extends Member {
-  private static class IsMultiple implements PredicateWithException<ContainerRole> {
+  public static class IsMultiple implements PredicateWithException<ContainerRole> {
 
     @Override
     public boolean test(ContainerRole a) throws Exception {

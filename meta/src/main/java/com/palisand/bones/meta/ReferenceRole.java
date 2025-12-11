@@ -6,7 +6,6 @@ import com.palisand.bones.meta.ui.PatternComponent;
 import com.palisand.bones.tt.Editor;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
-import com.palisand.bones.tt.TextIgnore;
 import com.palisand.bones.validation.NotNull;
 import com.palisand.bones.validation.Rules.Severity;
 import com.palisand.bones.validation.Rules.Violation;
@@ -33,7 +32,6 @@ public class ReferenceRole extends Member {
     return pointerPattern;
   }
 
-  @TextIgnore
   public Type getType() {
     return Type.OBJECT;
   }

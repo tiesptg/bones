@@ -3,7 +3,7 @@ package com.palisand.bones.tt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +17,6 @@ import com.palisand.bones.tt.Repository.Token;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 public class ObjectConverter implements Converter<Object> {
   private static final Map<String, ObjectConverter> CONVERTERS = new TreeMap<>();
@@ -45,10 +44,21 @@ public class ObjectConverter implements Converter<Object> {
 
   @Data
   @EqualsAndHashCode(callSuper = true)
-  @NoArgsConstructor
   public static class EditorProperty<X> extends Property<X> {
     private Class<?> componentType;
     private Class<? extends CustomEditor> editor;
+
+    public EditorProperty(Class<X> cls, X instance, Field field) throws Exception {
+      super(cls, instance, field);
+      if (field.getAnnotation(Editor.class) != null) {
+        editor = field.getAnnotation(Editor.class).value();
+      }
+      if (isLink()) {
+        setComponentType(Classes.getGenericType(field.getGenericType(), 1));
+      } else if (isList()) {
+        setComponentType(Classes.getGenericType(field.getGenericType(), 0));
+      }
+    }
 
     public String getName() {
       return getField().getName();
@@ -65,32 +75,35 @@ public class ObjectConverter implements Converter<Object> {
       return getType();
     }
 
-    public Object getValue(Object target) throws IOException {
-      return invoke(getGetter(), target);
-    }
-
-    public void setValue(Object target, Object value) throws IOException {
-      invoke(getSetter(), target, value);
-    }
-
-    private Object invoke(Method method, Object target, Object... parameters) throws IOException {
-      try {
-        return method.invoke(target, parameters);
-      } catch (IllegalAccessException e) {
-        throw new IOException(e);
-      } catch (IllegalArgumentException e) {
-        assert false;
-        throw new IOException(e);
-      } catch (InvocationTargetException e) {
-        if (e.getCause() instanceof RuntimeException) {
-          throw (RuntimeException) e.getCause();
-        } else if (e.getCause() instanceof IOException) {
-          throw (IOException) e.getCause();
-        }
-        throw new IOException(e.getCause());
-      }
-    }
-
+    // @Override
+    // public Object get(Object owner) {
+    // Object result = super.get(owner);
+    // if (getField().getType() == Link.class) {
+    // try {
+    // Link<?, ?> link = (Link<?, ?>) result;
+    // result = link.get();
+    // } catch (Exception ex) {
+    // throw new IllegalArgumentException(ex);
+    // }
+    // }
+    // return result;
+    // }
+    //
+    // @SuppressWarnings("unchecked")
+    // @Override
+    // public void set(Object owner, Object value) {
+    // if (getField().getType() == Link.class) {
+    // Link<?, Node<?>> link = (Link<?, Node<?>>) super.get(owner);
+    // try {
+    // link.set((Node<?>) value);
+    // } catch (Exception ex) {
+    // throw new IllegalArgumentException(ex);
+    // }
+    // } else {
+    // super.set(owner, value);
+    // }
+    // }
+    //
     public boolean isList() {
       return List.class.isAssignableFrom(getGetter().getReturnType())
           || LinkList.class.isAssignableFrom(getGetter().getReturnType());
@@ -121,6 +134,9 @@ public class ObjectConverter implements Converter<Object> {
       if (value == null && getDefaultValue() == null) {
         return true;
       }
+      if (value == null && getField().getType() == Link.class) {
+        return true;
+      }
       if (value instanceof LinkList linkList) {
         return linkList.isEmpty();
       }
@@ -142,19 +158,7 @@ public class ObjectConverter implements Converter<Object> {
     type = cls;
     try {
       properties = (List<EditorProperty<?>>) (Object) (Classes.getProperties(cls,
-          () -> new EditorProperty<X>(), property -> {
-            if (property.getField().getAnnotation(Editor.class) != null) {
-              Editor editor = property.getField().getAnnotation(Editor.class);
-              property.setEditor(editor.value());
-            }
-            if (property.isLink()) {
-              property.setComponentType(
-                  Classes.getGenericType(property.getField().getGenericType(), 1));
-            } else if (property.isList()) {
-              property.setComponentType(
-                  Classes.getGenericType(property.getField().getGenericType(), 0));
-            }
-          }));
+          (clazz, instance, field) -> new EditorProperty<X>(clazz, instance, field)));
     } catch (Exception ex) {
       throw new IllegalArgumentException(ex);
     }
@@ -265,7 +269,7 @@ public class ObjectConverter implements Converter<Object> {
           if (property.isLink()) {
             linkFromTypedText(parser, result, property, value);
           } else {
-            property.setValue(result, value);
+            property.set(result, value);
           }
         } catch (Exception ex) {
           if (ex instanceof IOException ioe) {
@@ -332,15 +336,11 @@ public class ObjectConverter implements Converter<Object> {
       out.print(getClassLabel(obj.getClass(), context));
       out.println('>');
       for (EditorProperty<?> property : properties) {
-        if (!property.isTextIgnore() && !property.isReadonly()) {
+        if (!property.isTextIgnore()) {
           Object value = null;
-          try {
-            value = property.getGetter().invoke(obj);
-            if (property.isLink()) {
-              value = linkToTypedText(obj, property, value);
-            }
-          } catch (Exception ex) {
-            throw new IOException(ex);
+          value = property.get(obj);
+          if (property.isLink()) {
+            value = linkToTypedText(obj, property, value);
           }
           String newMargin = margin + Repository.MARGIN_STEP;
           Converter<Object> converter =

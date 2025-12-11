@@ -187,6 +187,12 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
   public boolean equals(Object object) {
     if (object instanceof Link link) {
       try {
+        if (getPath() == null && link.getPath() == null) {
+          return true;
+        }
+        if (getPath() == null || link.getPath() == null) {
+          return false;
+        }
         return getPath().equals(link.getPath());
       } catch (Exception ex) {
         throw new RuntimeException(ex);
@@ -198,7 +204,10 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
   @Override
   public int hashCode() {
     try {
-      return getPath().hashCode();
+      if (isPresent()) {
+        return getPath().hashCode();
+      }
+      return "".hashCode();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

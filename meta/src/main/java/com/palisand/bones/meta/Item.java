@@ -2,7 +2,6 @@ package com.palisand.bones.meta;
 
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.TextIgnore;
 import com.palisand.bones.validation.NoXss;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -26,7 +25,6 @@ public abstract class Item<N extends Node<?>> extends Node<N> {
     return sb.toString();
   }
 
-  @TextIgnore
   @Override
   public String getId() {
     return getName();

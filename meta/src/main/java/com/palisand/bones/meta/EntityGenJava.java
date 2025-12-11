@@ -8,7 +8,6 @@ import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
-import com.palisand.bones.tt.TextIgnore;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -38,7 +37,6 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       addImport(FieldOrder.class);
     }
     if (!entity.getSuperEntity().isPresent()) {
-      addImport(TextIgnore.class);
       addImport(Node.class);
     }
     if (!entity.getActiveContainer().isPresent()) {
@@ -67,24 +65,20 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     String superEntity = "Node";
     String container = "<P extends Node<?>>";
     String superContainer = "<P>";
-    String rulesGen = "<?>";
     if (entity.getSuperEntity().isPresent()) {
       superEntity = entity.getSuperEntity().get().getName();
     }
     if (entity.isRootEntity()) {
       container = "";
       superContainer = "<Node<?>>";
-      rulesGen = "";
     }
     if (entity.getEntityContainer().isPresent()) {
       container = "";
       superContainer = '<' + entity.getEntityContainer().get().getContainer().getName() + '>';
-      rulesGen = "";
     } else if (entity.getSuperEntity().isPresent()
         && entity.getSuperEntity().get().getActiveContainer().isPresent()) {
       container = "";
       superContainer = "";
-      rulesGen = "";
     }
     nl("public abstract class %sGen%s extends %s%s {", entity.getName(), container, superEntity,
         superContainer);
@@ -142,7 +136,6 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     if (!entity.getSuperEntity().isPresent()) {
       nl();
       nl("@Override");
-      nl("@TextIgnore");
       nl("public String getId() {");
       incMargin();
       nl("return %s;", entity.getIdAttribute().get().getName());

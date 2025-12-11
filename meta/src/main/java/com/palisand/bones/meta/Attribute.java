@@ -4,7 +4,6 @@ import java.io.IOException;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
-import com.palisand.bones.tt.TextIgnore;
 import com.palisand.bones.validation.NotAllowed;
 import com.palisand.bones.validation.NotNull;
 import com.palisand.bones.validation.Rules.PredicateWithException;
@@ -73,7 +72,6 @@ public class Attribute extends Member {
     throw new IOException("attribute " + getName() + " has unsupported type " + type);
   }
 
-  @TextIgnore
   public String getJavaDefaultValue() {
     if (getDefaultValue() != null) {
       return getDefaultValue();

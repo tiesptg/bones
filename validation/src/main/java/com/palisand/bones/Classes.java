@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -28,13 +29,8 @@ public class Classes {
   private static final Map<Class<?>, List<Property<?>>> CLASS_CACHE = new HashMap<>();
 
   @FunctionalInterface
-  public interface Creator<X, Y extends Property<X>> {
-    Y newProperty() throws Exception;
-  }
-
-  @FunctionalInterface
-  public interface Extender<X, Y extends Property<X>> {
-    void extend(Y y) throws Exception;
+  public interface Creator<X> {
+    Property<X> newProperty(Class<X> cls, X instance, Field field) throws Exception;
   }
 
   /**
@@ -152,9 +148,69 @@ public class Classes {
     private Field field;
     private Method getter;
     private Method setter;
-    private Object defaultValue;
+    private Object defaultValue = null;
     private PredicateWithException<X> validWhen;
-    private Map<Rule, ? extends Annotation> rules;
+    private Map<Rule, Annotation> rules;
+
+    @SuppressWarnings("unchecked")
+    public Property(Class<X> cls, X instance, Field field) throws Exception {
+      this.field = field;
+      this.getter = getGetter(cls, field);
+      this.setter = getSetter(cls, field, field.getType());
+      if (setter != null) {
+        this.defaultValue = getDefaultValue(instance, getter);
+      }
+      ValidWhen annotation = field.getAnnotation(ValidWhen.class);
+      validWhen = (annotation == null ? null
+          : (PredicateWithException<X>) annotation.value().getDeclaredConstructor().newInstance());
+      rules = new HashMap<>();
+      for (Annotation spec : field.getAnnotations()) {
+        Rule rule = Rules.getRule(spec.annotationType());
+        if (rule != null) {
+          rules.put(rule, spec);
+        }
+      }
+    }
+
+    private static Method getGetter(Class<?> cls, Field field) {
+      String postFix = field.getName();
+      postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
+      Method result = null;
+      try {
+        result = cls.getMethod("get" + postFix);
+        return result;
+      } catch (NoSuchMethodException e) {
+        try {
+          result = cls.getMethod("is" + postFix);
+          if (result.getReturnType() == boolean.class || result.getReturnType() == Boolean.class) {
+            return result;
+          }
+        } catch (NoSuchMethodException e1) {
+          // ignore
+        }
+      }
+      return null;
+    }
+
+    private static Method getSetter(Class<?> cls, Field field, Class<?> type) {
+      String postFix = field.getName();
+      postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
+      Method result = null;
+      try {
+        result = cls.getMethod("set" + postFix, type);
+        return result;
+      } catch (NoSuchMethodException e) {
+      }
+      return null;
+    }
+
+    private static Object getDefaultValue(Object instance, Method getter) {
+      try {
+        return getter.invoke(instance);
+      } catch (Exception ex) {
+        throw new IllegalArgumentException(ex);
+      }
+    }
 
     public boolean isReadonly() {
       return setter == null;
@@ -167,109 +223,60 @@ public class Classes {
     public void setToDefault(Object object) throws Exception {}
 
     public Object get(Object owner) {
-      try {
-        return getter.invoke(owner);
-      } catch (Exception ex) {
-        throw new IllegalArgumentException(ex);
-      }
+      return invoke(getter, owner);
     }
 
     public void set(Object owner, Object value) {
+      invoke(setter, owner, value);
+    }
+
+    private Object invoke(Method method, Object target, Object... parameters) {
       try {
-        if (setter != null) {
-          setter.invoke(owner, value);
+        return method.invoke(target, parameters);
+      } catch (IllegalAccessException e) {
+        throw new IllegalArgumentException(e);
+      } catch (InvocationTargetException e) {
+        if (e.getCause() instanceof RuntimeException) {
+          throw (RuntimeException) e.getCause();
+        } else if (e.getCause() instanceof IllegalArgumentException) {
+          throw (IllegalArgumentException) e.getCause();
         }
-      } catch (Exception ex) {
-        throw new IllegalArgumentException(ex);
+        throw new IllegalArgumentException(e.getCause());
       }
     }
 
-  }
-
-  private static Method getGetter(Class<?> cls, Field field) {
-    String postFix = field.getName();
-    postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
-    Method result = null;
-    try {
-      result = cls.getMethod("get" + postFix);
-      return result;
-    } catch (NoSuchMethodException e) {
-      try {
-        result = cls.getMethod("is" + postFix);
-        if (result.getReturnType() == boolean.class || result.getReturnType() == Boolean.class) {
-          return result;
-        }
-      } catch (NoSuchMethodException e1) {
-        // ignore
-      }
-    }
-    return null;
-  }
-
-  private static Method getSetter(Class<?> cls, Field field, Class<?> type) {
-    String postFix = field.getName();
-    postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
-    Method result = null;
-    try {
-      result = cls.getMethod("set" + postFix, type);
-      return result;
-    } catch (NoSuchMethodException e) {
-    }
-    return null;
-  }
-
-  private static Object getDefaultValue(Object instance, Method getter) {
-    try {
-      return getter.invoke(instance);
-    } catch (Exception ex) {
-      throw new IllegalArgumentException(ex);
-    }
   }
 
   @SuppressWarnings("unchecked")
-  private static <X, Y extends Property<X>> void scanClass(List<Y> properties, Class<?> cls,
-      X instance, Creator<X, Y> creator, Extender<X, Y> extender) throws Exception {
+  private static <X> void scanClass(List<Property<X>> properties, Class<X> cls, X instance,
+      Creator<X> creator) throws Exception {
     for (Field field : cls.getDeclaredFields()) {
-      Y property = creator.newProperty();
-      property.setGetter(getGetter(cls, field));
-      property.setSetter(getSetter(cls, field, field.getType()));
-      property.setDefaultValue(
-          property.getSetter() != null ? getDefaultValue(instance, property.getGetter()) : null);
-      ValidWhen validWhen = field.getAnnotation(ValidWhen.class);
-      property.setValidWhen(validWhen == null ? null
-          : (PredicateWithException<X>) validWhen.value().getDeclaredConstructor().newInstance());
-      Map<Rule, Annotation> rules = new HashMap<>();
-      for (Annotation spec : field.getAnnotations()) {
-        Rule rule = Rules.getRule(spec.annotationType());
-        if (rule != null) {
-          rules.put(rule, spec);
-        }
-      }
-      property.setRules(rules);
-      extender.extend(property);
-      properties.add(property);
+      properties.add(creator.newProperty(cls, instance, field));
     }
     if (cls.getSuperclass() != Object.class) {
-      scanClass(properties, cls.getSuperclass(), instance, creator, extender);
+      scanClass(properties, (Class<X>) cls.getSuperclass(), instance, creator);
     }
   }
 
   public static <X> List<Property<X>> getProperties(Class<X> cls) throws Exception {
-    return getProperties(cls, () -> new Property<X>(), object -> {
-    });
+    return getProperties(cls, (clazz, inst, field) -> new Property<X>(clazz, inst, field));
   }
 
   @SuppressWarnings("unchecked")
-  public static <X, Y extends Property<X>> List<Y> getProperties(Class<X> cls,
-      Creator<X, Y> creator, Extender<X, Y> extender) throws Exception {
-    List<Y> properties = (List<Y>) CLASS_CACHE.get(cls);
+  public static <X> List<Property<X>> getProperties(Class<X> cls, Creator<X> creator)
+      throws Exception {
+    List<Property<X>> properties = (List<Property<X>>) (Object) CLASS_CACHE.get(cls);
     if (properties == null) {
       properties = new ArrayList<>();
       if (cls != Object.class) {
-        X instance = cls.getDeclaredConstructor().newInstance();
-        scanClass(properties, cls, instance, creator, extender);
+        try {
+          X instance = cls.getDeclaredConstructor().newInstance();
+          scanClass(properties, cls, instance, creator);
+        } catch (NoSuchMethodException ignored) {
+
+        }
       }
-      CLASS_CACHE.put(cls, (List<Property<?>>) properties);
+      CLASS_CACHE.put(cls, (List<Property<?>>) (Object) properties);
     }
     return properties;
   }

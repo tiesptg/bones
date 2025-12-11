@@ -7,7 +7,6 @@ import java.util.Optional;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
-import com.palisand.bones.tt.TextIgnore;
 import com.palisand.bones.validation.CamelCase;
 import com.palisand.bones.validation.NotNull;
 import com.palisand.bones.validation.Rules.PredicateWithException;
@@ -50,16 +49,14 @@ public class Entity extends Item<MetaModel> {
 
   @NotNull
   @CamelCase private String name;
-  @NoCycle private final Link<Entity, Entity> superEntity =
+  private final Link<Entity, Entity> superEntity =
       Link.newLink(this, ".*#/entities/.*", obj -> obj.getSpecialisations());
   private boolean abstractEntity = false;
   private final LinkList<Entity, Entity> specialisations =
       new LinkList<>(this, ".*#/entities/.*", obj -> obj.getSuperEntity());
   private List<Member> members = new ArrayList<>();
   private List<Method> methods = new ArrayList<>();
-  @NoCycle
-  @ValidWhen(NotAbstract.class)
-  @NotNull private Link<Entity, ContainerRole> entityContainer =
+  @ValidWhen(NotAbstract.class) private Link<Entity, ContainerRole> entityContainer =
       Link.newLink(this, ".*#/entities/.*/members/.*", contained -> contained.getEntity());
   @ValidWhen(IdNecessary.class)
   @NotNull private Link<Entity, Attribute> idAttribute =
@@ -72,7 +69,6 @@ public class Entity extends Item<MetaModel> {
     this.name = name;
   }
 
-  @TextIgnore
   public Link<Entity, ContainerRole> getActiveContainer() throws IOException {
     Entity entity = this;
     while (!entity.getEntityContainer().isPresent() && entity.getSuperEntity().isPresent()) {
@@ -93,19 +89,16 @@ public class Entity extends Item<MetaModel> {
     specialisations.remove(entity);
   }
 
-  @TextIgnore
   public List<Attribute> getAttributes() {
     return members.stream().filter(member -> member instanceof Attribute)
         .map(member -> (Attribute) member).toList();
   }
 
-  @TextIgnore
   public List<ReferenceRole> getReferenceRoles() {
     return members.stream().filter(member -> member instanceof ReferenceRole)
         .map(member -> (ReferenceRole) member).toList();
   }
 
-  @TextIgnore
   public List<ContainerRole> getContainerRoles() {
     return members.stream().filter(member -> member instanceof ContainerRole)
         .map(member -> (ContainerRole) member).toList();

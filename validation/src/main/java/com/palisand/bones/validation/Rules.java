@@ -101,7 +101,7 @@ public class Rules {
     addRule(RegexPattern.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
         RegexPattern pattern = (RegexPattern) spec;
-        if (value.toString().matches(pattern.value())) {
+        if (!value.toString().matches(pattern.value())) {
           violations.add(new Violation(Severity.ERROR, ownerOfField, property,
               "value does not conform to pattern :'" + pattern.value() + "'", null));
         }
@@ -177,7 +177,7 @@ public class Rules {
             "value contains non uppercase characters", null));
         return value.toString().toUpperCase();
       }
-      return null;
+      return value;
     });
   }
 
@@ -188,7 +188,7 @@ public class Rules {
             "value contains non lowercase characters", null));
         return value.toString().toLowerCase();
       }
-      return null;
+      return value;
     });
   }
 
@@ -203,7 +203,7 @@ public class Rules {
           return result;
         }
       }
-      return null;
+      return value;
     });
   }
 
@@ -218,7 +218,7 @@ public class Rules {
           return result;
         }
       }
-      return null;
+      return value;
     });
   }
 
@@ -233,7 +233,7 @@ public class Rules {
           return result;
         }
       }
-      return null;
+      return value;
     });
   }
 
@@ -246,7 +246,7 @@ public class Rules {
               "value " + value + " is not allowed", null));
         }
       }
-      return null;
+      return value;
     });
   }
 

@@ -91,6 +91,7 @@ public class MetaGenerator extends AbstractMojo {
           generateNode(dir, document);
         }
       } else {
+        System.out.println(problems);
         throw new MojoFailureException("Model is not valid");
       }
     } catch (Exception e) {
@@ -112,7 +113,8 @@ public class MetaGenerator extends AbstractMojo {
     }
     ObjectConverter converter = (ObjectConverter) repository.getConverter(node.getClass());
     for (EditorProperty<?> property : converter.getProperties()) {
-      if (Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
+      if (!property.hasTextIgnoreAnnotation()
+          && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
         if (property.isList()) {
           List<Node<?>> list = (List<Node<?>>) property.getGetter().invoke(node);
           for (Node<?> child : list) {
@@ -120,7 +122,9 @@ public class MetaGenerator extends AbstractMojo {
           }
         } else {
           Node<?> child = (Node<?>) property.getGetter().invoke(node);
-          generateNode(outputDirectory, child);
+          if (child != null) {
+            generateNode(outputDirectory, child);
+          }
         }
       }
     }

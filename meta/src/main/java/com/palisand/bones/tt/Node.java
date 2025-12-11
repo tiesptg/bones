@@ -15,8 +15,9 @@ import lombok.Setter;
 
 @Getter
 public abstract class Node<N extends Node<?>> implements Validatable {
-  private N container;
-  @Setter private String containingAttribute;
+  @TextIgnore private N container;
+  @Setter
+  @TextIgnore private String containingAttribute;
 
   @SuppressWarnings("unchecked")
   public void setContainer(Node<?> node, String attribute) {
@@ -32,7 +33,6 @@ public abstract class Node<N extends Node<?>> implements Validatable {
     setContainingAttribute(filename);
   }
 
-  @TextIgnore
   public abstract String getId();
 
   @SuppressWarnings("unchecked")
@@ -154,22 +154,22 @@ public abstract class Node<N extends Node<?>> implements Validatable {
       if (property.isLink()) {
         // set links to null
         if (property.isList()) {
-          LinkList<?, ?> list = (LinkList<?, ?>) property.getValue(this);
+          LinkList<?, ?> list = (LinkList<?, ?>) property.get(this);
           list.clear();
         } else {
-          Link<?, ?> child = (Link<?, ?>) property.getValue(this);
+          Link<?, ?> child = (Link<?, ?>) property.get(this);
           child.set(null);
         }
         // remove children
       } else if (property.isList()) {
-        List<Node<?>> list = (List<Node<?>>) property.getValue(this);
+        List<Node<?>> list = (List<Node<?>>) property.get(this);
         // to prevent changing the list while iterating
         List<Node<?>> copy = new ArrayList<Node<?>>(list);
         for (Node<?> child : copy) {
           child.delete();
         }
       } else {
-        Node<?> child = (Node<?>) property.getValue(this);
+        Node<?> child = (Node<?>) property.get(this);
         if (child != null) {
           child.delete();
         }
@@ -185,7 +185,7 @@ public abstract class Node<N extends Node<?>> implements Validatable {
     ObjectConverter converter = ObjectConverter.getConverter(getClass());
     EditorProperty<?> property = converter.getProperty(node.getContainingAttribute());
     if (property.isList()) {
-      List<Node<?>> list = (List<Node<?>>) property.getValue(this);
+      List<Node<?>> list = (List<Node<?>>) property.get(this);
       list.remove(node);
     } else {
       property.set(this, null);
