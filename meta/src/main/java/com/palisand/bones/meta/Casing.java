@@ -1,0 +1,5 @@
+package com.palisand.bones.meta;
+
+public enum Casing {
+  UPPER_CASE, LOWER_CASE, CAMEL_CASE, CAMEL_CASE_WITH_CAPITAL, SNAKE_CASE, SNAKE_UPPER_CASE, KEBAB_CASE, KEBAB_LOWER_CASE
+}

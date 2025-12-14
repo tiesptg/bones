@@ -33,7 +33,7 @@ public class Entity extends Item<MetaModel> {
           return false;
         }
       }
-      return true;
+      return !entity.isAbstractEntity();
     }
 
   }

@@ -33,8 +33,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.swing.AbstractSpinnerModel;
 import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
 import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -56,7 +56,6 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
-import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
@@ -108,6 +107,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
   private JPanel buttons = new JPanel();
   private JPanel top = new JPanel();
   private final Map<Class<?>, List<Class<?>>> concreteClasses = new HashMap<>();
+  private final JSplitPane dataPane;
+  private final JSplitPane tabsPane;
   private final Repository repository = Repository.getInstance();
   private RepositoryModel repositoryModel = new RepositoryModel(Repository.getInstance());
   private File lastDirectory = new File(".").getAbsoluteFile();
@@ -165,14 +166,17 @@ public class Editor extends JFrame implements TreeSelectionListener {
     private int top;
     private int width;
     private int height;
+    private int dataPaneWidth = 200;
+    private int tabsPaneHeight = 200;
     private String lastDirectory;
     private List<String> recentDocuments;
   }
 
   private void saveConfig() {
     Rectangle rect = getBounds();
-    Config config = new Config(rect.x, rect.y, rect.width, rect.height,
-        lastDirectory.getAbsolutePath(), recentDocuments);
+    Config config =
+        new Config(rect.x, rect.y, rect.width, rect.height, dataPane.getDividerLocation(),
+            tabsPane.getDividerLocation(), lastDirectory.getAbsolutePath(), recentDocuments);
     try {
       repository.write("config.tt", config);
     } catch (Exception ex) {
@@ -184,6 +188,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
     try {
       Config config = (Config) repository.read("config.tt");
       setBounds(config.getLeft(), config.getTop(), config.getWidth(), config.getHeight());
+      tabsPane.setDividerLocation(config.getTabsPaneHeight());
+      dataPane.setDividerLocation(config.dataPaneWidth);
       lastDirectory = new File(config.getLastDirectory());
       recentDocuments.clear();
       recentDocuments.addAll(config.recentDocuments);
@@ -194,6 +200,38 @@ public class Editor extends JFrame implements TreeSelectionListener {
       setBounds(100, 100, 800, 600);
       saveConfig();
     }
+  }
+
+  public static class NumberSpinnerModel extends AbstractSpinnerModel {
+    private static final long serialVersionUID = 7505161114872774977L;
+    private Number value;
+    private final Number step;
+
+    public NumberSpinnerModel(Number value, Number step) {
+      this.value = value;
+      this.step = step;
+    }
+
+    @Override
+    public Object getNextValue() {
+      return value == null ? step : value.intValue() + step.intValue();
+    }
+
+    @Override
+    public Object getPreviousValue() {
+      return value == null ? step : value.intValue() - step.intValue();
+    }
+
+    @Override
+    public Object getValue() {
+      return value;
+    }
+
+    @Override
+    public void setValue(Object number) {
+      value = (Number) number;
+    }
+
   }
 
   private void init(JSplitPane pane) {
@@ -485,28 +523,35 @@ public class Editor extends JFrame implements TreeSelectionListener {
     setJMenuBar(menuBar);
     setLayout(new GridLayout(1, 1));
     JScrollPane sp = new JScrollPane(initTree());
+    sp.getVerticalScrollBar().setUnitIncrement(20);
+    sp.getHorizontalScrollBar().setUnitIncrement(20);
     JPanel below = new JPanel();
     below.setLayout(new BorderLayout());
     below.add(properties, BorderLayout.NORTH);
     JScrollPane sp2 = new JScrollPane(below);
+    sp2.getVerticalScrollBar().setUnitIncrement(20);
+    sp2.getHorizontalScrollBar().setUnitIncrement(20);
     sp.setBorder(BorderFactory.createEmptyBorder());
     sp2.setBorder(BorderFactory.createEmptyBorder());
-    JSplitPane pane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, sp, sp2);
-    pane.setBorder(BorderFactory.createEmptyBorder());
-    init(pane);
+    dataPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, sp, sp2);
+    dataPane.setBorder(BorderFactory.createEmptyBorder());
+    dataPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, e -> saveConfig());
+    init(dataPane);
     top.setLayout(new BorderLayout());
-    top.add(pane, BorderLayout.CENTER);
+    top.add(dataPane, BorderLayout.CENTER);
     top.add(buttons, BorderLayout.SOUTH);
 
     JTabbedPane tabs = new JTabbedPane();
-    tabs.addTab("Problems", new JScrollPane(initViolations()));
+    JScrollPane sp3 = new JScrollPane(initViolations());
+    sp3.getVerticalScrollBar().setUnitIncrement(20);
+    sp3.getHorizontalScrollBar().setUnitIncrement(20);
+    tabs.addTab("Problems", sp3);
 
-    JSplitPane all = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, tabs);
-    init(all);
-    pane.setResizeWeight(0.5);
-    add(all);
+    tabsPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, tabs);
+    tabsPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, e -> saveConfig());
+    init(tabsPane);
+    add(tabsPane);
     tree.addKeyListener(escListener);
-
     restoreConfig();
   }
 
@@ -536,15 +581,15 @@ public class Editor extends JFrame implements TreeSelectionListener {
     validateDocuments();
   }
 
-  private void setValue(Node<?> node, Method setter, Object value) {
+  private void setValue(Node<?> node, EditorProperty<?> property, Object value) {
     try {
-      if (setter != null) {
+      if (!property.isReadonly()) {
         if (value instanceof String str) {
           if (str.isBlank()) {
             value = null;
           }
         }
-        setter.invoke(node, value);
+        property.set(node, value);
         afterChange(node, value);
       }
     } catch (Exception ex) {
@@ -623,7 +668,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
         @Override
         public void keyReleased(KeyEvent e) {
-          setValue(node, property.getSetter(), field.getText());
+          setValue(node, property, field.getText());
         }
 
       });
@@ -635,7 +680,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   private <E extends Enum<E>> void makeEnumComponent(JPanel row, Node<?> node, Object value,
       EditorProperty<?> property) {
     E[] values = ((Class<E>) property.getType()).getEnumConstants();
-    if (property.is(NotNull.class)) {
+    if (!property.is(NotNull.class)) {
       E[] ne = Arrays.copyOf(values, 1);
       ne[0] = null;
       values = Stream.concat(Arrays.asList(ne).stream(), Arrays.stream(values))
@@ -649,7 +694,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     box.putClientProperty(RULE, property);
     propertyEditors.add(box);
     if (!property.isReadonly()) {
-      box.addActionListener(e -> setValue(node, property.getSetter(), box.getSelectedItem()));
+      box.addActionListener(e -> setValue(node, property, box.getSelectedItem()));
     }
     box.addKeyListener(escListener);
     row.add(box);
@@ -674,7 +719,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
           if (e.getButton() == MouseEvent.BUTTON1) {
             Boolean value = !Boolean.valueOf(label.getText());
             label.setText(value.toString());
-            setValue(node, property.getSetter(), value);
+            setValue(node, property, value);
             label.selectAll();
           }
         }
@@ -686,7 +731,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
           if (e.getKeyCode() == KeyEvent.VK_ENTER || e.getKeyCode() == KeyEvent.VK_SPACE) {
             Boolean value = !Boolean.valueOf(label.getText());
             label.setText(value.toString());
-            setValue(node, property.getSetter(), value);
+            setValue(node, property, value);
             label.selectAll();
           }
         }
@@ -736,14 +781,14 @@ public class Editor extends JFrame implements TreeSelectionListener {
     propertyEditors.add(box);
     panel.add(box);
     box.setSelectedIndex(selectedItem);
-    box.addActionListener(e -> setValue(node, property.getSetter(), box.getSelectedItem()));
+    box.addActionListener(e -> setValue(node, property, box.getSelectedItem()));
     box.addKeyListener(escListener);
     box.setEnabled(!property.isReadonly());
   }
 
   private void makeNumberComponent(JPanel panel, Node<?> node, Object value,
       EditorProperty<?> property) {
-    final JSpinner spinner = new JSpinner();
+    final JTextField spinner = new JTextField();
     spinner.setName(property.getName());
     spinner.putClientProperty(RULE, property);
     propertyEditors.add(spinner);
@@ -751,26 +796,27 @@ public class Editor extends JFrame implements TreeSelectionListener {
     if (value == null) {
       value = 0;
     }
-    if (property.getType() == Long.class || property.getType() == long.class) {
-      spinner.setModel(new SpinnerNumberModel(((Number) value).longValue(), null, null, 1));
-    } else if (property.getType() == Integer.class || property.getType() == int.class) {
-      spinner.setModel(new SpinnerNumberModel(((Number) value).intValue(), null, null, 1));
-    }
-    JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) spinner.getEditor();
-    editor.getTextField().addFocusListener(new FocusListener() {
+    spinner.addFocusListener(new FocusAdapter() {
       @Override
       public void focusGained(FocusEvent e) {
-        SwingUtilities.invokeLater(() -> editor.getTextField().selectAll());
+        SwingUtilities.invokeLater(() -> spinner.selectAll());
       }
 
-      @Override
-      public void focusLost(FocusEvent e) {
-        setValue(node, property.getSetter(), spinner.getValue());
-      }
     });
     panel.add(spinner);
-    spinner.addChangeListener(e -> setValue(node, property.getSetter(), spinner.getValue()));
-    editor.getTextField().addKeyListener(escListener);
+    spinner.addKeyListener(new KeyAdapter() {
+
+      @Override
+      public void keyReleased(KeyEvent e) {
+        try {
+          setValue(node, property, property.getType().cast(Double.valueOf(spinner.getText())));
+        } catch (NumberFormatException ex) {
+
+        }
+      }
+
+    });
+    spinner.addKeyListener(escListener);
     spinner.setEnabled(!property.isReadonly());
   }
 
@@ -906,7 +952,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     field.putClientProperty(RULE, property);
     propertyEditors.add(field);
     panel.add(field);
-    editor.onValueChanged(newValue -> setValue(node, property.getSetter(), newValue));
+    editor.onValueChanged(newValue -> setValue(node, property, newValue));
     field.addKeyListener(escListener);
   }
 
@@ -916,7 +962,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     ListEditor<D> editor = (ListEditor<D>) ListEditor.dialogFor(Editor.this,
         "Edit " + property.getLabel(), property.getComponentType());
     if (editor != null && editor.editData(value)) {
-      setValue(node, property.getSetter(), editor.getData());
+      setValue(node, property, editor.getData());
       showValue(label, editor.getData());
     }
   }
@@ -989,34 +1035,33 @@ public class Editor extends JFrame implements TreeSelectionListener {
     ObjectConverter converter =
         (ObjectConverter) repositoryModel.getRepository().getConverter(node.getClass());
     buttons.setLayout(new GridLayout(1, 1));
-    BoxLayout box = new BoxLayout(properties, BoxLayout.PAGE_AXIS);
-    properties.setLayout(box);
+    // BoxLayout box = new BoxLayout(properties, BoxLayout.PAGE_AXIS);
+    properties.setLayout(new TableLayout(2));
     for (EditorProperty<?> property : converter.getProperties()) {
       Object value = getValue(node, property.getGetter());
       if (!property.hasTextIgnoreAnnotation()) {
         if (!property.isList() || property.isLink()) {
-          JPanel row = new JPanel();
-          row.setLayout(new GridLayout(1, 2));
-          properties.add(row);
-          row.add(new JLabel(property.getLabel()));
+          properties.add(new JLabel(property.getLabel()));
           if (property.getEditor() != null) {
-            makeCustomComponent(row, node, value, property);
+            makeCustomComponent(properties, node, value, property);
           } else if (property.getType() == String.class) {
-            makeStringComponent(row, node, (String) value, property);
+            makeStringComponent(properties, node, (String) value, property);
           } else if (Link.class.isAssignableFrom(property.getType())) {
-            makeLinkComponent(row, node, (Link<?, ?>) value, property);
+            makeLinkComponent(properties, node, (Link<?, ?>) value, property);
           } else if (LinkList.class.isAssignableFrom(property.getType())) {
-            makeLinkListComponent(row, node, (LinkList<C, X>) value, property);
+            makeLinkListComponent(properties, node, (LinkList<C, X>) value, property);
           } else if (property.getType() == boolean.class || property.getType() == Boolean.class) {
-            makeBooleanComponent(row, node, (Boolean) value, property);
+            makeBooleanComponent(properties, node, (Boolean) value, property);
           } else if (property.getType() == int.class || property.getType() == Integer.class
               || property.getType() == long.class || property.getType() == Long.class
-              || property.getType() == BigInteger.class) {
-            makeNumberComponent(row, node, value, property);
+              || property.getType() == BigInteger.class || property.getType() == Double.class
+              || property.getType() == double.class || property.getType() == Float.class
+              || property.getType() == float.class) {
+            makeNumberComponent(properties, node, value, property);
           } else if (Node.class.isAssignableFrom(property.getType())) {
-            makeNodeComponent(row, node, (Node<?>) value, property);
+            makeNodeComponent(properties, node, (Node<?>) value, property);
           } else if (property.getType().isEnum()) {
-            makeEnumComponent(row, node, value, property);
+            makeEnumComponent(properties, node, value, property);
           }
         } else if (!property.isReadonly()
             && Node.class.isAssignableFrom(property.getComponentType())) {
@@ -1030,11 +1075,8 @@ public class Editor extends JFrame implements TreeSelectionListener {
             buttons.add(button);
           }
         } else if (!property.isLink()) {
-          JPanel row = new JPanel();
-          row.setLayout(new GridLayout(1, 2));
-          properties.add(row);
-          row.add(new JLabel(property.getLabel()));
-          makeListComponent(row, node, (List<?>) value, property);
+          properties.add(new JLabel(property.getLabel()));
+          makeListComponent(properties, node, (List<?>) value, property);
         }
       }
     }

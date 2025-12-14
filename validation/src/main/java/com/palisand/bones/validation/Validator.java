@@ -88,4 +88,8 @@ public class Validator {
     return result;
   }
 
+  public boolean isValid(List<Violation> result) {
+    return result.stream().noneMatch(violation -> violation.severity() == Severity.ERROR);
+  }
+
 }

@@ -3,11 +3,23 @@ package com.palisand.bones.meta;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import com.palisand.bones.Names;
 import com.palisand.bones.meta.generator.JavaGenerator;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
+import com.palisand.bones.validation.CamelCase;
+import com.palisand.bones.validation.KebabCase;
+import com.palisand.bones.validation.LowerCase;
+import com.palisand.bones.validation.Max;
+import com.palisand.bones.validation.Min;
+import com.palisand.bones.validation.NotEmpty;
+import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.PredicateWithException;
+import com.palisand.bones.validation.SnakeCase;
+import com.palisand.bones.validation.UpperCase;
+import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -41,6 +53,128 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     if (!entity.getActiveContainer().isPresent()) {
       addImport(Node.class);
+    }
+    for (Member member : entity.getMembers()) {
+      if (member instanceof Attribute attribute) {
+        if (attribute.isNotNull()) {
+          addImport(NotNull.class);
+        }
+        if (attribute.getEnabledWhen() != null) {
+          addImport(ValidWhen.class);
+          addImport(PredicateWithException.class);
+        }
+        if (attribute.getMultiLine()) {
+          addImport(MultiLine.class);
+        }
+        if (attribute.getMinValue() != null) {
+          addImport(Min.class);
+        }
+        if (attribute.getMaxValue() != null) {
+          addImport(Max.class);
+        }
+        if (attribute.getCasing() != null) {
+          switch (attribute.getCasing()) {
+            case UPPER_CASE:
+              addImport(UpperCase.class);
+              break;
+            case LOWER_CASE:
+              addImport(LowerCase.class);
+              break;
+            case CAMEL_CASE:
+            case CAMEL_CASE_WITH_CAPITAL:
+              addImport(CamelCase.class);
+              break;
+            case SNAKE_CASE:
+            case SNAKE_UPPER_CASE:
+              addImport(SnakeCase.class);
+              break;
+            case KEBAB_CASE:
+            case KEBAB_LOWER_CASE:
+              addImport(KebabCase.class);
+              break;
+          }
+        }
+      } else if (member instanceof ReferenceRole role) {
+        if (role.isMultiple() && role.isNotEmpty()) {
+          addImport(NotEmpty.class);
+        }
+      } else if (member instanceof ContainerRole role) {
+        if (role.isMultiple() && role.isNotEmpty()) {
+          addImport(NotEmpty.class);
+        }
+      }
+    }
+  }
+
+  private String translateToJava(Entity entity, String valid) {
+    StringBuilder java = new StringBuilder(valid);
+    String prefix = "object.";
+    for (Member member : entity.getMembers()) {
+      String name = prefix + member.getName();
+      for (int i = java.indexOf(name); i != -1; i = java.indexOf(name, i)) {
+        String newName = "object.get" + Names.capitalise(member.getName()) + "()";
+        java.replace(i, i + name.length(), newName);
+        i += 4;
+      }
+    }
+    return java.toString();
+  }
+
+  private void printRules(Entity entity, Attribute attribute) {
+    if (attribute.getEnabledWhen() != null) {
+      nl();
+      nl("public static class %sEnabled implements PredicateWithException<%s> {",
+          Names.capitalise(attribute.getName()), entity.getName());
+      incMargin();
+      nl("@Override public boolean test(%s object) throws Exception {", entity.getName());
+      incMargin();
+      nl("return %s;", translateToJava(entity, attribute.getEnabledWhen()));
+      decMargin();
+      nl("}");
+      decMargin();
+      nl("}");
+      nl();
+      nl("@ValidWhen(%sEnabled.class)", Names.capitalise(attribute.getName()));
+    }
+    if (attribute.isNotNull()) {
+      nl("@NotNull");
+    }
+    if (attribute.getMultiLine()) {
+      nl("@MultiLine");
+    }
+    if (attribute.getMinValue() != null) {
+      nl("@Min(%ld)", attribute.getMinValue());
+    }
+    if (attribute.getMaxValue() != null) {
+      nl("@Max(%ld)", attribute.getMaxValue());
+    }
+    if (attribute.getCasing() != null) {
+      switch (attribute.getCasing()) {
+        case UPPER_CASE:
+          nl("@UpperCase");
+          break;
+        case LOWER_CASE:
+          nl("@LowerCase");
+          break;
+        case CAMEL_CASE:
+          nl("@CamelCase(startsWithCapitel=false)");
+          break;
+        case CAMEL_CASE_WITH_CAPITAL:
+          nl("@CamelCase");
+          break;
+        case SNAKE_CASE:
+          nl("@SnakeCase");
+          break;
+        case SNAKE_UPPER_CASE:
+          nl("@SnakeCase(upperCase=true)");
+          break;
+        case KEBAB_CASE:
+          nl("@KebabCase");
+          break;
+        case KEBAB_LOWER_CASE:
+          nl("@KebabCase(lowerCase=true)");
+          break;
+      }
     }
   }
 
@@ -87,6 +221,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     // TODO: RULES
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
+        printRules(entity, attribute);
         if (attribute.getJavaDefaultValue().contains("(")) {
           nl("private %s %s;", attribute.getJavaType(), attribute.getName());
         } else {
@@ -95,6 +230,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
         }
       } else if (member instanceof ReferenceRole role) {
         if (role.isMultiple()) {
+          if (role.isNotEmpty()) {
+            nl("@NotEmpty");
+          }
           nl("private final LinkList<%s%s,%s> %s = new LinkList<>((%s%s)this,\"%s\",obj -> obj.get%s());",
               entity.getName(), gen, role.getEntity().get().getName(), role.getName(),
               entity.getName(), gen, role.getPointerPattern(),
@@ -107,6 +245,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
         }
       } else if (member instanceof ContainerRole role) {
         if (role.isMultiple()) {
+          if (role.isNotEmpty()) {
+            nl("@NotEmpty");
+          }
           nl("private List<%s> %s = new ArrayList<>();", role.getEntity().get().getName(),
               role.getName());
         } else {
@@ -133,7 +274,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       }
     }
 
-    if (!entity.getSuperEntity().isPresent()) {
+    if (entity.getIdAttribute().isPresent()) {
       nl();
       nl("@Override");
       nl("public String getId() {");

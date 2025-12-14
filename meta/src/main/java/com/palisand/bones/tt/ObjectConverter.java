@@ -60,6 +60,11 @@ public class ObjectConverter implements Converter<Object> {
       }
     }
 
+    @Override
+    public boolean isValid() {
+      return super.isValid() && !isTextIgnore();
+    }
+
     public String getName() {
       return getField().getName();
     }
@@ -311,7 +316,9 @@ public class ObjectConverter implements Converter<Object> {
       List<IOException> exList = new ArrayList<>();
       linkList.getList().forEach(link -> {
         try {
-          list.add(link.getPath());
+          if (link.isPresent()) {
+            list.add(link.getPath());
+          }
         } catch (IOException ioex) {
           exList.add(ioex);
         }
@@ -321,7 +328,9 @@ public class ObjectConverter implements Converter<Object> {
       }
     } else {
       Link<?, ?> link = (Link<?, ?>) value;
-      result = link.getPath();
+      if (link.isPresent()) {
+        result = link.getPath();
+      }
     }
     return result;
   }

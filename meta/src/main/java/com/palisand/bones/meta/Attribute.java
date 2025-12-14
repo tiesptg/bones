@@ -43,6 +43,7 @@ public class Attribute extends Member {
   @NotAllowed("OBJECT")
   @NotNull private Type type = Type.STRING;
   private String defaultValue = null;
+  @ValidWhen(TypeIsString.class) private Casing casing = null;
   @ValidWhen(TypeIsString.class) private Boolean multiLine = false;
   @ValidWhen(TypeIsNumber.class) private Long minValue = null;
   @ValidWhen(TypeIsNumber.class) private Long maxValue = null;

@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import com.palisand.bones.Classes.Property;
 import com.palisand.bones.tt.ObjectConverter.EditorProperty;
@@ -35,8 +37,13 @@ public abstract class Node<N extends Node<?>> implements Validatable {
 
   public abstract String getId();
 
-  @SuppressWarnings("unchecked")
   public void beforeIdChange(String oldId, String newId) throws IOException {
+    beforeIdChangeWithCycleCheck(new HashSet<Node<?>>(), oldId, newId);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void beforeIdChangeWithCycleCheck(Set<Node<?>> cycleChecker, String oldId, String newId)
+      throws IOException {
     if (oldId != null) {
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
       for (EditorProperty<?> property : converter.getProperties()) {
@@ -57,12 +64,14 @@ public abstract class Node<N extends Node<?>> implements Validatable {
           if (property.isList()) {
             List<Node<?>> list = (List<Node<?>>) property.get(this);
             for (Node<?> node : list) {
-              node.beforeIdChange(oldId, newId);
+              if (cycleChecker.add(node)) {
+                node.beforeIdChangeWithCycleCheck(cycleChecker, oldId, newId);
+              }
             }
           } else {
             Node<?> node = (Node<?>) property.get(this);
-            if (node != null) {
-              node.beforeIdChange(oldId, newId);
+            if (node != null && cycleChecker.add(node)) {
+              node.beforeIdChangeWithCycleCheck(cycleChecker, oldId, newId);
             }
           }
         }
@@ -146,37 +155,44 @@ public abstract class Node<N extends Node<?>> implements Validatable {
         + absolutePath;
   }
 
-  @SuppressWarnings("unchecked")
   public void delete() throws IOException {
-    ObjectConverter converter = ObjectConverter.getConverter(getClass());
-    for (EditorProperty<?> property : converter.getProperties().stream()
-        .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
-      if (property.isLink()) {
-        // set links to null
-        if (property.isList()) {
-          LinkList<?, ?> list = (LinkList<?, ?>) property.get(this);
-          list.clear();
+    delete(new HashSet<>());
+  }
+
+  @SuppressWarnings("unchecked")
+  private void delete(Set<Node<?>> cycleChecker) throws IOException {
+    if (!cycleChecker.contains(this)) {
+      cycleChecker.add(this);
+      ObjectConverter converter = ObjectConverter.getConverter(getClass());
+      for (EditorProperty<?> property : converter.getProperties().stream()
+          .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
+        if (property.isLink()) {
+          // set links to null
+          if (property.isList()) {
+            LinkList<?, ?> list = (LinkList<?, ?>) property.get(this);
+            list.clear();
+          } else {
+            Link<?, ?> child = (Link<?, ?>) property.get(this);
+            child.set(null);
+          }
+          // remove children
+        } else if (property.isList()) {
+          List<Node<?>> list = (List<Node<?>>) property.get(this);
+          // to prevent changing the list while iterating
+          List<Node<?>> copy = new ArrayList<Node<?>>(list);
+          for (Node<?> child : copy) {
+            child.delete(cycleChecker);
+          }
         } else {
-          Link<?, ?> child = (Link<?, ?>) property.get(this);
-          child.set(null);
-        }
-        // remove children
-      } else if (property.isList()) {
-        List<Node<?>> list = (List<Node<?>>) property.get(this);
-        // to prevent changing the list while iterating
-        List<Node<?>> copy = new ArrayList<Node<?>>(list);
-        for (Node<?> child : copy) {
-          child.delete();
-        }
-      } else {
-        Node<?> child = (Node<?>) property.get(this);
-        if (child != null) {
-          child.delete();
+          Node<?> child = (Node<?>) property.get(this);
+          if (child != null) {
+            child.delete(cycleChecker);
+          }
         }
       }
-    }
-    if (getContainer() != null) {
-      getContainer().removeChild(this);
+      if (getContainer() != null) {
+        getContainer().removeChild(this);
+      }
     }
   }
 

@@ -72,6 +72,23 @@ public class Rules {
     });
   }
 
+  private static void registerLength() {
+    addRule(Length.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null) {
+        Length length = (Length) spec;
+        if (value.toString().length() < length.min()) {
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value should be " + length.min() + " or longer", null));
+        }
+        if (length.max() != -1 && value.toString().length() > length.max()) {
+          violations.add(new Violation(Severity.ERROR, ownerOfField, property,
+              "value should be " + length.max() + " of shorter", null));
+        }
+      }
+      return value;
+    });
+  }
+
   private static void registerNoXss() {
     addRule(NoXss.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null && value.toString().matches(".*[\\<\\>].*")) {
@@ -253,6 +270,7 @@ public class Rules {
   static {
     registerNotNull();
     registerNotEmpty();
+    registerLength();
     registerNoXss();
     registerRegexpPattern();
     registerMax();

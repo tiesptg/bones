@@ -3,7 +3,8 @@ name:	Schema
 packageName:	com.palisand.bones.test
 entities:
 -	Entity>
-	name:	Field
+	entityContainer:	#/entities/Table/members/fields
+	idAttribute:	members/name
 	members:
 	-	Attribute>
 		name:	name
@@ -15,100 +16,106 @@ entities:
 		type:	ENUM
 		enumType:	#/enumTypes/DataType
 	-	ReferenceRole>
+		multiple:	true
 		name:	inForeignKeys
-		multiple:	true
 		entity:	#/entities/ForeignKey
-		pointerPattern:	../keys/.*
 		opposite:	#/entities/ForeignKey/members/fields
+		pointerPattern:	../keys/.*
 	-	ReferenceRole>
-		name:	inPrimaryKeys
 		multiple:	true
+		name:	inPrimaryKeys
 		entity:	#/entities/PrimaryKey
-		pointerPattern:	../primaryKey/.*
 		opposite:	#/entities/PrimaryKey/members/fields
-	entityContainer:	#/entities/Table/members/fields
-	idAttribute:	members/name
+		pointerPattern:	../primaryKey/.*
+	name:	Field
 	referencedFrom:
 	-	#/entities/ForeignKey/members/fields
 	-	#/entities/PrimaryKey/members/fields
 -	Entity>
-	name:	Key
-	members:
-	-	Attribute>
-		name:	name
 	idAttribute:	members/name
+	abstractEntity:	true
 	specialisations:
 	-	#/entities/ForeignKey
 	-	#/entities/PrimaryKey
-	abstractEntity:	true
--	Entity>
-	name:	Table
 	members:
-	-	ContainerRole>
-		name:	keys
-		entity:	#/entities/ForeignKey
+	-	Attribute>
+		name:	name
+	name:	Key
+-	Entity>
+	entityContainer:	#/entities/Schema/members/tables
+	idAttribute:	members/name
+	members:
+	-	Attribute>
+		name:	name
+		casing:	SNAKE_CASE
+	-	Attribute>
+		name:	description
+		multiLine:	true
 	-	ContainerRole>
 		name:	fields
 		entity:	#/entities/Field
-	-	Attribute>
-		name:	name
+		notEmpty:	true
 	-	ContainerRole>
+		multiple:	false
 		name:	primaryKey
 		entity:	#/entities/PrimaryKey
 		multiple:	false
-	entityContainer:	#/entities/Schema/members/tables
-	idAttribute:	members/name
+	-	ContainerRole>
+		name:	keys
+		entity:	#/entities/ForeignKey
+	name:	Table
 -	Entity>
-	name:	ForeignKey
+	entityContainer:	#/entities/Table/members/keys
+	superEntity:	#/entities/Key
 	members:
 	-	Attribute>
 		name:	unique
 		type:	BOOLEAN
 		defaultValue:	false
 	-	ReferenceRole>
-		name:	fields
 		multiple:	true
 		notNull:	true
-		notEmpty:	true
+		name:	fields
 		entity:	#/entities/Field
-		pointerPattern:	../fields/.*
 		opposite:	#/entities/Field/members/inForeignKeys
-	entityContainer:	#/entities/Table/members/keys
+		pointerPattern:	../fields/.*
+		notEmpty:	true
+	name:	ForeignKey
 	referencedFrom:
 	-	#/entities/Field/members/inForeignKeys
-	superEntity:	#/entities/Key
 -	Entity>
-	name:	PrimaryKey
+	entityContainer:	#/entities/Table/members/primaryKey
+	superEntity:	#/entities/Key
 	members:
 	-	ReferenceRole>
-		name:	fields
 		multiple:	true
 		notNull:	true
-		notEmpty:	true
+		name:	fields
 		entity:	#/entities/Field
-		pointerPattern:	../fields/.*
 		opposite:	#/entities/Field/members/inPrimaryKeys
-	entityContainer:	#/entities/Table/members/primaryKey
+		pointerPattern:	../fields/.*
+		notEmpty:	true
+	name:	PrimaryKey
 	referencedFrom:
 	-	#/entities/Field/members/inPrimaryKeys
-	superEntity:	#/entities/Key
 -	Entity>
-	name:	Schema
+	idAttribute:	members/name
 	members:
 	-	Attribute>
 		name:	name
 	-	ContainerRole>
 		name:	tables
 		entity:	#/entities/Table
+		notEmpty:	true
 	-	Attribute>
-		name:	info
 		multiple:	true
-	idAttribute:	members/name
+		name:	info
+	name:	Schema
 enumTypes:
 -	EnumType>
-	name:	DataType
 	values:
 	-	STRING
 	-	INTEGER
 	-	BOOLEAN
 	-	FLOAT
+	name:	DataType

@@ -6,6 +6,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -172,24 +173,31 @@ public class Classes {
       }
     }
 
+    public boolean isValid() {
+      return getter != null;
+    }
+
     private static Method getGetter(Class<?> cls, Field field) {
       String postFix = field.getName();
       postFix = Character.toUpperCase(postFix.charAt(0)) + postFix.substring(1);
       Method result = null;
       try {
         result = cls.getMethod("get" + postFix);
-        return result;
       } catch (NoSuchMethodException e) {
         try {
           result = cls.getMethod("is" + postFix);
-          if (result.getReturnType() == boolean.class || result.getReturnType() == Boolean.class) {
-            return result;
+          if (result.getReturnType() != boolean.class && result.getReturnType() != Boolean.class) {
+            result = null;
           }
         } catch (NoSuchMethodException e1) {
           // ignore
         }
       }
-      return null;
+      if (Modifier.isAbstract(result.getModifiers()) || !Modifier.isPublic(result.getModifiers())
+          || Modifier.isStatic(result.getModifiers())) {
+        result = null;
+      }
+      return result;
     }
 
     private static Method getSetter(Class<?> cls, Field field, Class<?> type) {
@@ -198,10 +206,14 @@ public class Classes {
       Method result = null;
       try {
         result = cls.getMethod("set" + postFix, type);
-        return result;
       } catch (NoSuchMethodException e) {
       }
-      return null;
+      if (result != null && (Modifier.isAbstract(result.getModifiers())
+          || !Modifier.isPublic(result.getModifiers())
+          || Modifier.isStatic(result.getModifiers()))) {
+        result = null;
+      }
+      return result;
     }
 
     private static Object getDefaultValue(Object instance, Method getter) {
@@ -251,7 +263,12 @@ public class Classes {
   private static <X> void scanClass(List<Property<X>> properties, Class<X> cls, X instance,
       Creator<X> creator) throws Exception {
     for (Field field : cls.getDeclaredFields()) {
-      properties.add(creator.newProperty(cls, instance, field));
+      if (!Modifier.isStatic(field.getModifiers())) {
+        Property<X> property = creator.newProperty(cls, instance, field);
+        if (property.isValid()) {
+          properties.add(creator.newProperty(cls, instance, field));
+        }
+      }
     }
     if (cls.getSuperclass() != Object.class) {
       scanClass(properties, (Class<X>) cls.getSuperclass(), instance, creator);

@@ -7,8 +7,10 @@ import com.palisand.bones.tt.Editor;
 import com.palisand.bones.tt.FieldOrder;
 import com.palisand.bones.tt.Link;
 import com.palisand.bones.validation.NotNull;
+import com.palisand.bones.validation.Rules.PredicateWithException;
 import com.palisand.bones.validation.Rules.Severity;
 import com.palisand.bones.validation.Rules.Violation;
+import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,10 +20,18 @@ import lombok.Setter;
 @NoArgsConstructor
 @FieldOrder({"entity", "opposite", "pointerPattern", "external", "notEmpty"})
 public class ReferenceRole extends Member {
+  public static class IsMultiple implements PredicateWithException<ReferenceRole> {
+
+    @Override
+    public boolean test(ReferenceRole a) throws Exception {
+      return a.isMultiple();
+    }
+
+  }
 
   @NotNull private String pointerPattern;
   private boolean external = false;
-  private boolean notEmpty = false;
+  @ValidWhen(IsMultiple.class) private boolean notEmpty = false;
   @NotNull private final Link<ReferenceRole, ReferenceRole> opposite =
       Link.newLink(this, ".*#/entities/.*/members/.*", role -> role.getOpposite());
   @NotNull private final Link<ReferenceRole, Entity> entity =

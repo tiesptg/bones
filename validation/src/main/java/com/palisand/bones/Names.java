@@ -52,4 +52,11 @@ public class Names {
     return sb.toString().toLowerCase();
   }
 
+  public static String capitalise(String word) {
+    if (word != null) {
+      return Character.toUpperCase(word.charAt(0)) + word.substring(1);
+    }
+    return null;
+  }
+
 }
