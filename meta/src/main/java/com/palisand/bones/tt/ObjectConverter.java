@@ -17,12 +17,16 @@ import com.palisand.bones.tt.Repository.Token;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 
 public class ObjectConverter implements Converter<Object> {
   private static final Map<String, ObjectConverter> CONVERTERS = new TreeMap<>();
-  @Getter private List<EditorProperty<?>> properties = new ArrayList<>();
-  @Getter private Method containerSetter = null;
-  @Getter private Class<?> type;
+  @Getter
+  private List<EditorProperty<?>> properties = new ArrayList<>();
+  @Getter
+  private Method containerSetter = null;
+  @Getter
+  private Class<?> type;
 
   public EditorProperty<?> getProperty(String name) {
     for (EditorProperty<?> property : properties) {
@@ -44,6 +48,7 @@ public class ObjectConverter implements Converter<Object> {
 
   @Data
   @EqualsAndHashCode(callSuper = true)
+  @ToString(callSuper = true)
   public static class EditorProperty<X> extends Property<X> {
     private Class<?> componentType;
     private Class<? extends CustomEditor> editor;
@@ -119,6 +124,7 @@ public class ObjectConverter implements Converter<Object> {
           || LinkList.class.isAssignableFrom(getGetter().getReturnType());
     }
 
+    @Override
     public boolean isReadonly() {
       return getSetter() == null && !isLink();
     }
@@ -169,12 +175,21 @@ public class ObjectConverter implements Converter<Object> {
     }
 
     properties.sort((p1, p2) -> {
-      return compareProperties(p1, p2);
+      return compareProperties(cls, p1, p2);
     });
   }
 
-  private int compareProperties(EditorProperty<?> p1, EditorProperty<?> p2) {
-    FieldOrder fo = p1.getGetter().getDeclaringClass().getAnnotation(FieldOrder.class);
+  private FieldOrder getFieldOrder(Class<?> cls) {
+    FieldOrder fieldOrder = cls.getAnnotation(FieldOrder.class);
+    while (fieldOrder == null && cls.getSuperclass() != Object.class) {
+      cls = cls.getSuperclass();
+      fieldOrder = cls.getAnnotation(FieldOrder.class);
+    }
+    return fieldOrder;
+  }
+
+  private int compareProperties(Class<?> cls, EditorProperty<?> p1, EditorProperty<?> p2) {
+    FieldOrder fo = getFieldOrder(cls);
     if (fo != null) {
       int i1 = indexOf(fo.value(), p1.getName());
       int i2 = indexOf(fo.value(), p2.getName());

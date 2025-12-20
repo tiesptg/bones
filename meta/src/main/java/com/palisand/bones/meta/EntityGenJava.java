@@ -190,7 +190,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     nl("@NoArgsConstructor");
     if (!entity.getMembers().isEmpty()) {
       l("@FieldOrder({");
-      for (Member member : entity.getMembers()) {
+      for (Member member : entity.getAllMembers()) {
         l('"' + member.getName() + "\",");
       }
       nl("})");

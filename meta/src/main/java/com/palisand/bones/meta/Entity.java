@@ -2,6 +2,7 @@ package com.palisand.bones.meta;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import com.palisand.bones.tt.FieldOrder;
@@ -48,7 +49,10 @@ public class Entity extends Item<MetaModel> {
   }
 
   @NotNull
-  @CamelCase private String name;
+  @CamelCase
+  private String name;
+  private String pluralName;
+  private String pluralLabel;
   private final Link<Entity, Entity> superEntity =
       Link.newLink(this, ".*#/entities/.*", obj -> obj.getSpecialisations());
   private boolean abstractEntity = false;
@@ -56,17 +60,35 @@ public class Entity extends Item<MetaModel> {
       new LinkList<>(this, ".*#/entities/.*", obj -> obj.getSuperEntity());
   private List<Member> members = new ArrayList<>();
   private List<Method> methods = new ArrayList<>();
-  @ValidWhen(NotAbstract.class) private Link<Entity, ContainerRole> entityContainer =
+  @ValidWhen(NotAbstract.class)
+  private Link<Entity, ContainerRole> entityContainer =
       Link.newLink(this, ".*#/entities/.*/members/.*", contained -> contained.getEntity());
   @ValidWhen(IdNecessary.class)
-  @NotNull private Link<Entity, Attribute> idAttribute =
+  @NotNull
+  private Link<Entity, Attribute> idAttribute =
       Link.newLink(this, "members/.*", attr -> attr.getIdFor());
   private LinkList<Entity, ReferenceRole> referencedFrom =
       new LinkList<>(this, ".*#/entities/.*/members/.*", refrole -> refrole.getEntity());
+  private LinkList<Entity, Member> prependInOrder =
+      new LinkList<>(this, "members/.*", member -> member.getPrependedFor());
 
   public void setName(String name) throws IOException {
     beforeIdChange(this.name, name);
     this.name = name;
+  }
+
+  public String getPluralName() {
+    if (pluralName == null) {
+      return getName() + "s";
+    }
+    return pluralName;
+  }
+
+  public String getPluralLabel() {
+    if (pluralLabel == null) {
+      return getPluralName();
+    }
+    return pluralLabel;
   }
 
   public Link<Entity, ContainerRole> getActiveContainer() throws IOException {
@@ -146,6 +168,27 @@ public class Entity extends Item<MetaModel> {
 
   public boolean isRootEntity() throws IOException {
     return getEntityContainer().get() == null && !isAbstractEntity();
+  }
+
+  public List<Member> getAllMembers() throws IOException {
+    if (getSuperEntity().isPresent()) {
+      List<Member> result = new ArrayList<>(getSuperEntity().get().getAllMembers());
+      result.addAll(getMembers());
+      List<Link<Entity, Member>> list = getPrependInOrder().getList();
+      if (!list.isEmpty()) {
+        Collections.reverse(list);
+        for (Link<Entity, Member> link : list) {
+          if (result.remove(link.get())) {
+            result.add(0, link.get());
+          } else {
+            throw new IOException("member in prependedFor is not a member " + link.getPath()
+                + " of entity " + getId());
+          }
+        }
+      }
+      return result;
+    }
+    return getMembers();
   }
 
 }

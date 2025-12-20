@@ -13,10 +13,19 @@ import lombok.Setter;
 @FieldOrder({"name", "description"})
 public abstract class Item<N extends Node<?>> extends Node<N> {
 
+  private String label = null;
   @MultiLine
-  @NoXss private String description = null;
+  @NoXss
+  private String description = null;
 
   public abstract String getName();
+
+  public String getLabel() {
+    if (label == null) {
+      return getName();
+    }
+    return label;
+  }
 
   public String getName(String prefix) {
     StringBuilder sb = new StringBuilder(prefix);

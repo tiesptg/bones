@@ -35,7 +35,8 @@ public class Repository {
   private static final String EXTENSION = ".tt";
   private static final Class<?> ROOT_CONTEXT = Object.class;
   private final Map<Class<?>, Converter<?>> converters = new HashMap<>();
-  @Getter private final Map<String, SoftReference<Node<?>>> documents = new TreeMap<>();
+  @Getter
+  private final Map<String, SoftReference<Node<?>>> documents = new TreeMap<>();
 
   public record Token(String margin, String label, char delimiter, int line, int charInLine) {
 
@@ -465,33 +466,38 @@ public class Repository {
   @SuppressWarnings("unchecked")
   private <A extends Node<?>> void findFromNode(List<A> result, Class<A> type, Node<?> fromNode,
       String pattern, int startIndex) throws IOException {
-    ObjectConverter converter = ObjectConverter.getConverter(fromNode.getClass());
-    int endProperty = pattern.indexOf('/', startIndex);
-    assert endProperty != -1;
-    String name = pattern.substring(startIndex, endProperty);
-    EditorProperty<?> property = converter.getProperty(name);
-    if (property != null && !property.isLink()) {
-      if (property.isList()) {
-        int idEnd = pattern.indexOf('/', endProperty + 1);
-        String idPattern = idEnd == -1 ? pattern.substring(endProperty + 1)
-            : pattern.substring(endProperty + 1, idEnd);
-        List<A> list = (List<A>) property.get(fromNode);
-        if (!idPattern.equals(".*")) {
-          list = list.stream().filter(node -> node.getId().matches(idPattern)).toList();
-        }
-        if (idEnd == -1) {
-          if (property.getComponentType() != type) {
-            result.addAll(list.stream().filter(a -> type.isAssignableFrom(a.getClass())).toList());
+    if (pattern.equals("..")) {
+      result.add((A) fromNode.getContainer());
+    } else {
+      ObjectConverter converter = ObjectConverter.getConverter(fromNode.getClass());
+      int endProperty = pattern.indexOf('/', startIndex);
+      assert endProperty != -1;
+      String name = pattern.substring(startIndex, endProperty);
+      EditorProperty<?> property = converter.getProperty(name);
+      if (property != null && !property.isLink()) {
+        if (property.isList()) {
+          int idEnd = pattern.indexOf('/', endProperty + 1);
+          String idPattern = idEnd == -1 ? pattern.substring(endProperty + 1)
+              : pattern.substring(endProperty + 1, idEnd);
+          List<A> list = (List<A>) property.get(fromNode);
+          if (!idPattern.equals(".*")) {
+            list = list.stream().filter(node -> node.getId().matches(idPattern)).toList();
+          }
+          if (idEnd == -1) {
+            if (property.getComponentType() != type) {
+              result
+                  .addAll(list.stream().filter(a -> type.isAssignableFrom(a.getClass())).toList());
+            } else {
+              result.addAll(list);
+            }
           } else {
-            result.addAll(list);
+            for (Node<?> node : list) {
+              findFromNode(result, type, node, pattern, idEnd + 1);
+            }
           }
         } else {
-          for (Node<?> node : list) {
-            findFromNode(result, type, node, pattern, idEnd + 1);
-          }
+          throw new UnsupportedOperationException();
         }
-      } else {
-        throw new UnsupportedOperationException();
       }
     }
   }

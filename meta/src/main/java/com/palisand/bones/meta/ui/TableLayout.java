@@ -81,11 +81,15 @@ public class TableLayout implements LayoutManager2 {
     public void mouseDragged(MouseEvent e) {
       if (start != null && column != -1) {
         double diff = e.getX() - start.getX();
-        if (fillSpace && diff > widths[column + 1])
+        if (fillSpace && diff > widths[column + 1]) {
           diff = widths[column + 1];
-        else if (diff < -widths[column]) diff = -widths[column];
+        } else if (diff < -widths[column]) {
+          diff = -widths[column];
+        }
         widths[column] += diff;
-        if (fillSpace) widths[column + 1] -= diff;
+        if (fillSpace) {
+          widths[column + 1] -= diff;
+        }
         start = e.getPoint();
 
         parent.invalidate();
@@ -168,7 +172,7 @@ public class TableLayout implements LayoutManager2 {
   }
 
   @Override
-  public void removeLayoutComponent(Component comp) {
+  public synchronized void removeLayoutComponent(Component comp) {
     int row = -1;
     for (int i = 0; i < components.size(); ++i) {
       Pair pair = components.get(i);
@@ -188,8 +192,12 @@ public class TableLayout implements LayoutManager2 {
           break;
         }
       }
-      if (heights != null) heights = null;
-      if (preferredHeights != null) preferredHeights = null;
+      if (heights != null) {
+        heights = null;
+      }
+      if (preferredHeights != null) {
+        preferredHeights = null;
+      }
     }
   }
 
@@ -390,7 +398,7 @@ public class TableLayout implements LayoutManager2 {
   }
 
   @Override
-  public void layoutContainer(Container parent) {
+  public synchronized void layoutContainer(Container parent) {
     synchronized (parent.getTreeLock()) {
       if (heights == null || preferredHeights == null) {
         preferredLayoutSize(parent);
@@ -421,7 +429,7 @@ public class TableLayout implements LayoutManager2 {
   }
 
   @Override
-  public void addLayoutComponent(Component comp, Object constraints) {
+  public synchronized void addLayoutComponent(Component comp, Object constraints) {
     setResizeListener(comp);
     Constraints c = (Constraints) constraints;
     if (c == null) {
@@ -435,8 +443,12 @@ public class TableLayout implements LayoutManager2 {
       }
     }
     components.add(pair);
-    if (heights != null) heights = null;
-    if (preferredHeights != null) preferredHeights = null;
+    if (heights != null) {
+      heights = null;
+    }
+    if (preferredHeights != null) {
+      preferredHeights = null;
+    }
   }
 
   public static Constraints span(int rows, int cols) {

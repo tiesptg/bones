@@ -577,7 +577,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     for (X child : nodes) {
       linkList.add(child);
     }
-    validateProperties();
+    validateProperties(node);
     validateDocuments();
   }
 
@@ -604,7 +604,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
       } else {
         repositoryModel.fireNodeChanged(tree.getSelectionPath());
       }
-      validateProperties();
+      validateProperties(node);
       validateDocuments();
     } catch (Exception ex) {
       handleException(ex);
@@ -618,6 +618,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
       List<Object> list = (List<Object>) property.getGetter().invoke(node);
       list.add(child);
       child.setContainer(node, property.getName());
+      validateDocuments();
       TreePath path = repositoryModel.fireChildAdded(child);
       SwingUtilities.invokeLater(() -> tree.setSelectionPath(path));
     } catch (Exception ex) {
@@ -625,10 +626,22 @@ public class Editor extends JFrame implements TreeSelectionListener {
     }
   }
 
+  private void showValue(JComponent comp, Object value) {
+    if (comp instanceof JTextField text) {
+      text.setText(value != null ? value.toString() : "");
+    } else if (comp instanceof JTextArea area && value instanceof String) {
+      showValue(area, value);
+    } else if (comp instanceof JComboBox<?> box) {
+      box.setSelectedItem(value);
+    }
+  }
+
   @SuppressWarnings("unchecked")
-  private <N extends Node<?>> void validateProperties() throws IOException {
+  private <N extends Node<?>> void validateProperties(Node<?> selected) throws IOException {
     for (JComponent component : propertyEditors) {
       EditorProperty<N> property = (EditorProperty<N>) component.getClientProperty(RULE);
+      Object value = property.get(selected);
+      showValue(component, value);
       if (property != null && property.getValidWhen() != null) {
         try {
           component.setEnabled(property.getValidWhen().test((N) selectedNode));
@@ -1087,7 +1100,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
       }
     }
     try {
-      validateProperties();
+      validateProperties(node);
     } catch (Exception ex) {
       handleException(ex);
     }
@@ -1126,6 +1139,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     Node<?> node = (Node<?>) path.getLastPathComponent();
     try {
       TreePath parent = repositoryModel.deleteNode(node);
+      validateDocuments();
       tree.setSelectionPath(parent);
     } catch (Exception ex) {
       handleException(ex);

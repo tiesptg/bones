@@ -39,13 +39,13 @@ public class Validator {
               fieldValue = newValue;
             }
           }
-          if (object instanceof Validatable valid) {
-            valid.doValidate(result, (List<Property<?>>) (Object) properties);
-          }
           validateObject(result, cycleChecker, fieldValue);
         } else {
           property.setToDefault(object);
         }
+      }
+      if (object instanceof Validatable valid) {
+        valid.doValidate(result, (List<Property<?>>) (Object) properties);
       }
     } catch (Exception e) {
       e.printStackTrace();
@@ -69,7 +69,7 @@ public class Validator {
   }
 
   private void validateObject(List<Violation> result, Set<Object> cycleChecker, Object object) {
-    if (!isLeaf(object) && !cycleChecker.contains(object)) {
+    if (object != null && !isLeaf(object) && !cycleChecker.contains(object)) {
       cycleChecker.add(object);
       if (Collection.class.isAssignableFrom(object.getClass())) {
         validateCollection(result, cycleChecker, (Collection<?>) object);

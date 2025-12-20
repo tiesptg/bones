@@ -16,7 +16,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @FieldOrder({"name", "label", "description", "type", "enumType", "defaultValue", "multiple",
-    "notNull", "enableWhen", "multiLine", "pattern", "minValue", "maxValue", "idFor"})
+    "notNull", "enableWhen", "multiLine", "casing", "pattern", "minValue", "maxValue", "idFor"})
 public class Attribute extends Member {
 
   public static class TypeIsString implements PredicateWithException<Attribute> {
@@ -41,15 +41,21 @@ public class Attribute extends Member {
   }
 
   @NotAllowed("OBJECT")
-  @NotNull private Type type = Type.STRING;
+  @NotNull
+  private Type type = Type.STRING;
   private String defaultValue = null;
   private boolean notNull;
-  @ValidWhen(TypeIsString.class) private Casing casing = null;
-  @ValidWhen(TypeIsString.class) private Boolean multiLine = false;
-  @ValidWhen(TypeIsNumber.class) private Long minValue = null;
-  @ValidWhen(TypeIsNumber.class) private Long maxValue = null;
+  @ValidWhen(TypeIsString.class)
+  private Casing casing = null;
+  @ValidWhen(TypeIsString.class)
+  private Boolean multiLine = false;
+  @ValidWhen(TypeIsNumber.class)
+  private Long minValue = null;
+  @ValidWhen(TypeIsNumber.class)
+  private Long maxValue = null;
   private String pattern = null;
-  @ValidWhen(TypeIsEnum.class) private Link<Attribute, EnumType> enumType =
+  @ValidWhen(TypeIsEnum.class)
+  private Link<Attribute, EnumType> enumType =
       Link.newLink(this, ".*#/enumTypes/.*", type -> type.getTypeFor());
   private LinkList<Attribute, Entity> idFor =
       new LinkList<>(this, "#/entities/.*", entity -> entity.getIdAttribute());

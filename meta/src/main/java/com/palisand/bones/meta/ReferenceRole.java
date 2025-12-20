@@ -39,20 +39,26 @@ public class ReferenceRole extends Member {
 
   }
 
-  @NotNull private String pointerPattern;
+  @NotNull
+  private String pointerPattern;
   private boolean external = false;
-  @ValidWhen(IsMultiple.class) private boolean notEmpty = false;
-  @NotNull private final Link<ReferenceRole, ReferenceRole> opposite =
+  @ValidWhen(IsMultiple.class)
+  private boolean notEmpty = false;
+  @NotNull
+  private final Link<ReferenceRole, ReferenceRole> opposite =
       Link.newLink(this, ".*#/entities/.*/members/.*", role -> role.getOpposite());
-  @NotNull private final Link<ReferenceRole, Entity> entity =
+  @NotNull
+  private final Link<ReferenceRole, Entity> entity =
       Link.newLink(this, ".*#/entities/.*", entity -> entity.getReferencedFrom());
-  @ValidWhen(IsSingle.class) private boolean notNull;
+  @ValidWhen(IsSingle.class)
+  private boolean notNull;
 
   @Editor(PatternComponent.class)
   public String getPointerPattern() {
     return pointerPattern;
   }
 
+  @Override
   public Type getType() {
     return Type.OBJECT;
   }
@@ -61,7 +67,7 @@ public class ReferenceRole extends Member {
   public void doValidate(List<Violation> violations, List<Property<?>> properties)
       throws Exception {
     super.doValidate(violations, properties);
-    if (getContainer().getEntityOfPattern(pointerPattern) == null) {
+    if (pointerPattern != null && getContainer().getEntityOfPattern(pointerPattern) == null) {
       violations.add(new Violation(Severity.ERROR, this, getProperty(properties, "pointerPattern"),
           "pattern is invalid", null));
     }
