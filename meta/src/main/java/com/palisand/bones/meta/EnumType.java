@@ -15,7 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"values", "typeFor"})
+@FieldOrder({"name", "label", "description", "values", "typeFor"})
 public class EnumType extends Item<MetaModel> {
 
   public void setName(String name) throws IOException {

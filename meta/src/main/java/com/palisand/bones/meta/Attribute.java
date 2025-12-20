@@ -15,8 +15,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"type", "enumType", "defaultValue", "multiLine", "pattern", "minValue", "maxValue",
-    "idFor"})
+@FieldOrder({"name", "label", "description", "type", "enumType", "defaultValue", "multiple",
+    "notNull", "enableWhen", "multiLine", "pattern", "minValue", "maxValue", "idFor"})
 public class Attribute extends Member {
 
   public static class TypeIsString implements PredicateWithException<Attribute> {
@@ -43,6 +43,7 @@ public class Attribute extends Member {
   @NotAllowed("OBJECT")
   @NotNull private Type type = Type.STRING;
   private String defaultValue = null;
+  private boolean notNull;
   @ValidWhen(TypeIsString.class) private Casing casing = null;
   @ValidWhen(TypeIsString.class) private Boolean multiLine = false;
   @ValidWhen(TypeIsNumber.class) private Long minValue = null;

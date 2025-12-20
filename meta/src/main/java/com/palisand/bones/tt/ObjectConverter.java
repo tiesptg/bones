@@ -169,12 +169,7 @@ public class ObjectConverter implements Converter<Object> {
     }
 
     properties.sort((p1, p2) -> {
-      int rt =
-          compareClasses(p1.getGetter().getDeclaringClass(), p2.getGetter().getDeclaringClass());
-      if (rt == 0) {
-        rt = compareProperties(p1, p2);
-      }
-      return rt;
+      return compareProperties(p1, p2);
     });
   }
 
@@ -197,22 +192,6 @@ public class ObjectConverter implements Converter<Object> {
       }
     }
     return 1000;
-  }
-
-  private int compareClasses(Class<?> c1, Class<?> c2) {
-    if (c1 == c2) {
-      return 0;
-    }
-    if (c1.isInterface() && !c2.isInterface()) {
-      return 1;
-    }
-    if (c2.isInterface() && !c1.isInterface()) {
-      return -1;
-    }
-    if (c1.isAssignableFrom(c2)) {
-      return -1;
-    }
-    return 1; // c2.isAssignableFrom(c1);
   }
 
   @SuppressWarnings("unchecked")

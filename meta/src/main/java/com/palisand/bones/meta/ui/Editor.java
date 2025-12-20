@@ -702,6 +702,12 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   private void makeBooleanComponent(JPanel row, Node<?> node, Boolean selected,
       EditorProperty<?> property) {
+    if (selected == null) {
+      selected = (Boolean) property.getDefaultValue();
+      if (selected == null) {
+        selected = false;
+      }
+    }
     JTextField label = new JTextField(selected.toString());
     label.setName(property.getName());
     label.putClientProperty(RULE, property);

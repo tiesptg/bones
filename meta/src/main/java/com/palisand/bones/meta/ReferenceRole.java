@@ -18,13 +18,23 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"entity", "opposite", "pointerPattern", "external", "notEmpty"})
+@FieldOrder({"name", "label", "description", "entity", "opposite", "multiple", "external",
+    "notNull", "notEmpty", "enableWhen", "pointerPattern"})
 public class ReferenceRole extends Member {
   public static class IsMultiple implements PredicateWithException<ReferenceRole> {
 
     @Override
     public boolean test(ReferenceRole a) throws Exception {
       return a.isMultiple();
+    }
+
+  }
+
+  public static class IsSingle implements PredicateWithException<ReferenceRole> {
+
+    @Override
+    public boolean test(ReferenceRole a) throws Exception {
+      return !a.isMultiple();
     }
 
   }
@@ -36,6 +46,7 @@ public class ReferenceRole extends Member {
       Link.newLink(this, ".*#/entities/.*/members/.*", role -> role.getOpposite());
   @NotNull private final Link<ReferenceRole, Entity> entity =
       Link.newLink(this, ".*#/entities/.*", entity -> entity.getReferencedFrom());
+  @ValidWhen(IsSingle.class) private boolean notNull;
 
   @Editor(PatternComponent.class)
   public String getPointerPattern() {

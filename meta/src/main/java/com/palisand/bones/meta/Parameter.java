@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder("type")
+@FieldOrder({"name", "label", "description", "type"})
 public class Parameter extends Item<Method> {
 
   public void setName(String name) throws IOException {

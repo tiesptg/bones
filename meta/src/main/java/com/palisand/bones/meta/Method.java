@@ -13,7 +13,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"parameters", "returnType", "returnTypeMultiple"})
+@FieldOrder({"name", "label", "description", "parameters", "returnType", "returnTypeMultiple"})
 public class Method extends Item<Entity> {
 
   @NotNull

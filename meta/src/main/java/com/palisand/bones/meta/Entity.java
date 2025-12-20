@@ -18,8 +18,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"entityContainer", "idAttribute", "abstractEntity", "superEntity", "specialisations",
-    "members", "methods", "referencesFrom"})
+@FieldOrder({"name", "label", "description", "entityContainer", "idAttribute", "abstractEntity",
+    "superEntity", "specialisations", "members", "methods", "referencesFrom"})
 public class Entity extends Item<MetaModel> {
 
   public static class IdNecessary implements PredicateWithException<Entity> {

@@ -10,7 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@FieldOrder({"multiple", "notNull", "enableWhen"})
+@FieldOrder({"name", "label", "description", "multiple", "enableWhen"})
 public abstract class Member extends Item<Entity> {
 
   public void setName(String name) throws IOException {
@@ -20,7 +20,6 @@ public abstract class Member extends Item<Entity> {
 
   @CamelCase(startsWithCapitel = false) private String name;
   private boolean multiple;
-  private boolean notNull;
   private String enabledWhen = null;
 
   public abstract Type getType();

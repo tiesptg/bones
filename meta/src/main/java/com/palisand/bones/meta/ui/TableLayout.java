@@ -281,21 +281,72 @@ public class TableLayout implements LayoutManager2 {
   }
 
   private void adjustSizes(int[] size, int[] preferredSize, int total, boolean fill) {
-    int now = sum(size);
-    int pref = sum(preferredSize);
-    if (fill && now <= total) {
-      // first make sure all have at least preferredsize
-      for (int i = 0; i < size.length; ++i) {
-        if (size[i] < preferredSize[i]) {
-          size[i] = preferredSize[i];
+    if (size.length != 0) {
+      int now = sum(size);
+      int pref = sum(preferredSize);
+      if (fill && now <= total) {
+        // first make sure all have at least preferredsize
+        for (int i = 0; i < size.length; ++i) {
+          if (size[i] < preferredSize[i]) {
+            size[i] = preferredSize[i];
+          }
         }
-      }
-      now = sum(size);
-      if (now > total) {
+        now = sum(size);
+        if (now > total) {
+          // when too large take it from the parts that have more space then preferred
+          int diff = now - total;
+          if (total > pref) {
+            while (diff > 0) {
+              int nf = 0;
+              int smallest = Integer.MAX_VALUE;
+              for (int i = 0; i < size.length; ++i) {
+                int space = size[i] - preferredSize[i];
+                if (space > 0) {
+                  nf++;
+                  if (smallest > space) {
+                    smallest = space;
+                  }
+                }
+              }
+              if (smallest * nf > diff) {
+                smallest = diff / nf;
+              }
+              for (int i = 0; i < size.length; ++i) {
+                int space = size[i] - preferredSize[i];
+                if (space > 0) {
+                  size[i] -= smallest;
+                }
+              }
+              now = sum(size);
+              diff = now - total;
+            }
+          } else {
+            // not enough space for preferred
+            diff = (pref - total + 1 /* needed otherwise rounding may lead to too many pixels */)
+                / size.length;
+            for (int i = 0; i < size.length; ++i) {
+              size[i] = preferredSize[i] - diff;
+            }
+          }
+          // other case just single pixel adjustments are done at the end
+        } else if (now < total - size.length) {
+          int diff = (total - now) / size.length;
+          for (int i = 0; i < size.length; ++i) {
+            size[i] += diff;
+          }
+        }
+      } else if (now < total) {
+        // first make sure all have at least preferredsize
+        for (int i = 0; i < size.length; ++i) {
+          if (size[i] < preferredSize[i]) {
+            size[i] = preferredSize[i];
+          }
+        }
+      } else if (now > total) {
         // when too large take it from the parts that have more space then preferred
         int diff = now - total;
         if (total > pref) {
-          while (diff > 0) {
+          while (diff > size.length) {
             int nf = 0;
             int smallest = Integer.MAX_VALUE;
             for (int i = 0; i < size.length; ++i) {
@@ -327,62 +378,13 @@ public class TableLayout implements LayoutManager2 {
             size[i] = preferredSize[i] - diff;
           }
         }
-        // other case just single pixel adjustments are done at the end
-      } else if (now < total - size.length) {
-        int diff = (total - now) / size.length;
-        for (int i = 0; i < size.length; ++i) {
-          size[i] += diff;
-        }
       }
-    } else if (now < total) {
-      // first make sure all have at least preferredsize
-      for (int i = 0; i < size.length; ++i) {
-        if (size[i] < preferredSize[i]) {
-          size[i] = preferredSize[i];
+      int left = total - sum(size);
+      if (fill && now < total) {
+        // add left over pixels
+        while (left-- > 0) {
+          size[left]++;
         }
-      }
-    } else if (now > total) {
-      // when too large take it from the parts that have more space then preferred
-      int diff = now - total;
-      if (total > pref) {
-        while (diff > size.length) {
-          int nf = 0;
-          int smallest = Integer.MAX_VALUE;
-          for (int i = 0; i < size.length; ++i) {
-            int space = size[i] - preferredSize[i];
-            if (space > 0) {
-              nf++;
-              if (smallest > space) {
-                smallest = space;
-              }
-            }
-          }
-          if (smallest * nf > diff) {
-            smallest = diff / nf;
-          }
-          for (int i = 0; i < size.length; ++i) {
-            int space = size[i] - preferredSize[i];
-            if (space > 0) {
-              size[i] -= smallest;
-            }
-          }
-          now = sum(size);
-          diff = now - total;
-        }
-      } else {
-        // not enough space for preferred
-        diff = (pref - total + 1 /* needed otherwise rounding may lead to too many pixels */)
-            / size.length;
-        for (int i = 0; i < size.length; ++i) {
-          size[i] = preferredSize[i] - diff;
-        }
-      }
-    }
-    int left = total - sum(size);
-    if (fill && now < total) {
-      // add left over pixels
-      while (left-- > 0) {
-        size[left]++;
       }
     }
   }
