@@ -132,8 +132,15 @@ public class Entity extends Item<MetaModel> {
       return null;
     }
     if (pattern.startsWith(up)) {
-      return getEntityContainer().get().getContainer()
-          .getEntityOfPattern(pattern.substring(up.length()));
+      Entity check = this;
+      while (!check.getEntityContainer().isPresent() && check.getSuperEntity().isPresent()) {
+        check = check.getSuperEntity().get();
+      }
+      if (check.getEntityContainer().isPresent()) {
+        return check.getEntityContainer().get().getContainer()
+            .getEntityOfPattern(pattern.substring(up.length()));
+      }
+      return null;
     }
     int pos = pattern.indexOf("#/");
     Entity entity = this;
@@ -189,6 +196,18 @@ public class Entity extends Item<MetaModel> {
       return result;
     }
     return getMembers();
+  }
+
+  public boolean isA(Entity entity) throws IOException {
+    Entity check = this;
+    while (check != entity) { // there will always be one instance of each entity.
+      if (check.getSuperEntity().isPresent()) {
+        check = check.getSuperEntity().get();
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 
 }

@@ -67,9 +67,23 @@ public class ReferenceRole extends Member {
   public void doValidate(List<Violation> violations, List<Property<?>> properties)
       throws Exception {
     super.doValidate(violations, properties);
-    if (pointerPattern != null && getContainer().getEntityOfPattern(pointerPattern) == null) {
-      violations.add(new Violation(Severity.ERROR, this, getProperty(properties, "pointerPattern"),
-          "pattern is invalid", null));
+    if (pointerPattern != null && getEntity().isPresent()) {
+      Entity entityOfPattern = getContainer().getEntityOfPattern(pointerPattern);
+      if (entityOfPattern == null) {
+        violations.add(new Violation(Severity.ERROR, this,
+            getProperty(properties, "pointerPattern"), "pattern is invalid", null));
+      }
+      if (!getEntity().get().isA(entityOfPattern)) {
+        violations
+            .add(new Violation(Severity.ERROR, this, getProperty(properties, "pointerPattern"),
+                "pattern does not lead to type indicated by entity", null));
+      }
+    }
+    if (opposite.isPresent() && entity.isPresent()) {
+      if (!entity.get().isA(opposite.get().getContainer())) {
+        violations.add(new Violation(Severity.ERROR, this, getProperty(properties, "opposite"),
+            "opposite is not a member of entity", null));
+      }
     }
   }
 }

@@ -22,14 +22,14 @@ import lombok.ToString;
 public class ObjectConverter implements Converter<Object> {
   private static final Map<String, ObjectConverter> CONVERTERS = new TreeMap<>();
   @Getter
-  private List<EditorProperty<?>> properties = new ArrayList<>();
+  private List<ObjectProperty<?>> properties = new ArrayList<>();
   @Getter
   private Method containerSetter = null;
   @Getter
   private Class<?> type;
 
-  public EditorProperty<?> getProperty(String name) {
-    for (EditorProperty<?> property : properties) {
+  public ObjectProperty<?> getProperty(String name) {
+    for (ObjectProperty<?> property : properties) {
       if (property.getName().equals(name)) {
         return property;
       }
@@ -49,11 +49,11 @@ public class ObjectConverter implements Converter<Object> {
   @Data
   @EqualsAndHashCode(callSuper = true)
   @ToString(callSuper = true)
-  public static class EditorProperty<X> extends Property<X> {
+  public static class ObjectProperty<X> extends Property<X> {
     private Class<?> componentType;
     private Class<? extends CustomEditor> editor;
 
-    public EditorProperty(Class<X> cls, X instance, Field field) throws Exception {
+    public ObjectProperty(Class<X> cls, X instance, Field field) throws Exception {
       super(cls, instance, field);
       if (field.getAnnotation(Editor.class) != null) {
         editor = field.getAnnotation(Editor.class).value();
@@ -68,6 +68,11 @@ public class ObjectConverter implements Converter<Object> {
     @Override
     public boolean isValid() {
       return super.isValid() && !isTextIgnore();
+    }
+
+    @Override
+    public String toString() {
+      return "Property of " + getField().toString();
     }
 
     public String getName() {
@@ -85,35 +90,6 @@ public class ObjectConverter implements Converter<Object> {
       return getType();
     }
 
-    // @Override
-    // public Object get(Object owner) {
-    // Object result = super.get(owner);
-    // if (getField().getType() == Link.class) {
-    // try {
-    // Link<?, ?> link = (Link<?, ?>) result;
-    // result = link.get();
-    // } catch (Exception ex) {
-    // throw new IllegalArgumentException(ex);
-    // }
-    // }
-    // return result;
-    // }
-    //
-    // @SuppressWarnings("unchecked")
-    // @Override
-    // public void set(Object owner, Object value) {
-    // if (getField().getType() == Link.class) {
-    // Link<?, Node<?>> link = (Link<?, Node<?>>) super.get(owner);
-    // try {
-    // link.set((Node<?>) value);
-    // } catch (Exception ex) {
-    // throw new IllegalArgumentException(ex);
-    // }
-    // } else {
-    // super.set(owner, value);
-    // }
-    // }
-    //
     public boolean isList() {
       return List.class.isAssignableFrom(getGetter().getReturnType())
           || LinkList.class.isAssignableFrom(getGetter().getReturnType());
@@ -168,8 +144,8 @@ public class ObjectConverter implements Converter<Object> {
   private <X> ObjectConverter(Class<X> cls) {
     type = cls;
     try {
-      properties = (List<EditorProperty<?>>) (Object) (Classes.getProperties(cls,
-          (clazz, instance, field) -> new EditorProperty<X>(clazz, instance, field)));
+      properties = (List<ObjectProperty<?>>) (Object) (Classes.getProperties(cls,
+          (clazz, instance, field) -> new ObjectProperty<X>(clazz, instance, field)));
     } catch (Exception ex) {
       throw new IllegalArgumentException(ex);
     }
@@ -188,7 +164,7 @@ public class ObjectConverter implements Converter<Object> {
     return fieldOrder;
   }
 
-  private int compareProperties(Class<?> cls, EditorProperty<?> p1, EditorProperty<?> p2) {
+  private int compareProperties(Class<?> cls, ObjectProperty<?> p1, ObjectProperty<?> p2) {
     FieldOrder fo = getFieldOrder(cls);
     if (fo != null) {
       int i1 = indexOf(fo.value(), p1.getName());
@@ -210,7 +186,7 @@ public class ObjectConverter implements Converter<Object> {
   }
 
   @SuppressWarnings("unchecked")
-  private void linkFromTypedText(Parser parser, Object result, EditorProperty<?> property,
+  private void linkFromTypedText(Parser parser, Object result, ObjectProperty<?> property,
       Object value) throws Exception {
     if (property.isList()) {
       List<String> list = (List<String>) value;
@@ -253,7 +229,7 @@ public class ObjectConverter implements Converter<Object> {
 
     Object result = newInstance(converter.type);
     String newMargin = margin + Repository.MARGIN_STEP;
-    EditorProperty<?> property = null;
+    ObjectProperty<?> property = null;
     for (token = parser.nextToken(in); !isEnd(token, margin); token = parser.nextToken(in)) {
       property = converter.getProperty(token.label());
       parser.consumeLastToken();
@@ -300,7 +276,7 @@ public class ObjectConverter implements Converter<Object> {
     return cls.getName();
   }
 
-  private Object linkToTypedText(Object object, EditorProperty<?> property, Object value)
+  private Object linkToTypedText(Object object, ObjectProperty<?> property, Object value)
       throws IOException {
     Object result = null;
     if (property.isList()) {
@@ -338,7 +314,7 @@ public class ObjectConverter implements Converter<Object> {
     } else {
       out.print(getClassLabel(obj.getClass(), context));
       out.println('>');
-      for (EditorProperty<?> property : properties) {
+      for (ObjectProperty<?> property : properties) {
         if (!property.isTextIgnore()) {
           Object value = null;
           value = property.get(obj);

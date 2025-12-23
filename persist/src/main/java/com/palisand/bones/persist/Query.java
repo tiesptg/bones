@@ -147,8 +147,9 @@ public class Query<X> implements Closeable {
   }
 
   static String getAlias(DbClass type, DbClass reference, String alias) {
-    if (type == reference)
+    if (type == reference) {
       return alias;
+    }
     return alias + type.getLabel();
   }
 
@@ -273,7 +274,8 @@ public class Query<X> implements Closeable {
   /**
    * specify a join for the query. You should start the path parameter with an alias or class name
    * and use .&lt;relation&gt; to specify the foreign key to use. You can use multiple joins in the
-   * path You can cast the result of a join to a subtype by using the pipe symbol (|).
+   * path You can cast the result of a join to a subtype by using the pipe symbol (|). The path
+   * should always start with a hash (#)
    * 
    * @param path the path of relations and casts that the join should follow
    * @param alias the alias the resulting class should use
@@ -281,12 +283,29 @@ public class Query<X> implements Closeable {
    * @throws SQLException
    */
   public Query<X> join(String path, String alias) throws SQLException {
-    String[] parts = path.split("\\.");
+    joinReturnsAlias(path, alias);
+    return this;
+  }
+
+  private String joinReturnsAlias(String path, String alias) throws SQLException {
+    if (!path.startsWith("#")) {
+      throw new SQLException("path " + path + " does not start with a #");
+    }
+    String[] parts = path.substring(1).split("\\.");
     String pAlias = parts[0];
     for (int i = 1; i < parts.length - 2; ++i) {
-      pAlias = addJoin(pAlias, parts[i], " JOIN ", "x" + (aliasPostfix++));
+      pAlias = addJoin(pAlias, parts[i], " LEFT OUTER JOIN ", "x" + (aliasPostfix++));
     }
-    addJoin(pAlias, parts[parts.length - 1], " JOIN ", alias);
+    return addJoin(pAlias, parts[parts.length - 1], " LEFT OUTER JOIN ", alias);
+  }
+
+  public Query<X> selectJoin(String path, Class<?> cls) throws SQLException {
+    return selectJoin(path, cls, null);
+  }
+
+  public Query<X> selectJoin(String path, Class<?> cls, String alias) throws SQLException {
+    String pAlias = joinReturnsAlias(path, alias);
+    select(cls, pAlias);
     return this;
   }
 
@@ -501,6 +520,7 @@ public class Query<X> implements Closeable {
    * @return the query object
    */
   public Query<X> orderBy(String orderBy) {
+
     where.append(" ORDER BY ").append(orderBy);
     return this;
   }
@@ -639,15 +659,25 @@ public class Query<X> implements Closeable {
         if (obj instanceof DbClass cls) {
           String label = null;
           DbClass realCls = cls;
+          Boolean isNull = null;
           if (cls.getRoot().hasSubTypeField()) {
             label = resultSet.getString(index++);
-            realCls = cls.getLabel().equals(label) ? cls : cls.getSubClasses().get(label);
+            if (resultSet.wasNull()) {
+              isNull = true;
+            } else {
+              realCls = cls.getLabel().equals(label) ? cls : cls.getSubClasses().get(label);
+              isNull = false;
+            }
           }
-          Object result = realCls.newInstance();
-          index = commands.setPrimaryKey(resultSet, cls, result, index);
-          result = commands.cache(cls, result);
-          index = commands.setHierarchyValues(resultSet, cls, realCls, result, index);
-          row.add(result);
+          if ((isNull != null && isNull == true) || isNull(resultSet, cls, index)) {
+            row.add(null);
+          } else {
+            Object result = realCls.newInstance();
+            index = commands.setPrimaryKey(resultSet, cls, result, index);
+            result = commands.cache(cls, result);
+            index = commands.setHierarchyValues(resultSet, cls, realCls, result, index);
+            row.add(result);
+          }
         } else if (obj instanceof Class<?> cls) {
           row.add(commands.getRsGetter(cls).get(resultSet, index++));
         }
@@ -657,6 +687,11 @@ public class Query<X> implements Closeable {
     }
     lastPage = rowInPage < rowsPerPage;
     return null;
+  }
+
+  private boolean isNull(ResultSet resultSet, DbClass cls, int index) throws SQLException {
+    cls.getPrimaryKey().getFields().get(0).rsGet(resultSet, index);
+    return resultSet.wasNull();
   }
 
   /**

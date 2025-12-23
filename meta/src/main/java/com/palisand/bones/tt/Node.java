@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import com.palisand.bones.Classes.Property;
-import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.tt.ObjectConverter.ObjectProperty;
 import com.palisand.bones.validation.Rules.Violation;
 import com.palisand.bones.validation.Validatable;
 import lombok.Getter;
@@ -46,7 +46,7 @@ public abstract class Node<N extends Node<?>> implements Validatable {
       throws IOException {
     if (oldId != null) {
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
-      for (EditorProperty<?> property : converter.getProperties()) {
+      for (ObjectProperty<?> property : converter.getProperties()) {
         if (property.isLink()) {
           if (property.isList()) {
             LinkList<?, ?> list = (LinkList<?, ?>) property.get(this);
@@ -164,7 +164,7 @@ public abstract class Node<N extends Node<?>> implements Validatable {
     if (!cycleChecker.contains(this)) {
       cycleChecker.add(this);
       ObjectConverter converter = ObjectConverter.getConverter(getClass());
-      for (EditorProperty<?> property : converter.getProperties().stream()
+      for (ObjectProperty<?> property : converter.getProperties().stream()
           .filter(property -> Node.class.isAssignableFrom(property.getComponentType())).toList()) {
         if (property.isLink()) {
           // set links to null
@@ -199,7 +199,7 @@ public abstract class Node<N extends Node<?>> implements Validatable {
   @SuppressWarnings("unchecked")
   void removeChild(Node<?> node) throws IOException {
     ObjectConverter converter = ObjectConverter.getConverter(getClass());
-    EditorProperty<?> property = converter.getProperty(node.getContainingAttribute());
+    ObjectProperty<?> property = converter.getProperty(node.getContainingAttribute());
     if (property.isList()) {
       List<Node<?>> list = (List<Node<?>>) property.get(this);
       list.remove(node);

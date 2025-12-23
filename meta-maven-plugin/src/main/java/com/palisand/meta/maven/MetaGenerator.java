@@ -16,7 +16,7 @@ import com.palisand.bones.meta.generator.GeneratorConfig;
 import com.palisand.bones.meta.generator.LogFacade;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
-import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.tt.ObjectConverter.ObjectProperty;
 import com.palisand.bones.tt.Repository;
 import com.palisand.bones.validation.Rules.Severity;
 import com.palisand.bones.validation.Rules.Violation;
@@ -27,17 +27,23 @@ import com.palisand.bones.validation.Validator;
 public class MetaGenerator extends AbstractMojo {
 
   @Parameter(property = "outputDirectory",
-      defaultValue = "${project.build.directory}/generated-sources/meta-generator") private String outputDirectory;
+      defaultValue = "${project.build.directory}/generated-sources/meta-generator")
+  private String outputDirectory;
 
-  @Parameter(property = "model") private String model;
+  @Parameter(property = "model")
+  private String model;
 
-  @Parameter(property = "generatorConfig") private GeneratorConfig generatorConfig;
+  @Parameter(property = "generatorConfig")
+  private GeneratorConfig generatorConfig;
 
-  @Parameter(defaultValue = "${project}") private MavenProject project;
+  @Parameter(defaultValue = "${project}")
+  private MavenProject project;
 
-  @Parameter(defaultValue = "false") private boolean generatesResources;
+  @Parameter(defaultValue = "false")
+  private boolean generatesResources;
 
-  @Parameter(defaultValue = "false") private boolean generatesTestSources;
+  @Parameter(defaultValue = "false")
+  private boolean generatesTestSources;
 
   private Repository repository = Repository.getInstance();
 
@@ -91,7 +97,6 @@ public class MetaGenerator extends AbstractMojo {
           generateNode(dir, document);
         }
       } else {
-        System.out.println(problems);
         throw new MojoFailureException("Model is not valid");
       }
     } catch (Exception e) {
@@ -112,7 +117,7 @@ public class MetaGenerator extends AbstractMojo {
       generator.doGenerate(outputDirectory, getSourceDirectory(), node);
     }
     ObjectConverter converter = (ObjectConverter) repository.getConverter(node.getClass());
-    for (EditorProperty<?> property : converter.getProperties()) {
+    for (ObjectProperty<?> property : converter.getProperties()) {
       if (!property.hasTextIgnoreAnnotation()
           && Node.class.isAssignableFrom(property.getComponentType()) && !property.isLink()) {
         if (property.isList()) {

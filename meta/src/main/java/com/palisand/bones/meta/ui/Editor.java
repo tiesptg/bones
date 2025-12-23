@@ -76,7 +76,7 @@ import com.palisand.bones.tt.Link;
 import com.palisand.bones.tt.LinkList;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
-import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.tt.ObjectConverter.ObjectProperty;
 import com.palisand.bones.tt.Repository;
 import com.palisand.bones.validation.NotNull;
 import com.palisand.bones.validation.Rules.Violation;
@@ -581,7 +581,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     validateDocuments();
   }
 
-  private void setValue(Node<?> node, EditorProperty<?> property, Object value) {
+  private void setValue(Node<?> node, ObjectProperty<?> property, Object value) {
     try {
       if (!property.isReadonly()) {
         if (value instanceof String str) {
@@ -612,7 +612,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   @SuppressWarnings("unchecked")
-  private void newChildToList(EditorProperty<?> property, Node<?> node, Class<?> type) {
+  private void newChildToList(ObjectProperty<?> property, Node<?> node, Class<?> type) {
     try {
       Node<?> child = (Node<?>) type.getConstructor().newInstance();
       List<Object> list = (List<Object>) property.getGetter().invoke(node);
@@ -639,7 +639,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   @SuppressWarnings("unchecked")
   private <N extends Node<?>> void validateProperties(Node<?> selected) throws IOException {
     for (JComponent component : propertyEditors) {
-      EditorProperty<N> property = (EditorProperty<N>) component.getClientProperty(RULE);
+      ObjectProperty<N> property = (ObjectProperty<N>) component.getClientProperty(RULE);
       Object value = property.get(selected);
       showValue(component, value);
       if (property != null && property.getValidWhen() != null) {
@@ -653,7 +653,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private void makeStringComponent(JPanel panel, Node<?> node, String value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     JTextComponent field;
     if (property.is(MultiLine.class)) {
       field = new JTextArea(value, 5, 0);
@@ -691,7 +691,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   @SuppressWarnings("unchecked")
   private <E extends Enum<E>> void makeEnumComponent(JPanel row, Node<?> node, Object value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     E[] values = ((Class<E>) property.getType()).getEnumConstants();
     if (!property.is(NotNull.class)) {
       E[] ne = Arrays.copyOf(values, 1);
@@ -714,7 +714,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private void makeBooleanComponent(JPanel row, Node<?> node, Boolean selected,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     if (selected == null) {
       selected = (Boolean) property.getDefaultValue();
       if (selected == null) {
@@ -773,7 +773,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private void makeNodeComponent(JPanel panel, Node<?> node, Node<?> selected,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     List<Node<?>> nodes = new ArrayList<>();
     nodes.add(null);
     try {
@@ -806,7 +806,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private void makeNumberComponent(JPanel panel, Node<?> node, Object value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     final JTextField spinner = new JTextField();
     spinner.setName(property.getName());
     spinner.putClientProperty(RULE, property);
@@ -841,7 +841,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   @SuppressWarnings("unchecked")
   private <A extends Node<?>> void makeLinkComponent(JPanel panel, Node<?> node, Link<?, A> link,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     try {
       final Link<Node<?>, Node<?>> value =
           (Link<Node<?>, Node<?>>) getValue(node, property.getGetter());
@@ -873,7 +873,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private <C extends Node<?>, X extends Node<?>> void makeLinkListComponent(JPanel panel,
-      C container, LinkList<C, X> value, EditorProperty<?> property) {
+      C container, LinkList<C, X> value, ObjectProperty<?> property) {
     JTextArea label = new JTextArea();
     label.setName(property.getName());
     label.putClientProperty(RULE, property);
@@ -918,7 +918,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   private <D> void makeListComponent(JPanel panel, Node<?> node, List<D> value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     JTextArea label = new JTextArea();
     label.setName(property.getName());
     label.putClientProperty(RULE, property);
@@ -962,7 +962,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
   }
 
   public void makeCustomComponent(JPanel panel, Node<?> node, Object value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     CustomEditor editor = newInstance(property.getEditor());
     JComponent field = editor.getComponent();
     field.setName(property.getName());
@@ -977,7 +977,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   @SuppressWarnings("unchecked")
   private <D> void showListEditor(JTextArea label, Node<?> node, List<D> value,
-      EditorProperty<?> property) {
+      ObjectProperty<?> property) {
     ListEditor<D> editor = (ListEditor<D>) ListEditor.dialogFor(Editor.this,
         "Edit " + property.getLabel(), property.getComponentType());
     if (editor != null && editor.editData(value)) {
@@ -988,7 +988,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   @SuppressWarnings("unchecked")
   private <C extends Node<?>, X extends Node<?>> void showLinkListEditor(JTextArea label, C node,
-      LinkList<C, X> value, EditorProperty<?> property) {
+      LinkList<C, X> value, ObjectProperty<?> property) {
     LinkListEditor editor = (LinkListEditor) ListEditor.dialogFor(Editor.this,
         "Edit " + property.getLabel(), property.getComponentType());
     try {
@@ -1056,7 +1056,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     buttons.setLayout(new GridLayout(1, 1));
     // BoxLayout box = new BoxLayout(properties, BoxLayout.PAGE_AXIS);
     properties.setLayout(new TableLayout(2));
-    for (EditorProperty<?> property : converter.getProperties()) {
+    for (ObjectProperty<?> property : converter.getProperties()) {
       Object value = getValue(node, property.getGetter());
       if (!property.hasTextIgnoreAnnotation()) {
         if (!property.isList() || property.isLink()) {

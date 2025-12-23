@@ -16,7 +16,7 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import com.palisand.bones.tt.Node;
 import com.palisand.bones.tt.ObjectConverter;
-import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.tt.ObjectConverter.ObjectProperty;
 import com.palisand.bones.tt.Repository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -207,7 +207,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
       if (last instanceof Node<?> node) {
         Node<?> container = node.getContainer();
         ObjectConverter converter = (ObjectConverter) repository.getConverter(container.getClass());
-        EditorProperty<?> containerProperty = converter.getProperty(node.getContainingAttribute());
+        ObjectProperty<?> containerProperty = converter.getProperty(node.getContainingAttribute());
         if (containerProperty.isList()) {
           List<Object> list = (List<Object>) containerProperty.get(container);
           int index = upInList(list, node);
@@ -230,7 +230,7 @@ public class RepositoryModel implements TreeModel, TreeCellRenderer {
       if (last instanceof Node<?> node) {
         Node<?> container = node.getContainer();
         ObjectConverter converter = (ObjectConverter) repository.getConverter(container.getClass());
-        EditorProperty<?> containerProperty = converter.getProperty(node.getContainingAttribute());
+        ObjectProperty<?> containerProperty = converter.getProperty(node.getContainingAttribute());
         if (containerProperty.isList()) {
           List<Object> list = (List<Object>) containerProperty.get(container);
           int index = downInList(list, node);

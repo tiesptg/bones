@@ -28,6 +28,7 @@ import lombok.Data;
  */
 public class Classes {
   private static final Map<Class<?>, List<Property<?>>> CLASS_CACHE = new HashMap<>();
+  private static Class<?> lastCreator = null;
 
   @FunctionalInterface
   public interface Creator<X> {
@@ -282,6 +283,11 @@ public class Classes {
   @SuppressWarnings("unchecked")
   public static <X> List<Property<X>> getProperties(Class<X> cls, Creator<X> creator)
       throws Exception {
+    if (creator.getClass() != lastCreator) {
+      // type of properties has changedn
+      lastCreator = creator.getClass();
+      CLASS_CACHE.clear();
+    }
     List<Property<X>> properties = (List<Property<X>>) (Object) CLASS_CACHE.get(cls);
     if (properties == null) {
       properties = new ArrayList<>();

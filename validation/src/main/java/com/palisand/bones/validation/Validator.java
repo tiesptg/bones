@@ -24,33 +24,36 @@ public class Validator {
 
   @SuppressWarnings("unchecked")
   private <X> void validateBean(List<Violation> result, Set<Object> cycleChecker, X object) {
-    Property<X> ref = null;
-    try {
-      List<Property<X>> properties = Classes.getProperties((Class<X>) object.getClass());
-      for (Property<X> property : properties) {
-        ref = property;
-        if (property.getValidWhen() == null || property.getValidWhen().test(object)) {
-          Object fieldValue = property.get(object);
-          for (Entry<Rule, ?> entry : property.getRules().entrySet()) {
-            Object newValue =
-                entry.getKey().validate(result, object, entry.getValue(), property, fieldValue);
-            if (newValue != fieldValue || (fieldValue != null && !fieldValue.equals(newValue))) {
-              property.set(object, newValue);
-              fieldValue = newValue;
+    if (object != null && !isLeaf(object) && !cycleChecker.contains(object)) {
+      cycleChecker.add(object);
+      Property<X> ref = null;
+      try {
+        List<Property<X>> properties = Classes.getProperties((Class<X>) object.getClass());
+        for (Property<X> property : properties) {
+          ref = property;
+          if (property.getValidWhen() == null || property.getValidWhen().test(object)) {
+            Object fieldValue = property.get(object);
+            for (Entry<Rule, ?> entry : property.getRules().entrySet()) {
+              Object newValue =
+                  entry.getKey().validate(result, object, entry.getValue(), property, fieldValue);
+              if (newValue != fieldValue || (fieldValue != null && !fieldValue.equals(newValue))) {
+                property.set(object, newValue);
+                fieldValue = newValue;
+              }
             }
+            validateObject(result, cycleChecker, fieldValue);
+          } else {
+            property.setToDefault(object);
           }
-          validateObject(result, cycleChecker, fieldValue);
-        } else {
-          property.setToDefault(object);
         }
+        if (object instanceof Validatable valid) {
+          valid.doValidate(result, (List<Property<?>>) (Object) properties);
+        }
+      } catch (Exception e) {
+        e.printStackTrace();
+        result.add(new Violation(Severity.ERROR, object, ref,
+            "Exception while checking value: " + e.toString(), e));
       }
-      if (object instanceof Validatable valid) {
-        valid.doValidate(result, (List<Property<?>>) (Object) properties);
-      }
-    } catch (Exception e) {
-      e.printStackTrace();
-      result.add(new Violation(Severity.ERROR, object, ref,
-          "Exception while checking value: " + e.toString(), e));
     }
   }
 
@@ -69,8 +72,7 @@ public class Validator {
   }
 
   private void validateObject(List<Violation> result, Set<Object> cycleChecker, Object object) {
-    if (object != null && !isLeaf(object) && !cycleChecker.contains(object)) {
-      cycleChecker.add(object);
+    if (object != null) {
       if (Collection.class.isAssignableFrom(object.getClass())) {
         validateCollection(result, cycleChecker, (Collection<?>) object);
       } else if (Map.class.isAssignableFrom(object.getClass())) {

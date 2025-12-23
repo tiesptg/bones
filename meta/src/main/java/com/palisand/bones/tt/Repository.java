@@ -23,7 +23,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import com.palisand.bones.log.Logger;
-import com.palisand.bones.tt.ObjectConverter.EditorProperty;
+import com.palisand.bones.tt.ObjectConverter.ObjectProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -359,7 +359,7 @@ public class Repository {
         return getFromPath((Node<?>) context.getRootContainer(), path, ++offset);
       }
       ObjectConverter converter = (ObjectConverter) getConverter(context.getClass());
-      EditorProperty<?> property = converter.getProperty(path[offset]);
+      ObjectProperty<?> property = converter.getProperty(path[offset]);
       if (property == null) {
         throw new IOException(
             "property " + path[offset] + " not found in class " + converter.getType() + " path = "
@@ -473,7 +473,7 @@ public class Repository {
       int endProperty = pattern.indexOf('/', startIndex);
       assert endProperty != -1;
       String name = pattern.substring(startIndex, endProperty);
-      EditorProperty<?> property = converter.getProperty(name);
+      ObjectProperty<?> property = converter.getProperty(name);
       if (property != null && !property.isLink()) {
         if (property.isList()) {
           int idEnd = pattern.indexOf('/', endProperty + 1);
