@@ -89,6 +89,7 @@ public class Query<X> implements Closeable {
   }
 
   private final List<Object> selectObjects = new ArrayList<>();
+  private final List<String> selectAliases = new ArrayList<>();
   private final Map<String, DbClass> fromClasses = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
   private StringBuilder select = new StringBuilder("SELECT ");
   private final Separator selectComma = new Separator();
@@ -158,6 +159,7 @@ public class Query<X> implements Closeable {
       alias = dbc.getName();
     }
     selectObjects.add(dbc);
+    selectAliases.add(alias);
     fromClasses.put(alias, dbc);
     DbClass root = dbc.getRoot();
     String rootAlias = getAlias(root, dbc, alias);
@@ -554,10 +556,20 @@ public class Query<X> implements Closeable {
         from.append(" ").append(alias);
       }
     }
-    for (Entry<String, Join> e : joins.entrySet()) {
+    for (Entry<String, Join> e = getNextJoin(froms); e != null; e = getNextJoin(froms)) {
       constructJoin(from, e.getKey(), e.getValue());
     }
     return from;
+  }
+
+  private Entry<String, Join> getNextJoin(Set<String> aliases) {
+    for (Entry<String, Join> e : joins.entrySet()) {
+      if (aliases.contains(e.getValue().alias()) && !aliases.contains(e.getKey())) {
+        aliases.add(e.getKey());
+        return e;
+      }
+    }
+    return null;
   }
 
   private StringBuilder getSql() {
@@ -601,20 +613,44 @@ public class Query<X> implements Closeable {
   }
 
   @SuppressWarnings("unchecked")
-  private X mapRow(List<Object> row) throws SQLException {
-    if (row.size() == 1 && queryType.isInstance(row.get(0))) {
-      return (X) row.get(0);
-    } else if (queryType.isRecord()) {
+  private X mapRow(Map<String, Object> row) throws SQLException {
+    X result = null;
+    TreeSet<String> froms = new TreeSet<>(fromClasses.keySet());
+    froms.removeAll(joins.keySet());
+    if (queryType.isRecord()) {
       try {
-        return (X) queryType.getDeclaredConstructors()[0].newInstance(row.toArray());
+        Object[] parameters = new Object[row.size()];
+        int i = 0;
+        for (String alias : selectAliases) {
+          parameters[i++] = row.get(alias);
+        }
+        result = (X) queryType.getDeclaredConstructors()[0].newInstance(parameters);
+        i = 0;
       } catch (Exception ex) {
         if (ex.getCause() != null) {
           throw new SQLException(ex.getCause());
         }
         throw new SQLException(ex);
       }
+    } else if (queryType.isInstance(row.get(froms.first()))) {
+      result = (X) row.get(froms.first());
     }
-    return null;
+    for (Entry<String, Join> e = getNextJoin(froms); e != null; e = getNextJoin(froms)) {
+      String[] parts = e.getValue().role().getName().split("_");
+      if (parts.length == 2) {
+        Object parent = row.get(e.getValue().alias());
+        if (parent != null) {
+          Object child = row.get(e.getKey());
+          if (child != null) {
+            DbClass cls = fromClasses.get(e.getValue().alias());
+            DbRole field = cls.getForeignKey(parts[1]);
+            field.set(parent, child);
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -653,8 +689,9 @@ public class Query<X> implements Closeable {
       execute();
     }
     if (resultSet.next()) {
-      List<Object> row = new ArrayList<>();
+      Map<String, Object> row = new TreeMap<>();
       int index = 1;
+      int objectIndex = 0;
       for (Object obj : selectObjects) {
         if (obj instanceof DbClass cls) {
           String label = null;
@@ -670,17 +707,19 @@ public class Query<X> implements Closeable {
             }
           }
           if ((isNull != null && isNull == true) || isNull(resultSet, cls, index)) {
-            row.add(null);
+            row.put(selectAliases.get(objectIndex), null);
           } else {
             Object result = realCls.newInstance();
             index = commands.setPrimaryKey(resultSet, cls, result, index);
             result = commands.cache(cls, result);
             index = commands.setHierarchyValues(resultSet, cls, realCls, result, index);
-            row.add(result);
+            row.put(selectAliases.get(objectIndex), result);
           }
         } else if (obj instanceof Class<?> cls) {
-          row.add(commands.getRsGetter(cls).get(resultSet, index++));
+          row.put(selectAliases.get(objectIndex),
+              commands.getRsGetter(cls).get(resultSet, index++));
         }
+        ++objectIndex;
       }
       ++rowInPage;
       return mapRow(row);

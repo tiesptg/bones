@@ -384,7 +384,7 @@ class UpgradeTest {
       System.out.println("select person, house & address in one query");
       database.transaction(connection, () -> {
         try (Query<PersonHouseAddress> query = database
-            .newQuery(connection, PersonHouseAddress.class).join("#Person.residence", "house")
+            .newQuery(connection, PersonHouseAddress.class).join("#person.residence", "house")
             .join("#house.address", "address").orderBy("person.oid")) {
           for (PersonHouseAddress pha = query.next(); pha != null; pha = query.next()) {
             System.out.println(pha);
