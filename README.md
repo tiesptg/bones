@@ -4,7 +4,7 @@ This library suite contains libraries for common tasks in applications. I know t
 
 ## bones-core: Dependency injection framework
 
-[bones-core](bones-core) is an alternative to Spring context or Google Juice. It is extreme simple and powerful. It consists of just one class and one interface. It does not rely on Annotations and classpath scanning. As added bonus, it will not be bothered by cycles in dependencies. It will handle it without any problems.
+[bones-core](https://github.com/tptg/bones/bones-core) is an alternative to Spring context or Google Juice. It is extreme simple and powerful. It consists of just one class and one interface. It does not rely on Annotations and classpath scanning. As added bonus, it will not be bothered by cycles in dependencies. It will handle it without any problems.
 
 ## bones-log: Logging framework
 
