@@ -11,6 +11,8 @@ The library also requires the use of transactions. It will allways disable the a
 
 During a transaction all instances of classes will be cached and the library guarantees that a fully selected object will always be the same as earlier objects retrieved by the library . It is not necessary to link an object to a database object before using it. It is often not necessary to have a complete object. In the the delete or refresh method of Database, the library will only look at the primary key values and version values if you use that mechanism.
 
+As extra it includes a simple GUI JDBC SQL tool that will connect to any database when you have the driver on its classpath. Just start com.palisand.bones.persist.ui.SqlQueryTool. It will show model information of your database and you can type sql statements and execute them. It is not Squirrel, but it helped me work with the databases while testing.
+
 *WARNING: the library is still in alpha state although the presented feature are tested and working, you may be confronted with errors or unimplemented features. You are encouraged to file an issue in the github project. The Api may also change during further development. So do not use in production environments yet*
 
 ## Supported features
