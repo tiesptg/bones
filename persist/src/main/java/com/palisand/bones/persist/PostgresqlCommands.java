@@ -1,18 +1,12 @@
 package com.palisand.bones.persist;
 
 import java.sql.JDBCType;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
-import com.palisand.bones.persist.Database.RsGetter;
-import com.palisand.bones.persist.Database.StmtSetter;
 
 /**
  * The CommandScheme for the PostgreSQL database
  */
 public class PostgresqlCommands extends CommandScheme {
-  static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
-  static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
 
   static {
     RS_GETTERS.putAll(CommandScheme.RS_GETTERS);

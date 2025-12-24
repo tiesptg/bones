@@ -2,6 +2,7 @@ package com.palisand.bones.persist;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.RecordComponent;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -197,7 +198,7 @@ public class Query<X> implements Closeable {
   }
 
   Query<X> select(Class<?> cls) throws SQLException {
-    return select(cls, null);
+    return select(cls, cls.getSimpleName());
   }
 
   Query<X> select(Class<?> cls, String alias) throws SQLException {
@@ -207,7 +208,9 @@ public class Query<X> implements Closeable {
 
   /**
    * With this method you can specify specific columns to select. Use this to select expressions
-   * like sum(..) or count(..)
+   * like sum(..) or count(..). The columns should be in order of the field of the record specified
+   * as type of the query when you call Database.newQuery. When you do not use a record then only
+   * one column may be specified.
    * 
    * @param columns the column specification in valid SQL
    * @return the query object
@@ -215,31 +218,55 @@ public class Query<X> implements Closeable {
    */
   public Query<X> select(String... columns) throws SQLException {
     for (String column : columns) {
-      addSelectObject(selectObjects.size());
+      String newColumn = addSelectObject(column, selectObjects.size());
       selectComma.next(select);
-      select.append(column);
+      select.append(newColumn);
     }
     return this;
   }
 
-  private void addSelectObject(int position) {
-    if (queryType.isRecord()) {
-      selectObjects.add(queryType.getRecordComponents()[position].getType());
-    } else if (position == 0) {
-      selectObjects.add(queryType);
+  private String makeColumn(String orig, String name) {
+    String as = " AS ";
+    int pos = orig.toUpperCase().indexOf(as);
+    StringBuilder sb = new StringBuilder(orig);
+    if (pos == -1) {
+      sb.append(as);
+      sb.append(name);
+    } else {
+      sb.replace(pos + as.length(), sb.length(), name);
     }
+    return sb.toString();
+  }
+
+  private String addSelectObject(String column, int position) throws SQLException {
+    if (queryType.isRecord()) {
+      RecordComponent rc = queryType.getRecordComponents()[position];
+      selectObjects.add(rc.getType());
+      selectAliases.add(rc.getName());
+      return makeColumn(column, rc.getName());
+    }
+    if (position == 0) {
+      selectObjects.add(queryType);
+      selectAliases.add("result");
+      return makeColumn(column, "result");
+    }
+    throw new SQLException("queryType is not a record and more then one rows are selected");
   }
 
   /**
    * With this method you can specify extra tables in the from clause of the query. You only need to
-   * call this method when you use the {@link com.palisand.bones.persist.Query#select} method.
+   * call this method when you use the {@link com.palisand.bones.persist.Query#select} method. Since
+   * this method will not create any joins, you should use this only when a normal join does not
+   * work for you or otherwise use {@link com.palisand.bones.persist.Query#join} or
+   * {@link com.palisand.bones.persist.Query#selectJoin}. This method will you the name of the Class
+   * as an implicit alias for the class.
    * 
    * @param cls the persistent class you want to select from
    * @return the query object
    * @throws SQLException
    */
   public Query<X> from(Class<?> cls) throws SQLException {
-    return from(cls, null);
+    return from(cls, cls.getSimpleName());
   }
 
   /**
@@ -252,25 +279,12 @@ public class Query<X> implements Closeable {
    * @throws SQLException
    */
   public Query<X> from(Class<?> cls, String alias) throws SQLException {
-    DbClass dbc = Database.getDbClass(cls);
     if (alias == null) {
-      alias = dbc.getName();
+      throw new NullPointerException("alias should not be null");
     }
+    DbClass dbc = Database.getDbClass(cls);
     fromClasses.put(alias, dbc);
     return this;
-  }
-
-  /**
-   * specify a join for the query. You should start the path parameter with an alias or class name
-   * and use .&lt;relation&gt; to specify the foreign key to use. You can use multiple joins in the
-   * path You can cast the result of a join to a subtype by using the pipe symbol (|)
-   * 
-   * @param path the path of relations and casts that the join should follow
-   * @return the query object
-   * @throws SQLException
-   */
-  public Query<X> join(String path) throws SQLException {
-    return join(path, null);
   }
 
   /**
@@ -280,11 +294,14 @@ public class Query<X> implements Closeable {
    * should always start with a hash (#)
    * 
    * @param path the path of relations and casts that the join should follow
-   * @param alias the alias the resulting class should use
+   * @param alias the alias the resulting class should use, may not be null
    * @return the query object
    * @throws SQLException
    */
   public Query<X> join(String path, String alias) throws SQLException {
+    if (alias == null) {
+      throw new NullPointerException("alias should not be null");
+    }
     joinReturnsAlias(path, alias);
     return this;
   }
@@ -301,10 +318,33 @@ public class Query<X> implements Closeable {
     return addJoin(pAlias, parts[parts.length - 1], " LEFT OUTER JOIN ", alias);
   }
 
+  /**
+   * Adds the join that the path specifies and add the class to the implicit selection results.
+   * selected objects of this query will have the relation specified by the path set, so a call to
+   * get<Relation> of the selected object will retrieve the related object with all its property
+   * values. This method will use the class name as an implicit alias.
+   * 
+   * @param path parameter specifing the relation object that should be selected
+   * @param cls the type of the selected object. It should be the type the path leads to.
+   * @return the query itself
+   * @throws SQLException
+   */
   public Query<X> selectJoin(String path, Class<?> cls) throws SQLException {
-    return selectJoin(path, cls, null);
+    return selectJoin(path, cls, cls.getSimpleName());
   }
 
+  /**
+   * Adds the join that the path specifies and add the class to the implicit selection results.
+   * selected objects of this query will have the relation specified by the path set, so a call to
+   * get<Relation> of the selected object will retrieve the related object with all its property
+   * values.
+   * 
+   * @param path: parameter specifing the relation object that should be selected
+   * @param cls: the type of the selected object. It should be the type the path leads to.
+   * @param alias: the alias for the table the relation in the path leads to.
+   * @return the query itself
+   * @throws SQLException
+   */
   public Query<X> selectJoin(String path, Class<?> cls, String alias) throws SQLException {
     String pAlias = joinReturnsAlias(path, alias);
     select(cls, pAlias);
@@ -516,30 +556,29 @@ public class Query<X> implements Closeable {
   }
 
   /**
-   * specifies the order by clause of the query
+   * specifies the order by clause of the query. Use the correct aliasses and fieldnames. When you
+   * use a record as the type of the query the names of the fields in the record are used as field
+   * indicators and may also be used in the order by parameter. Use a comma (,) between columns. All
+   * queries should have a orderBy specified because it is obligatory in MS SqlServer when used with
+   * paging.
    * 
    * @param orderBy a list of fields
    * @return the query object
    */
   public Query<X> orderBy(String orderBy) {
-
     where.append(" ORDER BY ").append(orderBy);
     return this;
   }
 
   /**
-   * specifies the columns in a group by clause
+   * specifies the columns in a group by clause. Use the correct format as in
+   * {@link com.palisand.bones.persist.Query.orderBy}
    * 
-   * @param columns
+   * @param columns: The columns to include in
    * @return
    */
-  public Query<X> groupBy(String... columns) {
-    Separator comma = new Separator();
-    where.append(" GROUP BY ");
-    for (String column : columns) {
-      comma.next(where);
-      where.append(column);
-    }
+  public Query<X> groupBy(String columns) {
+    where.append(" GROUP BY ").append(columns);
     return this;
   }
 
@@ -625,7 +664,6 @@ public class Query<X> implements Closeable {
           parameters[i++] = row.get(alias);
         }
         result = (X) queryType.getDeclaredConstructors()[0].newInstance(parameters);
-        i = 0;
       } catch (Exception ex) {
         if (ex.getCause() != null) {
           throw new SQLException(ex.getCause());
@@ -635,6 +673,11 @@ public class Query<X> implements Closeable {
     } else if (queryType.isInstance(row.get(froms.first()))) {
       result = (X) row.get(froms.first());
     }
+    linkObjects(froms, row);
+    return result;
+  }
+
+  private void linkObjects(TreeSet<String> froms, Map<String, Object> row) throws SQLException {
     for (Entry<String, Join> e = getNextJoin(froms); e != null; e = getNextJoin(froms)) {
       String[] parts = e.getValue().role().getName().split("_");
       if (parts.length == 2) {
@@ -649,8 +692,6 @@ public class Query<X> implements Closeable {
         }
       }
     }
-
-    return result;
   }
 
   /**
@@ -669,7 +710,8 @@ public class Query<X> implements Closeable {
   }
 
   /**
-   * return to the first page
+   * return to the first page after you have selected other pages. It is not necessary to use this
+   * method when you start iterating over the results with next();
    * 
    * @throws SQLException
    */
@@ -735,7 +777,7 @@ public class Query<X> implements Closeable {
 
   /**
    * returns a list with all results of all pages this query This method should be used with
-   * caution.
+   * caution, because all pages are selected.
    * 
    * @return a list with all results
    * @throws SQLException
@@ -770,7 +812,7 @@ public class Query<X> implements Closeable {
   }
 
   /**
-   * close method to release the result set of this query
+   * close method to release the result set and other resources associated with this query
    */
   @Override
   public void close() throws IOException {

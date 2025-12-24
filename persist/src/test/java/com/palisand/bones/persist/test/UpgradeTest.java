@@ -188,7 +188,7 @@ class UpgradeTest {
         System.out.println(object);
         database.insert(connection, object);
         try (Query<TypeTest> query = database.newQuery(connection, TypeTest.class)
-            .orderBy("DbTypeTest.id, DbTypeTest.shortField")) {
+            .orderBy("TypeTest.id, TypeTest.shortField")) {
           object = query.next();
           assertNotNull(object);
           System.out.println(object);
@@ -369,8 +369,8 @@ class UpgradeTest {
       System.out.println("select person, house & address with number 2");
       database.transaction(connection, () -> {
         try (Query<V2.Person> query = database.newQuery(connection, V2.Person.class)
-            .join("#Person.residence").join("#House.address").where("#Address.houseNumber = ?", 2)
-            .orderBy("Person.oid")) {
+            .join("#Person.residence", "house").join("#house.address", "address")
+            .where("#address.houseNumber = ?", 2).orderBy("Person.oid")) {
           for (V2.Person person = query.next(); person != null; person = query.next()) {
             V2.House house = database.refresh(connection, person.getResidence());
             person.setResidence(house);
@@ -516,10 +516,19 @@ class UpgradeTest {
       database.commit(connection);
 
       database.transaction(connection, () -> {
-        Query<Integer> query = database.newQuery(connection, Integer.class)
-            .select("count(*) as total").from(V2.Person.class).orderBy("total");
+        Query<Integer> query = database.newQuery(connection, Integer.class).select("count(*)")
+            .from(V2.Person.class).orderBy("result");
         for (Integer count = query.next(); count != null; count = query.next()) {
           System.out.println(count);
+        }
+      });
+
+      database.transaction(connection, () -> {
+        try (Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
+            .select("name", "count(*)").from(V2.Person.class).groupBy("name").orderBy("name")) {
+          for (CountPerLabel count = query.next(); count != null; count = query.next()) {
+            System.out.println(count);
+          }
         }
       });
 

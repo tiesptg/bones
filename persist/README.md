@@ -1,6 +1,6 @@
 # Bare Bones Persist Library
 
-This library is an object relational mapping library. It supports a full set of features comparable to Hibernate (https://hibernate.org/orm/), but has a different design goal. The Persist Library of Bare Bones Suite gives the programmer more control over the SQL it uses to store of read data. In almost all instances each call into the library will use at most one SQL statement. There are no implicit selects or inserts/updates of related objects.
+This library is an object relational mapping library. It supports a full set of features comparable to Hibernate (https://hibernate.org/orm/), but has a different design goal. The Persist Library of Bare Bones Suite gives the programmer more control over the SQL it uses to store or read data. In almost all instances each call into the library will use at most one SQL statement. There are no implicit selects or inserts/updates of related objects.
 A database query will always be one select statement.
 
 The second design goal is to promote proven strategies to handle database logic. It fully supports generated surrogate keys and object versioning for the optimistic locking strategy. Both are always a good method, but they are not obligated. The library will work without versions and functional primary keys. It also supports primary keys of more then one field.
@@ -9,9 +9,9 @@ The Query does force paging of data. This means a Query will never return more t
 
 The library also requires the use of transactions. It will allways disable the autocommit mode of jdbc connections, but it offers a simple transaction through lambda functions.
 
-During a transactions all instance of an object will be cached and the library guarantees that a fully selected object will always be the same as earlier objects retrieved by the library.
+During a transaction all instances of classes will be cached and the library guarantees that a fully selected object will always be the same as earlier objects retrieved by the library . It is not necessary to link an object to a database object before using it. It is often not necessary to have a complete object. In the the delete or refresh method of Database, the library will only look at the primary key values and version values if you use that mechanism.
 
-*WARNING: the library is still in alpha state although the presented feature are tested and working, you may be confronted with errors or unimplemented features. The Api may also change during further development. So do not use in production environments yet*
+*WARNING: the library is still in alpha state although the presented feature are tested and working, you may be confronted with errors or unimplemented features. You are encouraged to file an issue in the github project. The Api may also change during further development. So do not use in production environments yet*
 
 ## Supported features
 
@@ -22,7 +22,7 @@ During a transactions all instance of an object will be cached and the library g
 - 1-to-1 and 1-to-many relationships through foreignkeys constraints with indices.
 - many-to-many relationships through an explicit relationship object
 - automatic creation of tables and automatic upgrades for many scenarios
-- Flexible query mechanism to select one or more objects or function results in one statements
+- Flexible query mechanism to select one or more objects or function results in one statement
 - Simple transaction logic with object caching so each object will have only one instance during a transction.
 
 ## Supported Databases
@@ -79,13 +79,11 @@ public class Person {
 }
 ```
 
-The Getter and Setter annotations are from Lombok. The Id annotation indicates the field is (part of) the primary key. More than one field can have this annotation. All fields with it will be used as primary key. If you have no Id annotations, the table will not be generated with a primary key.
+The Data annotations is from Lombok. The Id annotation indicates the field is (part of) the primary key. More than one field can have this annotation. All fields with it will be used as primary key. If you have no Id annotations, the table will not be generated with a primary key.
 
 The Version annotation indicates a field that will be used for the optimistic locking strategy. This means that when you update or delete an object which version field is out of sync with the database, the library will throw a StaleObjectException. This indicates the object should be refreshed and send to the user to let him verify that the change he intended should happen. The library will update the version field at each update.
 
-The library supports most primitive datatypes and its Class equivalents. The Class equivalents are considered     } finally {
-      
-nullable and the primitive types not nullable. It supports java.sql.Date and Time and some java.time.* classes. BigDecimal and BigInteger fields. java.sql.Clob and -Blob field are supported for large dataitems. String and byte[] will also support any length that will fit in memory.
+The library supports most primitive datatypes and its Class equivalents. The Class equivalents are considered nullable and the primitive types not nullable. It supports java.sql.Date and Time and some java.time.* classes. BigDecimal and BigInteger fields. java.sql.Clob and -Blob field are supported for large dataitems. String and byte[] will also support any length that will fit in memory.
 
 Any annotations of the library are declared within the Database class. Checkout the javadoc or souce code for more information.
 
@@ -159,7 +157,7 @@ If you add the Mapped annotation the a class the library will not create a table
 
 To start you will need to be able to connect through JDBC to your database. Have the correct user and its schema or database available. The library uses a java.sql.Connection as argument to most of its calls. This means that you are fully in controle to create, open and close it, or use a connection pool for it like HikariCP (https://github.com/brettwooldridge/HikariCP)
 
-The first statement to use is always the call to update or register your persistent objects:
+The first statement to use is always the call to update, verify or register your persistent objects:
 
 ```
     try (Connection connection = DriverManager.getConnection("jdbc:postgresql://localhost/db", "user",
@@ -170,7 +168,7 @@ The first statement to use is always the call to update or register your persist
 ```
 The first statement creates the JDBC connection with your url, user and password.
 
-In the second statement you create a database object. The  argument is a Supplier of a CommandScheme. You will most likely need the CommandScheme for your database. 
+In the second statement you create a database object. The  argument is a Supplier of a CommandScheme. Here you select the subclass of CommandScheme for your database. 
 
 - Oracle: OracleCommands
 - MS SQL Server: MsSqlServerCommands
@@ -178,12 +176,12 @@ In the second statement you create a database object. The  argument is a Supplie
 - MySQL: MySqlCommands
 - H2: CommandScheme
 
-You can use the logger method to add a Consumer that can handle logging statements. You may use any of your favorite logging frameworks like log4j or slf4j. When you use that statement the library will use the consumer to send the SQL statement it uses.
+You can use the logger method to add a Consumer that can handle logging statements. You may use any of your favorite logging frameworks like log4j or slf4j or bones.log for that matter. When you use that statement the library will use the consumer to send the SQL statement it uses.
 
 In the third statement you use the transaction method to start and commit a transaction, or rollback in case of an exception.
-In the transaction you the upgrade method creates, alters and/or drops the tables so the end result will handle statements of the indicated persistent classes.
+In the transaction, the upgrade method creates, alters and/or drops the tables so the end result will handle statements of the indicated persistent classes.
 
-When you do not want to upgrade your schema, you can use the register method in stead. Both these calls need to be called only once within a process and before any other calls to any instance of Database.
+When you do not want to upgrade your schema, you can use the register or verify method instead. Both these calls need to be called only once within a process and before any other calls to any instance of Database.
 
 Database instances are thread safe, but in general cheap to create because they contain little data. CommandScheme objects are not threadsafe and hold PreparedStatements. So in server applications reuse connections with connectionpools. If you want to close a connection the data it is stored with the connection will be automatically cleared when the connection is garbage collected, with the help of weak references.
 
@@ -207,13 +205,11 @@ You can insert, update and delete data with the methods of the same name.
 
 In case of generated primary key fields, the fields will be updated with the generated value.
 
-As you see the insert and update methods return an instance that may differ from the parameter. This will mostly when the object is already available in the transaction.
+As you see the insert and update methods return an instance that may differ from the parameter. This will only occur when the object is already available in the transaction.
 
-As stated when an object has a version field and the instance is updated or deleted by another session the library will throw a StaleObjectException;
+As stated when an object has a version field and the instance is updated or deleted by another session the library will throw a StaleObjectException; The programmer should refresh the object and present it to the user to review the proposed change.
 
-A relation will be set when a related object is available in the member that forms the foreign key, otherwise the foreign key field(s) will be set to NULL.
-
-At insert or update no related objects will be inserted, updated or deleted. You will program a call for each change.
+A relation will be set when a related object is available in the member that forms the foreign key, otherwise the foreign key field(s) will be set to NULL. The many side of a relation is ignored. Any related objects should be inserted explicitly.
 
 # Data retrieval
 
@@ -223,7 +219,7 @@ The database API has a refresh method that will bring an object in sync with the
 
 ## Queries
 
-The Query class is used to select more and more diverse data. It supports single table selects, related rows and aggregate functions like count and sum all in one query. It is meant to give you almost as much flexibility as SQL.
+The Query class is used to select more and more diverse data. It supports single table selects, related rows and aggregate functions like count and sum all in one query. When using the selectJoin method, related objects will have that relation set. It is meant to give you almost as much flexibility as SQL.
 
 ### A simple query to select all objects of a table
 
@@ -239,7 +235,7 @@ try (Query<Person> query =
 ```
 As you can see, you create a query with the newQuery method of the database object. You provide as arguments the connection and the class that will hold the result of the query. This can be a persistent class, a simple class from java.lang to receive results of expressions or also a record class with multiple fields. (https://docs.oracle.com/en/java/javase/17/language/records.html)
 
-In this example I use an orderBy statement. This not always necessary, unless you use MS SQL Server. This dbms requires an order by clause if you want to use paging which is standard in the library. For other databases it is also good practice, so you know you will always retrieve the objects in the same order.
+In this example I use an orderBy statement. This not always necessary, unless you use MS SQL Server. This dbms requires an order by clause if you want to use paging which is obligatory in the library. For other databases it is also good practice, so you know you will always retrieve the objects in the same order.
 
 A Query is a Closeable object, so it is advisable to use a try with resources to close the Query when you are done.
 
@@ -252,7 +248,7 @@ It is not advisable to create the where clause on basis of input of user, becaus
 ```
   database.transaction(connection, () -> {
     try (Query<Person> query = database.newQuery(connection, Person.class)
-        .where("Person.residence.address.houseNumber = ? or #Person.residence|Apartment.floor = ?", 2, 1).orderBy("Person.oid")) {
+        .where("#Person.residence.address.houseNumber = ? or #Person.residence|Apartment.floor = ?", 2, 1).orderBy("Person.oid")) {
 	    for (Person person = query.next(); person != null; person = query.next()) {
 	      person.setResidence(database.refresh(connection, person.getResidence()));
 	      house.setAddress(database.refresh(connection, house.getAddress()));
@@ -270,6 +266,27 @@ Parameters in queries use JDBC style questionmarks to indicate its location. The
 
 You see the calls to refresh to get the field values of the related objects.
 
+### retrieving joined object
+
+```
+  database.transaction(connection, () -> {
+    try (Query<Person> query = database.newQuery(connection, Person.class).selectJoin("#Person.residence","house")
+          .selectJoin("#house.address","address").orderBy("Person.name, address.zipcode")) {
+      for (Person person = query.next(); person != null; person = query.next()) {
+        House house = person.getResidence();
+        Address address = person.getAddress();
+        System.out.println(person);
+        System.out.println(house);
+        System.out.println(address);
+      }
+   }
+  });
+```
+
+By using the selectJoin method you will specify the join and retrieve the joined objects in one call. So if you retrieve the person object, you can get his residence and address by calling the right getters
+This mechanism will only work when the joins run from the child to a parent. In other words when the relation in the left object is a single object pointing to the object on the right side of the path.
+
+
 ### Return simple objects
 
 It is possible to return simple values in queries. Look at this simple example:
@@ -277,20 +294,20 @@ It is possible to return simple values in queries. Look at this simple example:
 ```
   database.transaction(connection, () -> {
     try (Query<Integer> query = database.newQuery(connection, Integer.class)
-        .select("count(*) as total").from(V2.Person.class).orderBy("total")) {
+        .select("count(*)").from(V2.Person.class).orderBy("result")) {
       Integer count = query.next(); 
       System.out.println(count);
     }
 ```
 
-In this case you define the select clause explicitly.
+In this case you define the select clause explicitly. When you use a single field result the name of the field will always be 'result' as you can see in the orderBy parameter.
 
 ### Return multiple object at the same time
 
 You can use a record class to select multiple data items at the same time. Let us look at two examples:
 
 ```
-public record CountPerLabel(String label, int count) {}
+public record CountPerLabel(String name, int count) {}
 
 try (Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.class)
     .select("name", "count(*)").from(Person.class).groupBy("name").orderBy("name")) {
@@ -301,6 +318,7 @@ try (Query<CountPerLabel> query = database.newQuery(connection, CountPerLabel.cl
 ```
 
 With the explicit select method you can select any expression you want. In this case just the name and count(*) from Person. The CountPerLabel record will hold the data per row returned by the query.
+The name of the columns are the field names of the record. So if the first fieldname of CountPerLabel was label, you should use "label" as parameter to the orderBy.
 
 
 

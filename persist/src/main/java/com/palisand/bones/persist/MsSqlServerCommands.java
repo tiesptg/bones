@@ -6,23 +6,15 @@ import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
 import com.palisand.bones.persist.Database.DbClass;
 import com.palisand.bones.persist.Database.DbField;
-import com.palisand.bones.persist.Database.RsGetter;
-import com.palisand.bones.persist.Database.StmtSetter;
 
 /**
  * The CommandScheme for MS SQL Server
  */
 public class MsSqlServerCommands extends CommandScheme {
-  static final Map<Class<?>, RsGetter> RS_GETTERS = new HashMap<>();
-  static final Map<Class<?>, StmtSetter> STMT_SETTERS = new HashMap<>();
 
   static {
-    RS_GETTERS.putAll(CommandScheme.RS_GETTERS);
-    STMT_SETTERS.putAll(CommandScheme.STMT_SETTERS);
     RS_GETTERS.put(BigInteger.class, (rs, pos) -> {
       BigDecimal value = rs.getObject(pos, BigDecimal.class);
       if (value != null) {
