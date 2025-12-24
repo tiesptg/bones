@@ -300,7 +300,7 @@ It is possible to return simple values in queries. Look at this simple example:
     }
 ```
 
-In this case you define the select clause explicitly. When you use a single field result the name of the field will always be 'result' as you can see in the orderBy parameter.
+In this case you define the select clause explicitly. When you use a single field, the name of the field will always be 'result' as you can see in the orderBy parameter.
 
 ### Return multiple object at the same time
 
