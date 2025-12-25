@@ -194,6 +194,8 @@ public class Logger {
   static boolean initialiseFromEnvironment() {
     String path = System.getProperty("bones.log.file");
     if (path != null) {
+      LOG.log("Configurat bones.log through System property bones.log.file").with("file-name", path)
+          .info();
       return initFromFile(path);
     }
     return false;
@@ -207,6 +209,7 @@ public class Logger {
     File file = new File(path);
     if (file.exists() && file.canRead()) {
       try (Reader reader = new FileReader(file)) {
+        LOG.log("found bones-log configuration file in file system").with("file-name", path).info();
         Properties properties = new Properties();
         properties.load(reader);
         initFromProperties(properties);
@@ -218,6 +221,8 @@ public class Logger {
     }
     try (InputStream in = Logger.class.getResourceAsStream(path)) {
       if (in != null) {
+        LOG.log("found bones-log configuration file on the classpath").with("file-name", path)
+            .info();
         Properties properties = new Properties();
         properties.load(in);
         initFromProperties(properties);
@@ -246,6 +251,7 @@ public class Logger {
   }
 
   static boolean initDefault() {
+    LOG.log("create default configuration for bones-log").info();
     Appender appender = new SystemOutAppender();
     appender.setFormat("${date} ${time} ${level} [${location}] ${message}");
     ROOT.getAppenders().add(appender);

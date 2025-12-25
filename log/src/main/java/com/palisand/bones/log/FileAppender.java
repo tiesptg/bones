@@ -10,6 +10,8 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.Timer;
 import java.util.TimerTask;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Subclass of PrintStreamAppender that rotates the log file based on a configurable time period
@@ -17,13 +19,18 @@ import java.util.TimerTask;
  * file is archived using a timestamp suffix representing the start time of the period that just
  * finished.
  */
+
 public class FileAppender extends PrintStreamAppender {
 
+  @Setter
+  @Getter
   private String logFile;
   private String currentPostfix;
 
   private static final Timer ROTATION_TIMER = new Timer("FileRotator");
 
+  @Setter
+  @Getter
   private ChronoUnit rotationUnit = null;
 
   public FileAppender() {

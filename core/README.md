@@ -110,7 +110,8 @@ List<FunctionalInterface> interfaces = Classes.findClasses("",cls -> cls.getAnno
 I like a library to have one clear method of doing things. JSR 330 offers many options and all of them have drawbacks.
 This means you have to decide if you want to use constructor, field or setter injection. In bones there is only one way.
 
-JSR330 is not possible without annotation processing and reflection. I want to avoid both in this library.
+JSR330 is not possible without annotation processing and reflection. Although I have nothing against using any of them, but they add complexity and take away transparency from the user. 
+So because I can easily do without them, I choose to do that here.
 
 # Migrate from Spring Context to Bones
 1. **Change your managed components marked by spring annotation to Injectables:** Remove the annotations,implement the Injectable interface and its injectFrom method.
