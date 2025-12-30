@@ -684,6 +684,15 @@ public class Query<X> implements Closeable {
       String[] parts = e.getValue().role().getName().split("_");
       if (parts.length == 2) {
         Object parent = row.get(e.getValue().alias());
+        if (parent == null) {
+          for (Entry<String, Object> eRow : row.entrySet()) {
+            // other types in the hierarchy always have the original alias as prefix
+            if (e.getValue().alias().startsWith(eRow.getKey())) {
+              parent = eRow.getValue();
+              break;
+            }
+          }
+        }
         if (parent != null) {
           Object child = row.get(e.getKey());
           if (child != null) {
@@ -691,6 +700,9 @@ public class Query<X> implements Closeable {
             DbRole field = cls.getForeignKey(parts[1]);
             field.set(parent, child);
           }
+        } else {
+          throw new SQLException(
+              "object with alias " + e.getValue().alias() + " not found in Row. This is a bug");
         }
       }
     }
