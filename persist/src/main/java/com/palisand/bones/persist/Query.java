@@ -21,6 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.palisand.bones.persist.CommandScheme.Separator;
 import com.palisand.bones.persist.Database.DbClass;
+import com.palisand.bones.persist.Database.DbClassInner;
 import com.palisand.bones.persist.Database.DbField;
 import com.palisand.bones.persist.Database.DbForeignKeyField;
 import com.palisand.bones.persist.Database.DbRole;
@@ -185,7 +186,7 @@ public class Query<X> implements Closeable {
         }
       }
       for (DbRole role : type.getForeignKeys()) {
-        for (DbField field : role.getForeignKey().getFields()) {
+        for (DbClassInner field : role.getForeignKey().getFields()) {
           selectComma.next(select);
           select.append(typeAlias);
           select.append('.');
@@ -421,7 +422,8 @@ public class Query<X> implements Closeable {
     } else {
       type = Database.getDbClass(role.getType());
       foreignKey = role.getForeignKey();
-      saveJoin(alias, fromClass, className, type, foreignKey, joinType);
+      className = Query.getAlias(role.getEntity(), fromClass, className);
+      saveJoin(alias, role.getEntity(), className, type, foreignKey, joinType);
     }
     if (memberParts.length == 2) {
       DbClass subType = type.getSubclass(memberParts[1]);

@@ -4,9 +4,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import com.palisand.bones.Classes.Property;
+import com.palisand.bones.validation.Rules.Violation;
+import com.palisand.bones.validation.Validatable;
 import lombok.Getter;
 
-public class LinkList<C extends Node<?>, X extends Node<?>> implements AbstractLink<C, X> {
+public class LinkList<C extends Node<?>, X extends Node<?>>
+    implements AbstractLink<C, X>, Validatable {
 
   @Getter
   private final List<Link<C, X>> list = new ArrayList<>();
@@ -119,6 +123,15 @@ public class LinkList<C extends Node<?>, X extends Node<?>> implements AbstractL
   public void changeId(String oldId, String newId) throws IOException {
     for (Link<C, X> link : list) {
       link.changeId(oldId, newId);
+    }
+  }
+
+
+  @Override
+  public void doValidate(List<Violation> violations, List<Property<?>> properties)
+      throws Exception {
+    for (Link<C, X> link : list) {
+      link.doValidate(violations, properties);
     }
   }
 

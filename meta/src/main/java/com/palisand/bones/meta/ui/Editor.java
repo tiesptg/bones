@@ -498,15 +498,17 @@ public class Editor extends JFrame implements TreeSelectionListener {
     Violation violation = problemsModel.getProblems().get(row);
     TreePath path = repositoryModel.getTreePath((Node<?>) violation.ownerOfField());
     tree.setSelectionPath(path);
-    for (JComponent comp : propertyEditors) {
-      if (comp.getName().equals(violation.property().getField().getName())) {
-        if (comp instanceof JSpinner spinner) {
-          JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) spinner.getEditor();
-          comp = editor.getTextField();
-        }
+    if (violation.property() != null) {
+      for (JComponent comp : propertyEditors) {
+        if (comp.getName().equals(violation.property().getField().getName())) {
+          if (comp instanceof JSpinner spinner) {
+            JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) spinner.getEditor();
+            comp = editor.getTextField();
+          }
 
-        comp.requestFocus();
-        return;
+          comp.requestFocus();
+          return;
+        }
       }
     }
   }
@@ -628,11 +630,19 @@ public class Editor extends JFrame implements TreeSelectionListener {
 
   private void showValue(JComponent comp, Object value) {
     if (comp instanceof JTextField text) {
-      text.setText(value != null ? value.toString() : "");
+      String str = value != null ? value.toString() : "";
+      if (!text.getText().equals(str)) {
+        text.setText(str);
+      }
     } else if (comp instanceof JTextArea area && value instanceof String) {
-      showValue(area, value);
+      if (!area.getText().equals(value)) {
+        showValue(area, value);
+      }
     } else if (comp instanceof JComboBox<?> box) {
-      box.setSelectedItem(value);
+      if ((box.getSelectedItem() == null && value != null) || value == null
+          || !box.getSelectedItem().equals(value)) {
+        box.setSelectedItem(value);
+      }
     }
   }
 

@@ -81,6 +81,8 @@ public class Database {
   interface DbClassInner extends Cloneable {
     void setEntity(DbClass entity);
 
+    String getName();
+
     Object clone() throws CloneNotSupportedException;
   }
 
@@ -253,7 +255,8 @@ public class Database {
       return super.clone();
     }
 
-    String getName() {
+    @Override
+    public String getName() {
       if (field == null) {
         return foreignKey.getName();
       }
@@ -320,7 +323,7 @@ public class Database {
     }
 
     DbSearchMethod getForeignKey() throws SQLException {
-      if (foreignKey == null) {
+      if (!entity.mapped && foreignKey == null) {
         DbClass entity = Database.getDbClass(type);
         foreignKey = new DbSearchMethod();
         foreignKey.setEntity(getEntity());
@@ -435,6 +438,7 @@ public class Database {
       return super.clone();
     }
 
+    @Override
     public String getName() {
       if (name == null) {
         return field.getName();
@@ -544,7 +548,7 @@ public class Database {
     private final List<DbField> fields = new ArrayList<>();
     private final Map<String, DbClass> subClasses = new TreeMap<>();
     private DbSearchMethod primaryKey = null;
-    private final Map<String, DbSearchMethod> indices = new TreeMap<>();
+    private Map<String, DbSearchMethod> indices = null;
     private final List<DbRole> foreignKeys = new ArrayList<>();
     private final List<DbRole> links = new ArrayList<>();
     private final List<DbClass> typeHierarchy = new ArrayList<>();
@@ -553,7 +557,53 @@ public class Database {
     private String label;
     private String name = null;
 
+    private void findIndicesOf(DbRole role) throws SQLException {
+      Index[] all = role.getField().getAnnotationsByType(Index.class);
+      for (Index index : all) {
+        DbSearchMethod path = indices.get(index.value());
+        if (path == null) {
+          path = new DbSearchMethod();
+          path.setEntity(this);
+          path.setName(getName() + '_' + index.value());
+          indices.put(index.value(), path);
+        }
+        if (index.unique()) {
+          path.setUnique(true);
+        }
+        path.fields.addAll(role.getForeignKey().getFields());
+      }
+    }
 
+    private void findIndicesOf(DbField field) throws SQLException {
+      Index[] all = field.getField().getAnnotationsByType(Index.class);
+      for (Index index : all) {
+        DbSearchMethod path = indices.get(index.value());
+        if (path == null) {
+          path = new DbSearchMethod();
+          path.setEntity(this);
+          path.setName(getName() + '_' + index.value());
+          indices.put(index.value(), path);
+        }
+        if (index.unique()) {
+          path.setUnique(true);
+        }
+        path.fields.add(field);
+      }
+    }
+
+
+    public Map<String, DbSearchMethod> getIndices() throws SQLException {
+      if (indices == null) {
+        indices = new TreeMap<>();
+        for (DbRole role : foreignKeys) {
+          findIndicesOf(role);
+        }
+        for (DbField field : fields) {
+          findIndicesOf(field);
+        }
+      }
+      return indices;
+    }
 
     @Override
     public String toString() {
@@ -597,7 +647,6 @@ public class Database {
         DbClass parent = Database.registerDbClass(commands, type.getSuperclass());
         if (parent.isMapped()) {
           fields.addAll(cloneList(this, parent.getFields()));
-          indices.putAll(cloneMap(this, parent.getIndices()));
           foreignKeys.addAll(cloneList(this, parent.getForeignKeys()));
           version = parent.getVersion();
           DbClass indirectParent = parent.getSuperClass();
@@ -606,7 +655,8 @@ public class Database {
           }
           result = indirectParent;
         } else {
-          fields.addAll(parent.getPrimaryKey().getFields());
+          fields.addAll(parent.getPrimaryKey().getFields().stream()
+              .filter(member -> member instanceof DbField).map(member -> member).toList());
           result = parent;
         }
       } else {
@@ -615,7 +665,7 @@ public class Database {
       return result;
     }
 
-    private DbRole newRole(Field field, boolean collection) {
+    private DbRole newRole(Field field, boolean collection) throws SQLException {
       DbRole role = new DbRole();
       role.setEntity(this);
       if (collection) {
@@ -650,17 +700,6 @@ public class Database {
         if (db.scale() != 0) {
           attribute.setScale(db.scale());
         }
-      }
-      Index[] all = field.getAnnotationsByType(Index.class);
-      for (Index index : all) {
-        DbSearchMethod path = indices.get(index.value());
-        if (path == null) {
-          path = new DbSearchMethod();
-          path.setEntity(this);
-          path.setName(getName() + '_' + index.value());
-          indices.put(index.value(), path);
-        }
-        path.fields.add(attribute);
       }
       return attribute;
     }
@@ -756,6 +795,12 @@ public class Database {
     }
 
     DbRole getForeignKey(String name) {
+      if (getSuperClass() != null) {
+        DbRole result = getSuperClass().getForeignKey(name);
+        if (result != null) {
+          return result;
+        }
+      }
       for (DbRole role : foreignKeys) {
         if (role.getName().equalsIgnoreCase(name)) {
           return role;
@@ -785,18 +830,22 @@ public class Database {
           }
         }
         for (int i = 0; i < primaryKey.getFields().size(); ++i) {
-          DbField field = primaryKey.getFields().get(i);
-          getFields().remove(field);
-          getFields().add(i, field);
+          DbClassInner member = primaryKey.getFields().get(i);
+          if (member instanceof DbField field) {
+            getFields().remove(field);
+            getFields().add(i, field);
+          }
         }
         for (DbRole role : getForeignKeys()) {
           Id id = role.getField().getAnnotation(Id.class);
           if (id != null) {
             role.setId(id);
             DbSearchMethod fk = role.getForeignKey();
-            for (DbField field : fk.getFields()) {
-              field.setNullable(false);
-              primaryKey.getFields().add(field);
+            for (DbClassInner member : fk.getFields()) {
+              if (member instanceof DbField field) {
+                field.setNullable(false);
+                primaryKey.getFields().add(field);
+              }
             }
           }
         }
@@ -888,10 +937,12 @@ public class Database {
 
     String getPrimaryKeyAsString(Object object) throws SQLException {
       StringBuilder sb = new StringBuilder();
-      for (DbField field : getPrimaryKey().getFields()) {
-        Object value = field.get(object);
-        if (value != null) {
-          sb.append(value).append('|');
+      for (DbClassInner member : getPrimaryKey().getFields()) {
+        if (member instanceof DbField field) {
+          Object value = field.get(object);
+          if (value != null) {
+            sb.append(value).append('|');
+          }
         }
       }
       return sb.toString();

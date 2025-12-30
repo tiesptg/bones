@@ -57,7 +57,7 @@ public class ProblemsModel extends AbstractTableModel {
       case 1:
         return violation.ownerOfField();
       case 2:
-        return violation.property().getField().getName();
+        return violation.property() != null ? violation.property().getField().getName() : "";
       case 3:
         return violation.message();
     }

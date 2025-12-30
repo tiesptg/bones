@@ -4,8 +4,13 @@ import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.palisand.bones.Classes.Property;
+import com.palisand.bones.validation.Rules.Severity;
+import com.palisand.bones.validation.Rules.Violation;
+import com.palisand.bones.validation.Validatable;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -13,7 +18,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @RequiredArgsConstructor
-public abstract class Link<C extends Node<?>, X extends Node<?>> implements AbstractLink<C, X> {
+public abstract class Link<C extends Node<?>, X extends Node<?>>
+    implements AbstractLink<C, X>, Validatable {
 
   private static class Internal<C extends Node<?>, X extends Node<?>> extends Link<C, X> {
 
@@ -231,4 +237,12 @@ public abstract class Link<C extends Node<?>, X extends Node<?>> implements Abst
     }
   }
 
+  @Override
+  public void doValidate(List<Violation> violations, List<Property<?>> properties)
+      throws Exception {
+    if (getPath() != null && get() == null) {
+      violations.add(new Violation(Severity.ERROR, container, null,
+          "path " + getPath() + " does not point to existing object", null));
+    }
+  }
 }
