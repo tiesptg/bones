@@ -881,7 +881,7 @@ public class CommandScheme {
       throws SQLException {
     if (entity.getSuperClass() != null) {
       insert(connection, entity.getSuperClass(), label, object);
-    } else {
+    } else if (entity.getVersion() != null) {
       entity.getVersion().set(object, 1);
     }
     Statements stmts = getInsertStatement(connection, entity);

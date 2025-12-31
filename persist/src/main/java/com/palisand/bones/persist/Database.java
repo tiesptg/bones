@@ -953,7 +953,10 @@ public class Database {
         String name =
             Character.toUpperCase(field.getName().charAt(0)) + field.getName().substring(1);
         if (field.getType() == Boolean.class || field.getType() == boolean.class) {
-          return cls.getMethod("is" + name);
+          try {
+            return cls.getMethod("is" + name);
+          } catch (NoSuchMethodException ignored) {
+          }
         }
         return cls.getMethod("get" + name);
       } catch (NoSuchMethodException | SecurityException ex) {

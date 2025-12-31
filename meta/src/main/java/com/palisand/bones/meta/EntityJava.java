@@ -29,8 +29,9 @@ public class EntityJava extends JavaGenerator<Entity> {
     nl();
     nl("@NoArgsConstructor");
     ContainerRole role = entity.getEntityContainer().get();
+    String abst = entity.isAbstractEntity() ? " abstract" : "";
     if (role == null && !entity.isRootEntity()) {
-      nl("public class %s<C extends Node<?>> extends %sGen<C> {", entity.getName(),
+      nl("public%s class %s<C extends Node<?>> extends %sGen<C> {", abst, entity.getName(),
           entity.getName());
     } else {
       nl("public class %s extends %sGen {", entity.getName(), entity.getName());

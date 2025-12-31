@@ -93,13 +93,11 @@ class UpgradeTest {
       System.out.println("Connected succesfully to " + database.getDatabaseName(connection));
       database.dropAll(connection);
       database.commit(connection);
-      System.out.println("after dropAll");
       assertFalse(database.verify(connection, V1.Person.class, V1.House.class, V1.Apartment.class,
           V1.Street.class, V1.Friendship.class));
       database.upgrade(connection, V1.Person.class, V1.House.class, V1.Apartment.class,
           V1.Street.class, V1.Friendship.class);
       database.commit(connection);
-      System.out.println("after create");
       assertTrue(database.verify(connection, V1.Person.class, V1.House.class, V1.Apartment.class,
           V1.Street.class, V1.Friendship.class));
       V1.Person person1 = new V1.Person();
@@ -129,11 +127,9 @@ class UpgradeTest {
       database.upgrade(connection, V2.Person.class, V2.House.class, V2.Apartment.class,
           V2.Address.class, V2.Friendship.class);
       database.commit(connection);
-      System.out.println("after upgrade");
       assertTrue(database.verify(connection, V2.Person.class, V2.House.class, V2.Apartment.class,
           V2.Address.class, V2.Friendship.class));
       database.commit(connection);
-      System.out.println("after upgrade without changes");
     } catch (Exception ex) {
       ex.printStackTrace();
       fail();
@@ -654,6 +650,7 @@ class UpgradeTest {
             V2.Address address = house.getAddress();
             database.delete(connection, house);
             if (address != null) {
+              database.refresh(connection, address);
               database.delete(connection, address);
             }
           }
