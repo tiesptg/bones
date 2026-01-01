@@ -838,7 +838,13 @@ public class Editor extends JFrame implements TreeSelectionListener {
       @Override
       public void keyReleased(KeyEvent e) {
         try {
-          setValue(node, property, property.getType().cast(Double.valueOf(spinner.getText())));
+          if (property.getType() == int.class || property.getType() == Integer.class) {
+            setValue(node, property, property.getType().cast(Integer.valueOf(spinner.getText())));
+          } else if (property.getType() == long.class || property.getType() == Long.class) {
+            setValue(node, property, property.getType().cast(Long.valueOf(spinner.getText())));
+          } else if (property.getType() == double.class || property.getType() == Double.class) {
+            setValue(node, property, property.getType().cast(Double.valueOf(spinner.getText())));
+          }
         } catch (NumberFormatException ex) {
 
         }
