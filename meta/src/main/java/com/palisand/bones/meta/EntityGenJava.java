@@ -54,6 +54,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     if (!entity.getActiveContainer().isPresent()) {
       addImport(Node.class);
     }
+    if (entity.getIdAttribute().isPresent()) {
+      addImport(IOException.class);
+    }
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
         if (attribute.isNotNull()) {
@@ -218,15 +221,14 @@ public class EntityGenJava extends JavaGenerator<Entity> {
         superContainer);
     nl();
     incMargin();
-    // TODO: RULES
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
         printRules(entity, attribute);
-        if (attribute.getJavaDefaultValue().contains("(")) {
+        if (attribute.getDefaultValue() == null || attribute.hasDynamicDefault()) {
           nl("private %s %s;", attribute.getJavaType(), attribute.getName());
         } else {
           nl("private %s %s = %s;", attribute.getJavaType(), attribute.getName(),
-              attribute.getJavaDefaultValue());
+              attribute.getDefaultValue());
         }
       } else if (member instanceof ReferenceRole role) {
         if (role.isMultiple()) {
@@ -258,13 +260,13 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
-        if (attribute.getJavaDefaultValue().contains("(")) {
+        if (attribute.hasDynamicDefault()) {
           nl();
           nl("public %s %s() {", attribute.getJavaType(), attribute.getName("get"));
           incMargin();
-          nl("if (%s == null) {", attribute.getName());
+          nl("if (%s == %s) {", attribute.getName(), attribute.getJavaTypeDefault());
           incMargin();
-          nl("return %s;", attribute.getJavaDefaultValue());
+          nl("return %s;", attribute.getDefaultValue());
           decMargin();
           nl("}");
           nl("return %s;", attribute.getName());
@@ -275,11 +277,20 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
 
     if (entity.getIdAttribute().isPresent()) {
+      Attribute attribute = entity.getIdAttribute().get();
       nl();
       nl("@Override");
       nl("public String getId() {");
       incMargin();
-      nl("return %s;", entity.getIdAttribute().get().getName());
+      nl("return %s;", attribute.getName());
+      decMargin();
+      nl("}");
+      nl();
+      nl("public void %s(%s value) throws IOException {", attribute.getName("set"),
+          attribute.getJavaType());
+      incMargin();
+      nl("beforeIdChange(this.%s, value);", attribute.getName());
+      nl("%s = value;", attribute.getName());
       decMargin();
       nl("}");
     }

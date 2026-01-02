@@ -60,7 +60,18 @@ public class Attribute extends Member {
   private LinkList<Attribute, Entity> idFor =
       new LinkList<>(this, "#/entities/.*", entity -> entity.getIdAttribute());
 
+  @SuppressWarnings("incomplete-switch")
   public String getJavaType() throws IOException {
+    if (notNull) {
+      switch (type) {
+        case INTEGER:
+          return "int";
+        case DOUBLE:
+          return "double";
+        case BOOLEAN:
+          return "boolean";
+      }
+    }
     switch (type) {
       case STRING:
         return "String";
@@ -77,13 +88,28 @@ public class Attribute extends Member {
       case OBJECT:
         break;
     }
+
     throw new IOException("attribute " + getName() + " has unsupported type " + type);
   }
 
-  public String getJavaDefaultValue() {
-    if (getDefaultValue() != null) {
-      return getDefaultValue();
+  @SuppressWarnings("incomplete-switch")
+  public String getJavaTypeDefault() throws IOException {
+    if (notNull) {
+      switch (type) {
+        case INTEGER:
+          return "0";
+        case DOUBLE:
+          return "0.0";
+        case BOOLEAN:
+          return "false";
+      }
     }
     return "null";
   }
+
+  public boolean hasDynamicDefault() {
+    // when it contains a '()' it has probably a getter in it
+    return defaultValue != null && defaultValue.contains("()");
+  }
+
 }
