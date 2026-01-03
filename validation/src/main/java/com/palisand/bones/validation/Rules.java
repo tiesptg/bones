@@ -254,6 +254,20 @@ public class Rules {
     });
   }
 
+  private static void registerSpaced() {
+    addRule(Spaced.class, (violations, ownerOfField, spec, property, value) -> {
+      if (value != null) {
+        String result = Names.toSpacedCase(value.toString());
+        if (!result.equals(value)) {
+          violations.add(new Violation(Severity.WARNING, ownerOfField, property,
+              "value was not spaced case", null));
+          return result;
+        }
+      }
+      return value;
+    });
+  }
+
   private static void registerNotAllowed() {
     addRule(NotAllowed.class, (violations, ownerOfField, spec, property, value) -> {
       if (value != null) {
@@ -282,6 +296,7 @@ public class Rules {
     registerCamelCase();
     registerSnakeCase();
     registerKebabCase();
+    registerSpaced();
     registerNotAllowed();
   }
 

@@ -30,7 +30,14 @@ public class Names {
     return toSeparatedCase(source, true, '-');
   }
 
+  public static String toSpacedCase(String source) {
+    return capitalise(toSeparatedCase(source, false, ' '));
+  }
+
   public static String toSeparatedCase(String source, boolean upperCase, char separator) {
+    if (source == null) {
+      return null;
+    }
     boolean doInsert = source.matches(".*[a-z].*") && source.matches(".*[A-Z].*");
     StringBuilder sb = new StringBuilder(source);
     for (int i = 0; i < sb.length(); ++i) {

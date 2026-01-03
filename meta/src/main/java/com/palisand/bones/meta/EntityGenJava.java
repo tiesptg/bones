@@ -18,6 +18,7 @@ import com.palisand.bones.validation.NotEmpty;
 import com.palisand.bones.validation.NotNull;
 import com.palisand.bones.validation.Rules.PredicateWithException;
 import com.palisand.bones.validation.SnakeCase;
+import com.palisand.bones.validation.Spaced;
 import com.palisand.bones.validation.UpperCase;
 import com.palisand.bones.validation.ValidWhen;
 import lombok.Getter;
@@ -82,6 +83,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
               break;
             case LOWER_CASE:
               addImport(LowerCase.class);
+              break;
+            case SPACED:
+              addImport(Spaced.class);
               break;
             case CAMEL_CASE:
             case CAMEL_CASE_WITH_CAPITAL:
@@ -158,6 +162,9 @@ public class EntityGenJava extends JavaGenerator<Entity> {
           break;
         case LOWER_CASE:
           nl("@LowerCase");
+          break;
+        case SPACED:
+          nl("@Spaced");
           break;
         case CAMEL_CASE:
           nl("@CamelCase(startsWithCapitel=false)");

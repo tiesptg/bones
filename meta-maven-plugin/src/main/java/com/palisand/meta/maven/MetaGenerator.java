@@ -72,6 +72,7 @@ public class MetaGenerator extends AbstractMojo {
       throw new MojoExecutionException("model file [" + model + "] does not exist");
     }
     try {
+      repository.clear();
       repository.read(modelFile.getAbsolutePath());
       Validator validator = new Validator();
       List<Violation> problems = new ArrayList<>();

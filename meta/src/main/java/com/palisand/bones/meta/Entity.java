@@ -131,6 +131,9 @@ public class Entity extends Item<MetaModel> {
     if (pattern == null) {
       return null;
     }
+    if (pattern.equals(up.substring(0, 2))) {
+      return getEntityContainer().get().getContainer();
+    }
     if (pattern.startsWith(up)) {
       Entity check = this;
       while (!check.getEntityContainer().isPresent() && check.getSuperEntity().isPresent()) {

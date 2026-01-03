@@ -405,7 +405,7 @@ public class Repository {
         LOG.log("could not get value of " + path[offset] + " in " + this).with(ex).warn();
       }
     }
-    return null;
+    return (N) context;
   }
 
   @SuppressWarnings("unchecked")
