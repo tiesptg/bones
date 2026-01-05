@@ -1136,6 +1136,7 @@ public class Editor extends JFrame implements TreeSelectionListener {
     buttons.add(remove);
     properties.validate();
     top.validate();
+    propertyEditors.get(0).requestFocusInWindow();
   }
 
   private void goUp() {
