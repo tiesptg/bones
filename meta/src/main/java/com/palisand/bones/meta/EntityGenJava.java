@@ -59,7 +59,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
       addImport(IOException.class);
     }
     for (Member member : entity.getMembers()) {
-      if (member instanceof Attribute attribute) {
+      if (member instanceof Attribute attribute && !attribute.isReadOnly()) {
         if (attribute.isNotNull()) {
           addImport(NotNull.class);
         }
@@ -229,7 +229,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     nl();
     incMargin();
     for (Member member : entity.getMembers()) {
-      if (member instanceof Attribute attribute) {
+      if (member instanceof Attribute attribute && !attribute.isReadOnly()) {
         printRules(entity, attribute);
         if (attribute.getDefaultValue() == null || attribute.hasDynamicDefault()) {
           nl("private %s %s;", attribute.getJavaType(), attribute.getName());
@@ -252,7 +252,7 @@ public class EntityGenJava extends JavaGenerator<Entity> {
               entity.getName(), gen, role.getPointerPattern(),
               cap(role.getOpposite().get().getName()));
         }
-      } else if (member instanceof ContainerRole role) {
+      } else if (member instanceof ContainerRole role && !member.isReadOnly()) {
         if (role.isMultiple()) {
           if (role.isNotEmpty()) {
             nl("@NotEmpty");
@@ -267,7 +267,14 @@ public class EntityGenJava extends JavaGenerator<Entity> {
     }
     for (Member member : entity.getMembers()) {
       if (member instanceof Attribute attribute) {
-        if (attribute.hasDynamicDefault()) {
+        if (attribute.isReadOnly()) {
+          nl();
+          nl("public %s %s() {", attribute.getJavaType(), attribute.getName("get"));
+          incMargin();
+          nl("return %s;", attribute.getDefaultValue());
+          decMargin();
+          nl("}");
+        } else if (attribute.hasDynamicDefault()) {
           nl();
           nl("public %s %s() {", attribute.getJavaType(), attribute.getName("get"));
           incMargin();

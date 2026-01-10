@@ -22,6 +22,7 @@ public abstract class Member extends Item<Entity> {
   @CamelCase(startsWithCapitel = false)
   private String name;
   private boolean multiple;
+  private boolean readOnly = false;
   private String enabledWhen = null;
   private Link<Member, Entity> prependedFor =
       Link.newLink(this, "..", entity -> entity.getPrependInOrder());
